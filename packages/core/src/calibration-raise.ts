@@ -14,7 +14,12 @@
  * reps or more. The suggested load is exactly the engine's next real step
  * (`nextLoad` with the row's own grid / `availableLoads` / increment), never
  * a jump computed from the overshoot: one step, the same one the engine would
- * have proposed next week. Pure.
+ * have proposed next week.
+ *
+ * On an away-gym row (`TemplateExercise.awayGym`, travel gym 2026-11-02) a
+ * clustered lift gets it too: every load there is a guess, so the first
+ * activation is judged the same way and "raise" moves the rest of today's
+ * activations and minis. Home clusters stay out, as they always have. Pure.
  */
 import { nextLoad, type RecommendOptions } from './progression-engine';
 import { DEFAULT_LOG_STYLE, isTickedSet, type PlannedSet, type SessionExercise } from './workout';
@@ -48,13 +53,13 @@ export function rowTopReps(row: {
 
 /** True when the engine has no straight-set read in `history` — no working
  *  set with a rep count. */
-function hasNoRead(history: readonly SessionExercise[]): boolean {
-  return !history.some((h) => h.sets.some((s) => s.kind === 'working' && s.reps != null));
+function hasNoRead(history: readonly SessionExercise[], kind: 'working' | 'activation'): boolean {
+  return !history.some((h) => h.sets.some((s) => s.kind === kind && s.reps != null));
 }
 
 export function calibrationRaise(input: {
   /** The template row the exercise was started from. */
-  row: { plannedSets?: readonly PlannedSet[]; progression?: { targetReps?: number } } | null | undefined;
+  row: { plannedSets?: readonly PlannedSet[]; progression?: { targetReps?: number }; awayGym?: string } | null | undefined;
   /** The ENGINE's history for the row — `engineHistory`, i.e. already
    *  filtered to the row's baseline. Completed sessions only. */
   history: readonly SessionExercise[];
@@ -64,15 +69,17 @@ export function calibrationRaise(input: {
   opts: Pick<RecommendOptions, 'structure' | 'availableLoads' | 'assisted' | 'progression' | 'config'>;
 }): CalibrationRaise | null {
   const { row, history, sessionExercise: ex, opts } = input;
-  if (!row || opts.structure !== 'straight') return null;
+  const clustered = row?.awayGym != null && opts.structure === 'myoreps';
+  if (!row || (!clustered && opts.structure !== 'straight')) return null;
+  const firstKind = clustered ? 'activation' : 'working';
   // Assistance runs the other way (a "raise" is less help) — not this prompt.
   if (opts.assisted) return null;
   if ((ex.logStyle ?? DEFAULT_LOG_STYLE) !== 'weight-reps') return null;
-  if (!hasNoRead(history)) return null;
+  if (!hasNoRead(history, firstKind)) return null;
   const top = rowTopReps(row);
   if (top == null) return null;
 
-  const firstIdx = ex.sets.findIndex((s) => s.kind === 'working');
+  const firstIdx = ex.sets.findIndex((s) => s.kind === firstKind);
   if (firstIdx < 0) return null;
   const first = ex.sets[firstIdx];
   // Ticked, not typed: a 1 on the way to 15 must not raise anything.
@@ -91,7 +98,8 @@ export function calibrationRaise(input: {
 
   const setIndices: number[] = [];
   ex.sets.forEach((s, i) => {
-    if (i <= firstIdx || s.kind !== 'working' || s.done === true) return;
+    const raises = clustered ? s.kind === 'activation' || s.kind === 'mini' : s.kind === 'working';
+    if (i <= firstIdx || !raises || s.done === true) return;
     if (s.weight != null && s.weight >= suggestedLoad) return;
     setIndices.push(i);
   });

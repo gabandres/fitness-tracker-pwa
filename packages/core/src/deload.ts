@@ -25,7 +25,7 @@
  * Pure; no I/O.
  */
 import { calendarDateKey } from './date';
-import { engineSessions } from './train-view';
+import { engineSessions, readableRow } from './train-view';
 import type { SessionExercise, TemplateExercise, WorkoutSession, WorkoutSet, WorkoutTemplate } from './workout';
 
 export const DELOAD_TRIGGER_LIFTS = 2;
@@ -95,7 +95,7 @@ function liftDown(row: TemplateExercise, newestFirst: readonly WorkoutSession[])
   // stepped over — "two sessions running" means the two that happened.
   const recent: SessionExercise[] = [];
   for (const s of engineSessions(newestFirst, row)) {
-    const ex = s.exercises.find((e) => e.exerciseId === row.exerciseId);
+    const ex = readableRow(s, row.exerciseId, row.awayGym);
     if (ex && ex.sets.some((x) => x.kind === 'activation')) recent.push(ex);
     if (recent.length === 3) break;
   }

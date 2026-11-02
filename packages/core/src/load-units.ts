@@ -49,6 +49,12 @@ export function loadUnit(unitSystem: UnitSystem | undefined): 'lb' | 'kg' {
   return unitSystem === 'metric' ? 'kg' : 'lb';
 }
 
+/** The unit system one lift is shown in: its row's own unit, else the user's
+ *  (`TemplateExercise.loadUnit`). Stored loads are pounds either way. */
+export function rowUnitSystem(rowUnit: 'lb' | 'kg' | undefined, unitSystem: UnitSystem | undefined): UnitSystem | undefined {
+  return rowUnit === 'kg' ? 'metric' : rowUnit === 'lb' ? 'us' : unitSystem;
+}
+
 /**
  * Stored pounds → the number to SHOW, in the training unit.
  *

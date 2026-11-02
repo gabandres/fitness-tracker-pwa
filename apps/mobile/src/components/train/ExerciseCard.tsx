@@ -6,7 +6,8 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
   barFor,
   computePlateLoad,
-  exerciseHistory,
+  previousHistory,
+  rowUnitSystem,
   flatRepsWarning,
   formatLoad,
   generateWarmup,
@@ -148,7 +149,8 @@ export const ExerciseCard = memo(function ExerciseCard({
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
-  const unitSystem = useUnitSystem();
+  // A row in another unit (a gym's kg rack) shows and takes that unit.
+  const unitSystem = rowUnitSystem(ex.loadUnit, useUnitSystem()) ?? 'us';
   const { colors } = useTheme();
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
   const setLabels = useMemo(() => setRowLabels(ex.sets), [ex.sets]);
@@ -165,12 +167,14 @@ export const ExerciseCard = memo(function ExerciseCard({
   // exercises carry none → ghost only, no bump). Memoized: it walks history,
   // and it ran on every keystroke in the session (Train review item 29).
   const history = useMemo(
-    () => exerciseHistory(recentSessions, ex.exerciseId),
-    [recentSessions, ex.exerciseId],
+    () => previousHistory(recentSessions, { exerciseId: ex.exerciseId, awayGym: ex.awayGym, linkedHome: ex.linkedHome }),
+    [recentSessions, ex.exerciseId, ex.awayGym, ex.linkedHome],
   );
+  // A calibration session shows the linked home history for reference; it is
+  // no basis for a load bump.
   const sug = useMemo(
-    () => suggestProgression(history, ex.progression, style),
-    [history, ex.progression, style],
+    () => suggestProgression(history, ex.calibration ? undefined : ex.progression, style),
+    [history, ex.calibration, ex.progression, style],
   );
   const ghost = lastHint(sug, style, t, unitSystem);
   const bumpTo = sug.bumped ? sug.suggestedWeight : undefined;
@@ -477,6 +481,15 @@ export const ExerciseCard = memo(function ExerciseCard({
             </View>
           ) : null}
 
+          {ex.calibration ? (
+            <View style={styles.blockedRow} testID={`gym-calibration-${exerciseIndex}`}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+              <Text style={styles.blockedText}>
+                {t(ex.linkedHome ? 'train.gym.reentry' : 'train.gym.calibration', { gym: ex.awayGym ?? '' })}
+              </Text>
+            </View>
+          ) : null}
+
           {calib && !calibDismissed ? (
             <View style={styles.calibCard} testID={`calibration-raise-${exerciseIndex}`}>
               <Text style={styles.calibText}>
@@ -504,6 +517,12 @@ export const ExerciseCard = memo(function ExerciseCard({
                 </Touchable>
               </View>
             </View>
+          ) : null}
+
+          {ex.loadUnit === 'kg' && style === 'weight-reps' && keyWeight != null && keyWeight > 0 ? (
+            <Text style={styles.recReason} testID={`lb-equivalent-${exerciseIndex}`}>
+              {`${formatLoad(keyWeight, 'metric')} = ${formatLoad(keyWeight, 'us', 0)}`}
+            </Text>
           ) : null}
 
           {/* Row labels are derived from the whole sequence, not the index: a
@@ -538,6 +557,7 @@ export const ExerciseCard = memo(function ExerciseCard({
           {ex.sets.map((set, setIdx) => (
             <SetRow
               key={setIdx}
+              loadUnit={ex.loadUnit}
               exerciseIndex={exerciseIndex}
               setIndex={setIdx}
               set={set}

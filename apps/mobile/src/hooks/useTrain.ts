@@ -57,6 +57,7 @@ import {
   dumbbellStepLb,
   deloadProgress,
   deloadSessionExercises,
+  type DayBoundary,
   type DeloadProgress,
   seedSideLoads,
   type ProgramVersion,
@@ -188,6 +189,8 @@ export interface TrainState {
   /** The diet phase the volume rules read (profile `trainingPhase`; absent →
    *  `cut`, where no cluster is ever added). */
   trainingPhase: TrainingPhase;
+  /** The profile's day boundary, for day questions a screen asks of sessions. */
+  dayBoundary: DayBoundary;
   /** Apply the engine's calls to the template on finish without a tap
    *  (profile `autoApplyProgression`; absent → false — a template is never
    *  changed silently). Read by the finish sheet; set in Settings. */
@@ -870,13 +873,16 @@ export function useTrain(): TrainState {
       // stores is exactly what the lifter was shown. A lift the engine has
       // nothing to say about (`none`) gets no snapshot.
       const completed = recentSessions.filter((s) => s.status === 'completed');
-      const exercises = templateToSessionExercises(template).map((se) => {
-        const row = template.exercises.find((e) => e.exerciseId === se.exerciseId);
-        if (!row) return se;
+      const exercises = templateToSessionExercises(template).map((scaffold) => {
+        const row = template.exercises.find((e) => e.exerciseId === scaffold.exerciseId);
+        if (!row) return scaffold;
         // The same history the card reads (a baseline marker cuts it off),
         // and a load the lifter set after that session is the plan (10/7: lat
         // pulldown 80 → 90, which the read alone would call "add load: 85").
-        const { rec, basedOn, sides } = sessionCall(row, completed, engineCatalog.find((e) => e.id === se.exerciseId) ?? null);
+        const { rec, basedOn, sides, history } = sessionCall(row, completed, engineCatalog.find((e) => e.id === scaffold.exerciseId) ?? null);
+        // The lift's first session at an away gym is calibration (core
+        // `SessionExercise.calibration`): RIR 2 on the activation.
+        const se = row.awayGym && history.length === 0 ? { ...scaffold, calibration: true } : scaffold;
         // An L/R lift: each side is its own track — its own call, its own
         // load (Program v2, core `side-tracks.ts`).
         if (sides) {
@@ -1659,6 +1665,8 @@ export function useTrain(): TrainState {
   // Two profile reads, as values: the memo below then moves only when one of
   // them does, not on every profile write.
   const trainingPhase: TrainingPhase = profile?.trainingPhase ?? 'cut';
+  const profileBoundary = profile?.dayBoundary;
+  const boundaryOfProfile = useMemo(() => dayBoundaryOf({ dayBoundary: profileBoundary }), [profileBoundary]);
   const autoApplyProgression = profile?.autoApplyProgression === true;
 
   // ONE object per change, not per render. Every screen component used to
@@ -1690,6 +1698,7 @@ export function useTrain(): TrainState {
       activePending,
       saving,
       trainingPhase,
+      dayBoundary: boundaryOfProfile,
       autoApplyProgression,
       startWorkout,
       startFromTemplate,
@@ -1723,7 +1732,7 @@ export function useTrain(): TrainState {
     [
       loading, error, errorKind, clearError, catalog, engineCatalog, deload, setDeloadStartedAt, templates, drafts, planDraftSwaps, switchDrafts,
       deleteDraft, programVersion, switchProgram, maybeAutoSwitchProgram, pendingLoadTestFor, recentSessions, active, activePending, saving,
-      trainingPhase, autoApplyProgression,
+      trainingPhase, boundaryOfProfile, autoApplyProgression,
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate, archiveTemplate, unarchiveTemplate,
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,
       editCatalogExercise, deleteCatalogExercise, mergeCatalogExercises, addExerciseToActive,

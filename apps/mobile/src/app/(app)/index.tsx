@@ -12,7 +12,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
-import { activeTravel, addDays, calendarDateKey, fastLengthHours, maintenanceView, parseYmd, travelPeriodsOf } from '@macrolog/core';
+import { activeTravel, addDays, calendarDateKey, dayBoundaryOf, fastLengthHours, maintenanceView, parseYmd, travelPeriodsOf } from '@macrolog/core';
 import { confirmNative } from '@/components/ConfirmSheet';
 import { onPendingLogsRejected } from '@/lib/pending-logs';
 import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
@@ -30,6 +30,7 @@ import { HeroRings, HeroRingsSkeleton } from '@/components/HeroRings';
 import { MealEntries } from '@/components/MealEntries';
 import { MilestoneNote } from '@/components/MilestoneNote';
 import { TravelCard } from '@/components/TravelCard';
+import { TravelPlanCard } from '@/components/TravelPlanCard';
 import { EyeballMealSheet } from '@/components/EyeballMealSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { track } from '@/lib/analytics';
@@ -232,6 +233,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     addCustomFood,
     deleteCustomFood,
     hideRecent,
+    recentSessions,
     unitSystem,
     water,
     sleep,
@@ -1005,6 +1007,9 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               steps={activity?.steps}
               onEyeballMeal={() => setEyeballOpen(true)}
             />
+          ) : null}
+          {trip?.plan?.length ? (
+            <TravelPlanCard plan={trip.plan} todayKey={todayKey} sessions={recentSessions} boundary={dayBoundaryOf(todayProfile)} />
           ) : null}
 
           <Animated.View entering={enterUp(0)}>

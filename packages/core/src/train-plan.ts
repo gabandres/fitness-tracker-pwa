@@ -38,6 +38,10 @@ import type {
   WorkoutTemplate,
 } from './workout';
 import { toDisplayLoad } from './load-units';
+import type { DayBoundary } from './day-boundary';
+import { isTravelTemplate } from './reentry';
+import { activeTravel, type TravelPeriod } from './travel';
+import { travelWeek } from './travel-plan';
 import { isArchivedTemplate } from './rotation-templates';
 import type { UnitSystem } from './unit-system';
 
@@ -86,15 +90,31 @@ export interface NextUp {
  * An archived template (`archivedAt`, 2026-10-24) is never "next up" — not on
  * the card, not from Siri's "start my next workout". With every template
  * archived this is `null`, the same as having none.
+ *
+ * `trip` (travel mode): inside a trip with a plan the next planned session is
+ * next up, and outside one the travel templates are not — "never performed
+ * wins" would otherwise offer a hotel-room workout at home.
  */
 export function nextTemplateUp(
   all: readonly WorkoutTemplate[],
   sessions: readonly WorkoutSession[],
   now: number,
+  trip?: { today: string; periods: readonly TravelPeriod[]; boundary: DayBoundary },
 ): NextUp | null {
-  const templates = all.filter((tp) => !isArchivedTemplate(tp));
+  const active = trip ? activeTravel(trip.today, trip.periods) : null;
+  const unarchived = all.filter((tp) => !isArchivedTemplate(tp));
+  const home = unarchived.filter((tp) => !isTravelTemplate(tp));
+  const templates = trip && !active && home.length > 0 ? home : unarchived;
   if (templates.length === 0) return null;
   const last = templateLastPerformed(sessions);
+  if (trip && active?.plan) {
+    const planned = travelWeek(active.plan, trip.today, sessions, trip.boundary).next;
+    const template = templates.find((tp) => tp.id != null && tp.id === planned?.templateId);
+    if (template) {
+      const at = template.id ? last[template.id] ?? null : null;
+      return { template, lastPerformed: at, daysAgo: at ? Math.floor((now - at.getTime()) / DAY_MS) : null };
+    }
+  }
   let best: NextUp | null = null;
   for (const template of templates) {
     const at = template.id ? last[template.id] ?? null : null;

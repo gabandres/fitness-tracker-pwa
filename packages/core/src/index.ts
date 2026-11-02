@@ -70,6 +70,7 @@ export * from './evening-hunger';
 // decides which days' intake the measured maintenance fit may use.
 export * from './complete-day';
 export * from './travel';
+export * from './travel-plan';
 export * from './travel-volume';
 export * from './reentry';
 export * from './meal-slots';

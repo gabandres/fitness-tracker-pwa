@@ -101,6 +101,7 @@ import type {
   EffortStandard,
   ExerciseCategory,
   LoadChange,
+  LoadUnit,
   LogStyle,
   ProgressionBaseline,
   ProgressionRule,
@@ -112,7 +113,8 @@ import type {
 } from './workout';
 import { CATEGORY_REP_RANGES, DEFAULT_EFFORT_STANDARD, DEFAULT_LOG_STYLE } from './workout';
 import { ACTIVATION_RIR_MAX } from './activation-validity';
-import { DEFAULT_INCREMENT_LB } from './load-units';
+import { kgToLb } from './health-mapping';
+import { DEFAULT_INCREMENT_KG, DEFAULT_INCREMENT_LB } from './load-units';
 import { inferStructure, structureOf } from './set-structure';
 
 // ─── Constants (stated once; the tests pin them) ────────────────
@@ -240,7 +242,7 @@ const hasReps = (s: WorkoutSet) => s.reps != null;
  * untouched scaffold row is a set that has not happened yet, not a bad one.
  */
 export function readExercise(
-  exercise: Pick<SessionExercise, 'sets' | 'logStyle'>,
+  exercise: Pick<SessionExercise, 'sets' | 'logStyle' | 'calibration'>,
   opts: ReadOptions = {},
 ): ExerciseRead {
   const style: LogStyle = exercise.logStyle ?? DEFAULT_LOG_STYLE;
@@ -275,6 +277,9 @@ export function readExercise(
       loadChanged,
     };
     read.issue = clusterIssue(read);
+    // A calibration activation stops at RIR 2 on purpose, so its first mini
+    // runs long: not "the activation was too easy" (`SessionExercise.calibration`).
+    if (exercise.calibration && read.issue === 'first-mini-too-many') read.issue = null;
     clusters.push(read);
   }
   if (clusters.length === 0) return none(null, true);
@@ -403,6 +408,9 @@ export interface EngineConfig {
   loadable: boolean;
   microplates: boolean;
   assisted: boolean;
+  /** Overrides {@link REP_FLAG_AT} for an away-gym row: its own "activation at
+   *  ≥ N → next load" (travel gym: 12 on compounds, 15 on isolations). */
+  repFlagAt?: number;
 }
 
 const has = (re: RegExp, s: string) => re.test(s);
@@ -480,18 +488,26 @@ export function isValidRepRange(r: unknown): r is RepRange {
  */
 export function resolveEngineConfig(
   catalog: EngineCatalogFields | null | undefined,
-  template?: { name?: string; progression?: Partial<ProgressionRule> } | null,
+  template?: { name?: string; progression?: Partial<ProgressionRule>; loadUnit?: LoadUnit; awayGym?: string } | null,
 ): EngineConfig {
   const name = catalog?.name ?? template?.name ?? '';
   const category = catalog?.category ?? inferCategory(name);
-  const repRange = isValidRepRange(catalog?.repRange) ? catalog!.repRange! : CATEGORY_REP_RANGES[category];
+  const repFlagAt = template?.awayGym ? template.progression?.targetReps : undefined;
+  const ownRange = isValidRepRange(catalog?.repRange) ? catalog!.repRange! : CATEGORY_REP_RANGES[category];
+  // The gym's own top of the range: a bodyweight lift reads its rep rule from here.
+  const repRange = repFlagAt != null && repFlagAt >= ownRange.min ? { min: ownRange.min, max: repFlagAt } : ownRange;
   const equipment: Equipment = catalog?.logStyle === 'bodyweight' ? 'bodyweight' : inferEquipment(name);
-  const steps = (catalog?.availableLoads ?? []).filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  // A kg row's rack is not the catalog's: entered steps are the home gym's, in
+  // pounds, and a linked lift shares its catalog entry with home.
+  const kg = template?.loadUnit === 'kg';
+  const steps = kg ? [] : (catalog?.availableLoads ?? []).filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   const loadSteps = steps.length > 0 ? steps : undefined;
   const stack = equipment === 'stack';
   const dumbbell = equipment === 'dumbbell';
   const dbStep = catalog?.dumbbellStepLb != null && catalog.dumbbellStepLb > 0 ? catalog.dumbbellStepLb : DEFAULT_DUMBBELL_STEP_LB;
-  const stepLb = stack ? (template?.progression?.incrementLb ?? DEFAULT_INCREMENT_LB) : dumbbell ? dbStep : DEFAULT_INCREMENT_LB;
+  const stepLb = kg
+    ? kgToLb(DEFAULT_INCREMENT_KG)
+    : stack ? (template?.progression?.incrementLb ?? DEFAULT_INCREMENT_LB) : dumbbell ? dbStep : DEFAULT_INCREMENT_LB;
   const bar = catalog?.smithBarEffectiveLb;
   return {
     category,
@@ -509,6 +525,7 @@ export function resolveEngineConfig(
     loadable: catalog?.loadable === true,
     microplates: catalog?.microplates === true,
     assisted: catalog?.assisted === true,
+    ...(repFlagAt != null ? { repFlagAt } : {}),
   };
 }
 
@@ -1215,7 +1232,9 @@ export function recommend(history: readonly SessionExercise[], opts: RecommendOp
   // step in the old progression. Hold it — unless the marker set a floor and
   // the activation came in under it, which is the one case for going back.
   // From the second read on, the ordinary rules run over post-marker reads.
-  if (opts.baseline && reads.length === 1) {
+  // An away-gym row has no old progression to step out of, and its first read
+  // can already earn the next load (`EngineConfig.repFlagAt`).
+  if (opts.baseline && reads.length === 1 && config.repFlagAt == null) {
     const low = bindingCluster(read);
     // At the lift's target RIR, like every range judgement (Program v2.1):
     // 5 @ RIR 1 on a `rir1` lift is 5, under a floor of 6.
@@ -1281,14 +1300,15 @@ function rangeCall(
   const effToFailure = effectiveReps(low) as number;
   const eff = Math.max(0, effToFailure - targetRir);
   const loadNow = read.load ?? 0;
-  if (eff < REP_FLAG_AT || loadNow <= 0) return call;
+  const flagAt = config.repFlagAt ?? REP_FLAG_AT;
+  if (eff < flagAt || loadNow <= 0) return call;
   const step = nextStep(loadNow, config, assisted);
   if (!step) return call;
   const bar = config.smithBarEffectiveLb ?? 0;
   const predicted = predictedRepsAtTarget(epleyE1rm(loadNow + bar, effToFailure), step.load + bar, targetRir);
   return {
     action: 'add-load', load: step.load,
-    reason: { kind: 'rep-flag', reps: eff, at: REP_FLAG_AT, nextLoad: step.load, jumpPct: step.jumpPct, predictedReps: predicted },
+    reason: { kind: 'rep-flag', reps: eff, at: flagAt, nextLoad: step.load, jumpPct: step.jumpPct, predictedReps: predicted },
     predictedReps: predicted,
     targetReps: Math.max(1, predicted),
     ...(step.beyondSteps ? { assumedStepLb: +Math.abs(step.load - loadNow).toFixed(2) } : {}),
@@ -1577,6 +1597,8 @@ export function recommendOptionsFor(
     progression?: Partial<ProgressionRule>;
     setStructure?: SetStructure;
     baseline?: ProgressionBaseline;
+    loadUnit?: LoadUnit;
+    awayGym?: string;
   } | null | undefined,
   catalogExercise: (EngineCatalogFields & {
     targetRepBand?: RepBand;
@@ -1598,7 +1620,7 @@ export function recommendOptionsFor(
     structure,
     ...(templateExercise?.progression ? { progression: templateExercise.progression } : {}),
     ...(templateExercise?.baseline ? { baseline: templateExercise.baseline } : {}),
-    ...(catalogExercise?.availableLoads ? { availableLoads: catalogExercise.availableLoads } : {}),
+    ...(catalogExercise?.availableLoads && templateExercise?.loadUnit !== 'kg' ? { availableLoads: catalogExercise.availableLoads } : {}),
     ...(catalogExercise?.assisted != null ? { assisted: catalogExercise.assisted } : {}),
     ...(catalogExercise?.effortStandard ? { effortStandard: catalogExercise.effortStandard } : {}),
     config: resolveEngineConfig(catalogExercise, templateExercise),
