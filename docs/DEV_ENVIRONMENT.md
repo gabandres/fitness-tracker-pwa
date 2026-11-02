@@ -1253,7 +1253,7 @@ because each one reads like a mistake on its own:
 | Was | Now | Why |
 |---|---|---|
 | FileVault on | **FileVault OFF, auto-login on** | FileVault demands a typed password at every boot and refuses auto-login, so any reboot — a panic, a drained battery, an update — is a physical trip to a laptop you cannot open. After the wipe the disk holds a Sentry token and an EAS session, both revocable in minutes, and no keystore; encryption buys little there. `fdesetup authrestart` covers only *planned* reboots and only once per token. |
-| Wi-Fi only | **USB-C Ethernet adapter first, Wi-Fi kept as fallback** | Not for Wake-on-LAN — Apple silicon wakes from sleep only, never from shutdown, and it never sleeps anyway. Ethernet is a link that does not roam bands or drop after a wake, which the Wi-Fi setup did. The adapter goes on its own port; power stays on the Apple brick (the 2026-08-06 outage was a dock's PD dropping). |
+| Wi-Fi only | **USB-C Ethernet adapter first, Wi-Fi kept as fallback — and kept *powered on* (it was off during the 2026-11 outage)** | Not for Wake-on-LAN — Apple silicon wakes from sleep only, never from shutdown, and it never sleeps anyway. Ethernet is a link that does not roam bands or drop after a wake, which the Wi-Fi setup did. The adapter goes on its own port; power stays on the Apple brick (the 2026-08-06 outage was a dock's PD dropping). |
 | stock updates | **automatic macOS *and* App Store updates OFF** | Software Update's auto-install reboots without asking; the App Store's auto-update would move Xcode to 27 on its own. Both are applied by hand over SSH, on the owner's schedule. |
 
 `pmset` stays `-c` (charger only), never `-a`: if the charger drops, a clean
@@ -1409,7 +1409,31 @@ Each fix is in the script now; the shapes, because they will recur:**
 `sleep 0`, `womp 1`), `fdesetup status` (want `Off`), `sysadminctl -autologin
 status`, `networksetup -listnetworkserviceorder | head -4` (wired first),
 `softwareupdate --schedule` (want `off`). The script prints all five at the end
-of step 10.
+of step 10. Since 2026-11-02 also: `sysadminctl -screenLock status`
+(want `off`), `networksetup -getairportpower en0` (want `On`), `ifconfig en4 |
+grep status` (want `active`; no `en4` at all = the adapter did not enumerate),
+and `last reboot | head` + `last $USER | head` for what happened while it was dark.
+
+**Outage 2026-10-31 → 11-02 — dark ~2.5 days, fixed on site. Read this before
+the next "it's offline".** Tailscale last saw the node 10-31 03:27; the login
+session that began 10-27 ends as `crash` in `last`, and there is no panic report
+for it, so the trigger is unknown. Five power-button resets followed (11-01
+22:39 → 11-02 14:30, each logged as `panic … btn_rst` in
+`/Library/Logs/DiagnosticReports/` — that string means *forced by the button*,
+not a kernel crash). What the on-site person saw and what was really true:
+
+| Looked like | Actually | Fix (now in place) |
+|---|---|---|
+| "stuck at the login screen" | **auto-login worked on every boot** (`last` shows a console login each time; `/etc/kcpassword` valid, password unchanged since 09-10). It was the **lock screen**: `screenLock` delay was 300 s — screensaver idle 0 does not cover the display-off lock. | System Settings → Lock Screen → *Require password after screen saver begins or display is turned off* → **Never** (`sysadminctl -screenLock off` needs the password interactively, so GUI). Reads `screenLock is off`. |
+| logged in but off the tailnet | **no network at all**: the Belkin adapter did not enumerate after the resets (no `en4`, nothing in `system_profiler SPUSBDataType`), and **Wi-Fi was powered off** — the "fallback" in the table above did not exist. | Wi-Fi on and left on (auto-joins its saved network); adapter replugged → `en4` active, DHCP, default route. If `en4` is missing again: replug it, try the other port, then suspect the adapter. |
+| "login screen sometimes does not show", "can't see the windows" | everything opens on **`IgniaRemote`, the main display** — with the lid open nothing mirrors it, so the built-in panel shows an empty desktop or nothing. | `betterdisplaycli set -name=IgniaRemote -mirror=on -targetTagID=2` (2 = built-in's BetterDisplay tagID): `IgniaRemote` stays main (RustDesk keeps a picture lid-closed), the panel mirrors it lid-open. **Survival across a reboot not yet tested** — if windows vanish again, BetterDisplay menu → IgniaRemote → Mirror → Built-in Display. |
+
+Lesson: when the node is offline, first ask the person on site whether the Mac
+has **any** network (Wi-Fi icon, adapter light) before rebooting it; then SSH in
+and read `last`, not the screen. Verified afterwards over Tailscale (direct,
+4 ms) with the lid closed: Ethernet primary, Wi-Fi up, `screenLock` off,
+auto-login `gabrielbermudez`, Tailscale *Launch at login* on, RustDesk +
+BetterDisplay + T3 service running, `sleep 0` on AC.
 
 ## 5. Owner runbook — move `ignia.fit` + GCP billing under Bermudez Systems LLC (written 2026-08-30)
 
