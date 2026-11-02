@@ -120,6 +120,29 @@ describe('item 1 — the Watch copy of Zone 2 merges into the logged block', () 
   });
 });
 
+describe('a Watch walk imported while the lift is still active (the 10/27 Leg Day)', () => {
+  const walk = () => watch('84B5205E', Z('2026-10-27T12:09:32Z'), 1397, { avgHr: 121 });
+  const leg = (over: Record<string, unknown>) => session('leg', Z('2026-10-27T11:34:04Z'), over);
+
+  it('waits instead of becoming its own session', () => {
+    const { merges, updates, fresh } = routeImportedBlocks([leg({ status: 'active', cardio: [] })], [walk()]);
+    expect(fresh).toEqual([]);
+    expect(merges.size + updates.size).toBe(0);
+  });
+
+  it('merges into the hand-logged Zone 2 on the import after the session completes', () => {
+    const s = leg({ durationMin: 97, cardio: [zone2()] });
+    const { merges, fresh } = routeImportedBlocks([s], [walk()]);
+    expect(merges.get(s)).toEqual([{ index: 0, block: expect.objectContaining({ sourceId: '84B5205E' }) }]);
+    expect(fresh).toEqual([]);
+  });
+
+  it('a walk that ended before the active session began is still its own entry', () => {
+    const { fresh } = routeImportedBlocks([leg({ status: 'active', cardio: [] })], [watch('early', Z('2026-10-27T10:00:00Z'), 1200)]);
+    expect(fresh.map((b) => b.sourceId)).toEqual(['early']);
+  });
+});
+
 describe('item 2 — an account tombstone holds where no session remembers the dismissal', () => {
   it('a tombstoned workout is not re-added — not to a session, not as a new one', async () => {
     mockTombstones = new Set(['24D8F0AB']);
