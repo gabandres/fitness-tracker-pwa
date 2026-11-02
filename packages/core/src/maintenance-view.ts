@@ -26,6 +26,7 @@
  */
 import type { TdeeResult } from './tdee';
 import type { TravelHold } from './travel';
+import type { MaintenanceDisplay } from './maintenance-display';
 
 export interface MaintenanceView {
   /** Measured maintenance (kcal/day). */
@@ -108,6 +109,11 @@ export interface MaintenanceView {
   /** A trip holds the number (`travel.ts`): "held for travel", or "rebuilding
    *  after travel (n of 14)". Absent when the number is the live fit. */
   travelHold?: TravelHold;
+  /** The 95% range around {@link maintenance}, when the display is on
+   *  (`maintenance-display.ts`) and the run measured one. */
+  range?: { low: number; high: number };
+  /** Days with food in the fit, when the display is on. */
+  validDays?: number;
 }
 
 /**
@@ -124,13 +130,18 @@ export interface MaintenanceView {
  * returns a view, because "0 against 1,870" is a true and useful statement at
  * 8am.
  */
-export function maintenanceView(tdee: TdeeResult, consumedKcal: number): MaintenanceView | null {
+export function maintenanceView(
+  tdee: TdeeResult,
+  consumedKcal: number,
+  display?: MaintenanceDisplay | null,
+): MaintenanceView | null {
   if (tdee.source !== 'measured' || tdee.trueTdee <= 0) return null;
   const consumed = Math.max(0, Math.round(consumedKcal));
+  const maintenance = display?.displayed ?? tdee.trueTdee;
   return {
-    maintenance: tdee.trueTdee,
+    maintenance,
     consumed,
-    delta: consumed > 0 ? consumed - tdee.trueTdee : null,
+    delta: consumed > 0 ? consumed - maintenance : null,
     // No `=== true` / `?? null` guards below: the early return above narrows
     // `tdee` to `MeasuredTdee`, where every one of these is REQUIRED. They were
     // defences against a shape that can no longer exist — a formula or seed
@@ -162,5 +173,7 @@ export function maintenanceView(tdee: TdeeResult, consumedKcal: number): Mainten
     // not measure the interval is not evidence that it was wide.
     holding: tdee.estimateState === 'holding',
     ...(tdee.travelHold ? { travelHold: tdee.travelHold } : {}),
+    ...(display?.range ? { range: display.range } : {}),
+    ...(display ? { validDays: display.validDays } : {}),
   };
 }

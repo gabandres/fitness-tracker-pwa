@@ -430,7 +430,8 @@ service cloud.firestore {
     function isValidDailyTarget(data, dateKey) {
       return data.keys().hasOnly([
               'date', 'kcalTarget', 'kcalSource', 'proteinTarget', 'proteinSource',
-              'maintenanceEstimate', 'maintenanceSource', 'compositionAdjustedMaintenance',
+              'maintenanceEstimate', 'maintenanceSource', 'maintenanceRaw', 'maintenanceDisplayed',
+              'compositionAdjustedMaintenance',
               'basis', 'change', 'noticeAckAt', 'recordedBy', 'recordedAt', 'updatedAt'
           ])
           && data.keys().hasAll([
@@ -446,6 +447,11 @@ service cloud.firestore {
           && (!('maintenanceEstimate' in data.keys()) ||
               (data.maintenanceEstimate is number && data.maintenanceEstimate >= 0 && data.maintenanceEstimate <= 20000))
           && (!('maintenanceSource' in data.keys()) || data.maintenanceSource in ['measured', 'formula', 'seed'])
+          // Display record (2026-10-30, core maintenance-display.ts).
+          && (!('maintenanceRaw' in data.keys()) ||
+              (data.maintenanceRaw is number && data.maintenanceRaw >= 0 && data.maintenanceRaw <= 20000))
+          && (!('maintenanceDisplayed' in data.keys()) ||
+              (data.maintenanceDisplayed is number && data.maintenanceDisplayed >= 0 && data.maintenanceDisplayed <= 20000))
           && (!('compositionAdjustedMaintenance' in data.keys()) ||
               (data.compositionAdjustedMaintenance is number
                && data.compositionAdjustedMaintenance >= 0 && data.compositionAdjustedMaintenance <= 20000))

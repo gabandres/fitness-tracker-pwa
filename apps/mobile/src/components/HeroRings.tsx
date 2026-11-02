@@ -629,6 +629,18 @@ export function HeroRings({
               </Text>
             )}
           </Text>
+          {/* The range and the days behind it (`maintenance-display.ts`). */}
+          {maintenance.validDays != null ? (
+            <Text style={styles.maintenanceCaveat} testID="maintenance-range" numberOfLines={1}>
+              {maintenance.range
+                ? t('today.maintenanceRange', {
+                    low: formatNumber(maintenance.range.low, locale),
+                    high: formatNumber(maintenance.range.high, locale),
+                    n: maintenance.validDays,
+                  })
+                : t('today.maintenanceValidDays', { n: maintenance.validDays })}
+            </Text>
+          ) : null}
           {/* ONE short line of context and an ⓘ for the rest (S21). The
               footer used to stack up to three lines of small hedging copy
               under the number — "40 of 79 days logged — gaps make this less

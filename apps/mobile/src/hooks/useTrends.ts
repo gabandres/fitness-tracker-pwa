@@ -25,6 +25,10 @@ import {
   computeWeeklyBudget,
   computeWeeklyInsights,
   dailyTargets,
+  maintenanceDisplay,
+  MAINTENANCE_SMOOTH_DAYS,
+  type DailyTargetRecord,
+  type MaintenanceDisplay,
   measurementProgress,
   parseYmd,
   summarizeDays,
@@ -36,10 +40,12 @@ import {
   weightTrendSeries,
 } from '@macrolog/core';
 import { useCoreSnapshot } from '@/hooks/useCoreSnapshot';
+import { useStableState } from '@/hooks/useCachedState';
 import { useFocusDay } from '@/hooks/useFocusDay';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { useAuth } from '@/lib/auth';
-import { getLogsForRange, subscribeMilestones } from '@/lib/ledger';
+import { FEATURES, isFeatureOn } from '@/lib/features';
+import { getLogsForRange, subscribeDailyTargets, subscribeMilestones } from '@/lib/ledger';
 import { readCache } from '@/lib/offline-cache';
 import { type HungerWeek, zone2Summary } from '@macrolog/core';
 import {
@@ -141,6 +147,8 @@ export interface TrendsState {
    * later day start the live day is the second-to-last key (re-score 3, B4).
    */
   todayKey: DateKey;
+  /** The smoothed number, its range and its day count; null where it is off. */
+  display: MaintenanceDisplay | null;
   /**
    * How many trailing days the intake and the replay are COMPLETE for, when
    * that is fewer than the chart asks for — or null when nothing is missing.
@@ -228,7 +236,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   // the 400-row window and the error policy all live in `useCoreSnapshot`.
   const { logs, weights, profile, dayComplete, loaded, error } = useCoreSnapshot('Trends', { dayComplete: true });
   const loading = !loaded;
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const uid = user?.uid;
 
   // The intake half of the sleep pairing is the stream above; the sleep half is
@@ -531,6 +539,32 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     deps: [uid],
   });
 
+  // The maintenance display (core `maintenance-display.ts`): a small window of
+  // the target records, its own channel per ADR-0016, and only where it is on.
+  const displayOn = isFeatureOn(FEATURES.maintenanceDisplay, { isAdmin });
+  const [displayRecords, setDisplayRecords] = useStableState<DailyTargetRecord[]>([]);
+  useLedgerFeed({
+    uid,
+    label: 'Trends/maintenanceDisplay',
+    gate: 'focus',
+    channels: () =>
+      uid && displayOn
+        ? [
+            feedChannel<DailyTargetRecord[], 'records'>({
+              key: 'records',
+              settles: 'none',
+              open: (deliver) => subscribeDailyTargets(uid, MAINTENANCE_SMOOTH_DAYS + 1, deliver),
+              apply: setDisplayRecords,
+            }),
+          ]
+        : [],
+    deps: [uid, displayOn],
+  });
+  const display = useMemo(
+    () => (displayOn ? maintenanceDisplay(targets.tdee, displayRecords, todayKey) : null),
+    [displayOn, targets.tdee, displayRecords, todayKey],
+  );
+
   // Zone 2 (Program v2.1). Trends holds no workout listener and gets none for
   // one card (ADR-0016): each focus reads Train's `workoutSessions` cache
   // slice once — the bounded window Train's own subscription keeps — as Train
@@ -645,6 +679,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     carbsSeries,
     fatSeries,
     todayKey,
+    display,
     historyClip,
     insightWindow: { from: weekKeys[0], to: weekKeys[weekKeys.length - 1] },
     streak,

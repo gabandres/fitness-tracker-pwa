@@ -76,6 +76,14 @@ export const FEATURES = {
    * `travelPeriods` / eyeballed-meal / session fields) must be deployed first.
    */
   travelMode: 'admin',
+  /**
+   * The maintenance display (2026-10-30, core `maintenance-display.ts`): the
+   * 7-day smoothed number, the 95% range and the valid-day count on Today and
+   * Trends, and `maintenanceRaw` / `maintenanceDisplayed` on the day's target
+   * record. 'admin' until the owner has lived with the range on the hero;
+   * `firestore:rules` must be deployed first or the record write is rejected.
+   */
+  maintenanceDisplay: 'admin',
 } as const;
 
 /** A flag's rollout: everyone, no one, or the admin account only. */

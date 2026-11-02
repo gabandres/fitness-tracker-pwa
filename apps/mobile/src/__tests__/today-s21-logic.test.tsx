@@ -110,6 +110,17 @@ describe('the hero footer', () => {
     const screen = await render(<HeroRings {...base} maintenance={mv({})} />);
     expect(screen.getByTestId('maintenance-line')).toBeTruthy();
     expect(screen.queryByTestId('maintenance-info')).toBeNull();
+    expect(screen.queryByTestId('maintenance-range')).toBeNull();
+  });
+
+  it('the maintenance display adds the range and the valid-day count', async () => {
+    const screen = await render(<HeroRings {...base} maintenance={mv({ range: { low: 2093, high: 2213 }, validDays: 42 })} />);
+    expect(screen.getByTestId('maintenance-range').props.children).toBe('2,093–2,213 kcal · 42 valid days');
+  });
+
+  it('with no interval it still says how many days stand behind the number', async () => {
+    const screen = await render(<HeroRings {...base} maintenance={mv({ validDays: 42 })} />);
+    expect(screen.getByTestId('maintenance-range').props.children).toBe('42 valid days');
   });
 });
 

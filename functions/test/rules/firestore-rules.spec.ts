@@ -2097,6 +2097,15 @@ describe('firestore.rules', () => {
     await assertSucceeds(getDoc(doc(db, 'users', 'alice', 'dailyTargets', '2026-10-09')));
   });
 
+  it('accepts the maintenance display record, and only as numbers in range', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'dailyTargets', '2026-10-09');
+    await assertSucceeds(setDoc(ref, targetDoc({ maintenanceRaw: 2258, maintenanceDisplayed: 2176 })));
+    await assertFails(setDoc(ref, targetDoc({ maintenanceRaw: '2258' })));
+    await assertFails(setDoc(ref, targetDoc({ maintenanceDisplayed: 20001 })));
+  });
+
   it('rejects a dailyTargets record filed under another day', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
