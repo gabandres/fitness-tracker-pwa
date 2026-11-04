@@ -104,12 +104,13 @@ deleted and its outcome goes to `CHANGELOG.md`.
   `1fc2a550`, now in `main`, the older ten from `ota/perf-2026-10-21` @ `88c880d0`.
   Not run on a simulator or phone yet; a session logged on the older bundle has no
   gym tag, so it would feed the home engine until tagged. ADR-0048 amendment.
-- **Pause / resume (2026-11-04, core `session-pause.ts`):** code on the
-  working tree, tests green, rules deployed; **no OTA yet**, so no phone can see
-  a paused session. The owner's 11/4 Travel D IS `paused` (6 steps left;
-  `scripts/owner-data-2026-11-04-pause.mts`): until an OTA lands it is hidden
-  from history, and it can only be resumed until 23:59 La Paz on 11/4, after
-  which the first screen to see it closes it as partial.
+- **Pause / resume (2026-11-04, core `session-pause.ts`):** OTA'd to all
+  twelve runtimes (1.2.10 from `main` @ `e645bb17`, the older ten from
+  `ota/perf-2026-10-21` @ `c37d10b3`), with the maintenance 7-day range and the
+  walk-during-session fix that were waiting. Rules deployed first. Not run on a
+  simulator or phone. The owner's 11/4 Travel D is `paused` (6 steps left),
+  resumable until 23:59 La Paz on 11/4; after that the first screen to see it
+  closes it as partial.
 - **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,
   RIR 2); maintenance "Rebuilding n/14" until 14 complete days home. Then
   decide whether `FEATURES.travelMode` goes to everyone and whether the travel
@@ -209,15 +210,15 @@ deliberately: bounding the OS-repeating meal-window dailies — a separate call.
 | **Website indexing** | **Wait and re-measure** (`node scripts/gsc.mjs inspect`): 6 of 7 sampled URLs indexed since 2026-09-03, the sitemap still never fetched. Router/SSR migration DEFERRED. Tables: `docs/seo-status.md` |
 | **MenuStat permission — sent 2026-08-24, no reply** | **Owner, awaiting NYC DOHMH.** Licence risk: menustat.org (through 2022) was all-rights-reserved and is gone; the CC0 Dataverse copy stops at 2018 and loses The Cheesecake Factory. Replies land in the `bermudezpr.com` M365 tenant. Follow-ups: Pollo Tropical; the mobile provenance chip |
 
-**The maintenance display is in `main`, rules deployed (2026-11-02), no app update yet (owner, 2026-10-30).** Core
+**The maintenance display is OTA'd to all twelve runtimes (2026-11-04, with pause / resume), rules deployed 2026-11-02 (owner, 2026-10-30).** Core
 `maintenance-display.ts`: the hero shows the 7-day mean of the raw daily values
 with the 95% range and the valid-day count; `dailyTargets` gains
 `maintenanceRaw` / `maintenanceDisplayed`; a travel hold stays raw, unsmoothed.
 `FEATURES.maintenanceDisplay: 'admin'`; rollout to everyone is still the owner's
-call, because the range can read wide (one account: **1,775..3,242**). **The next
-OTA from `main` carries it**, with the Health import fix alongside it: a
-Watch walk imported during an active session now waits and merges into the
-hand-logged Zone 2 instead of becoming its own session.
+call, because the range can read wide (one account: **1,775..3,242**). The
+Health import fix shipped in the same OTA: a Watch walk imported during an
+active session now waits and merges into the hand-logged Zone 2 instead of
+becoming its own session.
 
 ## 4. Decided and deliberately not happening
 
