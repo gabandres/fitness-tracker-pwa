@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useCachedState } from '@/hooks/useCachedState';
 import { asError, feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
-import { finishWorkout as finishWorkoutOp } from '@/lib/ledger-ops';
+import { closeExpiredPauses, finishWorkout as finishWorkoutOp } from '@/lib/ledger-ops';
 import { useAuth } from '@/lib/auth';
 import {
   type PendingFinish,
@@ -75,6 +75,10 @@ import {
   isTravelTemplate,
   type SwapPlan,
   type TemplateDraftDoc,
+  canResume,
+  finishedSegments,
+  pausedSession,
+  resumedSession,
 } from '@macrolog/core';
 import {
   type Exercise,
@@ -317,6 +321,18 @@ export interface TrainState {
   finishWorkout: (extras: { bodyweight?: number; sleepHours?: number; durationMin?: number }) => Promise<boolean>;
   /** Abandon the active session (delete the doc). */
   discardWorkout: () => Promise<void>;
+  /**
+   * Paused sessions (2026-11-04, core `session-pause.ts`), newest first —
+   * stopped partway, resumable in the same record until the end of their day.
+   * Live from the sessions listener; out of `recentSessions` (completed only).
+   */
+  paused: WorkoutSession[];
+  /** Pause the live workout: its part closes, it leaves the screen as
+   *  `paused`, its unlogged sets kept for the resume. */
+  pauseWorkout: () => Promise<void>;
+  /** Resume a paused session in the same record (a new part opens). False when
+   *  another workout is open or its window has passed. */
+  resumeSession: (id: string) => boolean;
   deleteSession: (id: string) => Promise<void>;
   /** True while a COMPLETED session is loaded into `active` for editing (not a
    *  fresh in-progress workout) — drives the edit-specific chrome so "Discard"
@@ -417,6 +433,7 @@ export function useTrain(): TrainState {
     [],
   );
   const [active, setActiveState] = useState<WorkoutSession | null>(null);
+  const [paused, setPaused] = useState<WorkoutSession[]>([]);
   // Per uid: a refocus re-reads the journal but never puts the screen back
   // behind a spinner it already left.
   const [activeResolvedFor, setActiveResolvedFor] = useState<string | null>(null);
@@ -718,11 +735,13 @@ export function useTrain(): TrainState {
               // keeps the held array (and skips the disk write), so the memos
               // keyed on `recentSessions` and the memoized ExerciseCards hold
               // (`perf-keystroke-churn.test.ts`).
-              apply: (sessions: WorkoutSession[], provenance) =>
+              apply: (sessions: WorkoutSession[], provenance) => {
                 setRecentSessions(
                   sessions.filter((x) => x.status === 'completed'),
                   provenance,
-                ),
+                );
+                setPaused(sessions.filter((x) => x.status === 'paused'));
+              },
             }),
           ]
         : [],
@@ -1517,8 +1536,12 @@ export function useTrain(): TrainState {
           const finishedAt = new Date();
           // A typed length (F15) beats both: the lifter said what it was.
           const { durationMin: typedMin, ...extras } = input;
-          const durationMin = typedMin ?? active.durationMin ?? sessionDurationMin(active.date, finishedAt);
-          const done = durationMin != null ? { ...active, durationMin } : active;
+          // A resumed session: its last part closes here and its duration is
+          // the sum of the parts, never the gap (`session-pause.ts`).
+          const closed = finishedSegments(active, finishedAt);
+          const durationMin = typedMin
+            ?? (closed.segments ? closed.durationMin : active.durationMin ?? sessionDurationMin(active.date, finishedAt));
+          const done = durationMin != null ? { ...closed, durationMin } : closed;
           const entry: PendingFinish = { savedAt: finishedAt.getTime(), session: done, extras };
           try {
             // On the device FIRST — this is what the screen moving on rests on.
@@ -1583,6 +1606,60 @@ export function useTrain(): TrainState {
       setError(asError(e, 'Discard failed'));
     }
   }, [uid, setActive, journal, setError]);
+
+  /**
+   * Pause (2026-11-04). Cleared from the screen first, written behind — the
+   * same order as Discard, so a set input's blur-commit cannot write the
+   * session back as active. A session whose create never landed is written
+   * whole; any other refusal puts it back on screen with the error.
+   */
+  const pauseWorkout = useCallback(async () => {
+    const active = activeRef.current;
+    if (!uid || !active?.id || editOriginal.current) return;
+    const p = pausedSession(active, new Date());
+    setActive(null);
+    journal.cancel();
+    void clearActiveSessionJournal(uid);
+    const patch = { status: p.status, exercises: p.exercises, segments: p.segments, ...(p.durationMin != null ? { durationMin: p.durationMin } : {}) };
+    try {
+      await updateSession(uid, active.id, patch);
+    } catch (e) {
+      if ((e as { code?: string } | null)?.code === 'not-found') {
+        const { id: _id, createdAt: _c, updatedAt: _u, ...body } = p;
+        await startSession(uid, body, active.id).catch((err) => setError(asError(err, 'Pause failed')));
+        return;
+      }
+      setError(asError(e, 'Pause failed'));
+      if (!activeRef.current) setActive(active);
+    }
+  }, [uid, setActive, journal, setError]);
+
+  const pausedRef = useRef<WorkoutSession[]>([]);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+  const resumeSession = useCallback(
+    (id: string): boolean => {
+      const s = pausedRef.current.find((x) => x.id === id);
+      if (!uid || !s?.id || activeRef.current || starting.current) return false;
+      const now = new Date();
+      if (!canResume(s, now, dayBoundaryOf(profileRef.current))) return false;
+      const r = resumedSession(s, now);
+      setActive(r);
+      void journal.flush();
+      setPaused((list) => list.filter((x) => x.id !== id));
+      updateSession(uid, s.id, { status: 'active', segments: r.segments }).catch((e) => setError(asError(e, 'Resume failed')));
+      return true;
+    },
+    [uid, setActive, journal, setError],
+  );
+
+  // A paused session past its window is closed as partial by whichever screen
+  // sees it first (`closeExpiredPauses`; Today does the same).
+  useEffect(() => {
+    if (!uid || paused.length === 0) return;
+    void closeExpiredPauses(uid, paused, dayBoundaryOf(profileRef.current));
+  }, [uid, paused]);
 
   const deleteSession = useCallback(
     async (id: string) => {
@@ -1723,6 +1800,9 @@ export function useTrain(): TrainState {
       commitActive,
       finishWorkout,
       discardWorkout,
+      paused,
+      pauseWorkout,
+      resumeSession,
       deleteSession,
       editingExisting,
       reopenSession,
@@ -1736,7 +1816,7 @@ export function useTrain(): TrainState {
       startWorkout, startFromTemplate, startCardioWorkout, saveTemplate, deleteTemplate, archiveTemplate, unarchiveTemplate,
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,
       editCatalogExercise, deleteCatalogExercise, mergeCatalogExercises, addExerciseToActive,
-      moveExerciseInActive, undoMove, undoRemoval, dispatch, commitActive, finishWorkout, discardWorkout, deleteSession,
+      moveExerciseInActive, undoMove, undoRemoval, dispatch, commitActive, finishWorkout, discardWorkout, paused, pauseWorkout, resumeSession, deleteSession,
       editingExisting, reopenSession, finishEdit, cancelEdit,
     ],
   );

@@ -628,10 +628,20 @@ service cloud.firestore {
               // Travel mode (2026-10-26; core reentry.ts): a re-entry session
               // (−10 %, RIR 2) and another gym's equipment. Neither is read
               // by the engine; a not-comparable one is out of e1RM/PRs too.
-              'reentry', 'notComparable'
+              'reentry', 'notComparable',
+              // Pause / resume (2026-11-04; core session-pause.ts): the active
+              // parts, and a session closed early (still `completed`).
+              'segments', 'partial'
           ])
           && data.keys().hasAll(['status', 'timestamp', 'exercises', 'createdAt', 'updatedAt'])
-          && (data.status == 'active' || data.status == 'completed')
+          && data.status in ['active', 'paused', 'completed']
+          && (!('segments' in data.keys()) ||
+              (data.segments is list && data.segments.size() <= 20))
+          && (!('partial' in data.keys()) ||
+              (data.partial is map
+                && data.partial.keys().hasOnly(['closedAt', 'skipped'])
+                && data.partial.closedAt is timestamp
+                && data.partial.skipped is list && data.partial.skipped.size() <= 40))
           && data.timestamp is timestamp
           && data.exercises is list && data.exercises.size() <= 40
           && (!('cardio' in data.keys()) ||

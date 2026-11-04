@@ -22,6 +22,7 @@ import { epleyE1rm, targetRirOf } from './progression-engine';
 import { DELOAD_RIR } from './deload';
 import { REENTRY_RIR } from './reentry';
 import { isTravelDay, travelPeriodsOf, TRAVEL_SCALE_NOTE } from './travel';
+import { remainingStepText, remainingSteps, sessionStatusLabel } from './session-pause';
 
 const COLS = [
   'type', 'date', 'timestamp',
@@ -122,6 +123,12 @@ const COLS = [
   // lift's first session at an away gym and 'travel-re-entry' on a linked lift's;
   // one 'travel_plan' row per planned session of a trip.
   'loadUnit', 'loadInUnit',
+  // ── Pause / resume (2026-11-04, `session-pause.ts`), appended for the same
+  // reason ── 'workout' and 'workout_set' rows: 'complete' / 'paused' /
+  // 'partial' (a partial session is a completed one closed early; its
+  // 'workout' row's notes name the skipped steps, a paused one's the steps
+  // left). 'workout_set' rows: the 1-based part the set was logged in.
+  'sessionStatus', 'segmentIndex',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -331,10 +338,19 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
     // a lifting workout: until 2026-10-20 it also emitted an empty `workout`
     // row (no template, no duration) that read as a workout nobody did.
     const lifting = s.exercises.some((ex) => ex.sets.some((set) => isLoggedSet(set, ex.logStyle)));
+    const status = sessionStatusLabel(s);
+    const statusNote = s.partial
+      ? `partial: skipped ${s.partial.skipped.join('; ') || 'nothing'}`
+      : s.status === 'paused'
+        ? `paused: left ${remainingSteps(s).map(remainingStepText).join('; ')}`
+        : undefined;
+    const parts = s.segments && s.segments.length > 1 ? `${s.segments.length} parts` : undefined;
     if (lifting) rows.push(row({
       type: 'workout',
       date,
       timestamp,
+      sessionStatus: status,
+      notes: [statusNote, parts].filter(Boolean).join(' · ') || undefined,
       template: s.templateName,
       weight: s.bodyweight,
       durationMin: s.durationMin,
@@ -384,6 +400,8 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
             : undefined,
           sessionFlags: [ex.calibration ? 'calibration' : '', ex.calibration && ex.linkedHome ? 'travel-re-entry' : ''].filter(Boolean).join(';'),
           ...unitCols(ex.loadUnit, set.weight),
+          sessionStatus: status,
+          segmentIndex: set.segment ?? 1,
         }));
       }
     }

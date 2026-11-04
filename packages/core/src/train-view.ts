@@ -37,6 +37,7 @@ import type {
 import { toDisplayLoad } from './load-units';
 import type { UnitSystem } from './unit-system';
 import { DEFAULT_LOG_STYLE, isLoggedSet, isTickedSet } from './workout';
+import { activeMinutes } from './session-pause';
 import type { ProgressionSuggestion } from './workout-progression';
 import { computeExercisePRs, isWorkingSet, metricForSet } from './workout-progression';
 import { isLoggedCardioBlock, workoutMarkerEntry } from './cardio';
@@ -704,7 +705,7 @@ export interface FinishSummary {
  * comparison anyone asked for.
  */
 export function finishSummary(
-  session: Pick<WorkoutSession, 'id' | 'date' | 'exercises' | 'templateId'>,
+  session: Pick<WorkoutSession, 'id' | 'date' | 'exercises' | 'templateId' | 'segments'>,
   completed: readonly WorkoutSession[],
   now: number,
 ): FinishSummary {
@@ -751,7 +752,10 @@ export function finishSummary(
   const started = session.date instanceof Date ? session.date.getTime() : now;
   const lastSame = last ? last.exercises.filter((e) => loggedIds.has(e.exerciseId)) : [];
   return {
-    durationMin: Math.max(0, Math.round((now - started) / 60_000)),
+    // A resumed session counts its parts, never the gap (`session-pause.ts`).
+    durationMin: session.segments?.length
+      ? activeMinutes(session.segments, new Date(now))
+      : Math.max(0, Math.round((now - started) / 60_000)),
     volume: sessionVolume(session),
     sets: sessionCounts(session).sets,
     prs,

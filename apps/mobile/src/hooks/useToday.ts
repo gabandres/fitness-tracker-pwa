@@ -4,7 +4,7 @@ import { useTargetWeights } from '@/hooks/useTargetWeights';
 import { useCalendarToday, useDayKey } from '@/hooks/useDayKey';
 import { feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
 import { onPendingLogsChanged, pendingLogsAsRows } from '@/lib/pending-logs';
-import { repeatYesterday as repeatYesterdayOp, writeDailyMetric } from '@/lib/ledger-ops';
+import { closeExpiredPauses, repeatYesterday as repeatYesterdayOp, writeDailyMetric } from '@/lib/ledger-ops';
 import {
   type CustomFood,
   type DailyLog,
@@ -434,6 +434,12 @@ export function useToday(): TodayState {
         : [],
     deps: [uid],
   });
+  // A paused workout past its window closes as partial here too
+  // (`closeExpiredPauses`) — Today is the screen most likely to see it first.
+  useEffect(() => {
+    if (!uid || !recentSessions.some((s) => s.status === 'paused')) return;
+    void closeExpiredPauses(uid, recentSessions, boundary);
+  }, [uid, recentSessions, boundary]);
   const logsWithTraining = useMemo(() => {
     const trained = trainedDayRows(recentSessions);
     return trained.length ? [...logs, ...trained] : logs;

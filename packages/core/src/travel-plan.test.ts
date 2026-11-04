@@ -9,7 +9,7 @@ import { sessionCall } from './superset-context';
 import { nextTemplateUp } from './train-plan';
 import { bestE1RMByExercise, engineHistory, exerciseHistory, previousHistory } from './train-view';
 import { travelPeriodsOf } from './travel';
-import { isBackToBackGymDay, sanitizeTravelPlan, travelWeek, type TravelPlanEntry } from './travel-plan';
+import { calibrationRanHot, isBackToBackGymDay, sanitizeTravelPlan, travelWeek, type TravelPlanEntry } from './travel-plan';
 import { rowUnitSystem, toDisplayLoad } from './load-units';
 import type { SessionExercise, TemplateExercise, WorkoutSession, WorkoutTemplate } from './workout';
 
@@ -265,5 +265,20 @@ describe('export', () => {
     expect([cell(act, 'setWeight'), cell(act, 'loadInUnit'), cell(act, 'rirTarget')]).toEqual(['22.05', '10', '2']);
     expect(cell(act, 'sessionFlags')).toBe('calibration;travel-re-entry');
     expect(cell(lines.find((l) => l.startsWith('workout,'))!, 'sessionFlags')).toBe('travel-re-entry');
+  });
+});
+
+describe('calibrationRanHot', () => {
+  const at = (d: string) => new Date(`${d}T07:00:00`);
+  const row = (rir: number, calibration = true) => ({ exerciseId: 'x', name: 'x', cues: [], awayGym: 'Haven Gym', calibration, sets: [{ kind: 'activation' as const, group: 1, reps: 9, rir }, { kind: 'mini' as const, group: 1, reps: 4, rir: 0 }] });
+  const s = (id: string, d: string, rows: ReturnType<typeof row>[]) => ({ id, status: 'completed' as const, date: at(d), exercises: rows });
+  const next = { id: 'n', date: at('2026-11-05'), exercises: [{ awayGym: 'Haven Gym' }] };
+  it('every calibration activation at RIR 0 last time → note', () => {
+    expect(calibrationRanHot(next, [s('a', '2026-11-04', [row(0), row(0)])])).toBe(true);
+  });
+  it('one at target → no note; a later session at the gym supersedes it; another gym → no note', () => {
+    expect(calibrationRanHot(next, [s('a', '2026-11-04', [row(0), row(2)])])).toBe(false);
+    expect(calibrationRanHot({ ...next, date: at('2026-11-07') }, [s('a', '2026-11-04', [row(0)]), s('b', '2026-11-06', [row(1, false)])])).toBe(false);
+    expect(calibrationRanHot({ ...next, exercises: [{}] }, [s('a', '2026-11-04', [row(0)])])).toBe(false);
   });
 });

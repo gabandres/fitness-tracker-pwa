@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-11-02 · **Owns:** current state only. Not history
+**Updated:** 2026-11-04 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`), not fingerprints or publish rules
@@ -30,7 +30,7 @@ same way before trusting them — `docs/COMMANDS.md` has every command;
 | **TestFlight** | **Not re-read since 2026-09-08** (build 64 was the external build then). Read the group's builds AND each build's `externalBuildState` (`asc-testflight-external.mjs`) — `VALID` + in the group ≠ installable; a build of an already-released version never reaches an external tester |
 | **Play** | **Production: vc 52 / 1.2.8 is the newest COMPLETED release** (tracks API, 2026-10-16). **The tracks API cannot tell "in review" from "live"** — the store page or the Console row is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
 | **Web `ignia.fit`** | **Shell + `/admin`** — the web logging app was retired 2026-08-30 (ADR-0036). 113 prerendered pages, EN + es-PR, both store badges. `/app` and the old tabs render "moved to the apps"; SEO pages and `/u/**` KEPT, owner-ratified. Grep `public/` as well as `src/` before claiming copy is gone |
-| **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last deployed 2026-10-22 (Program v2.2: exercise `effortStandard` `rir2`, template `templateVersion`) |
+| **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last deployed 2026-11-04 (pause / resume: session status `paused`, `segments`, `partial`) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only. `docs/research/off-branded-ingest.md` scopes branded text results |
 | **OTA (EAS Update)** | **Every runtime in use — twelve — has travel mode (2026-10-26, ADR-0048)** on top of S-v2: maintenance held for trips, eyeballed meals, travel weigh-ins out of the trend, re-entry / not-comparable sessions, the no-equipment ladder, the Trends maintenance check (Settings editor admin-only), plus the same-day fix that switching "not comparable" off no longer breaks the workout's saves. The ten Sentry-7.11 runtimes from `ota/perf-2026-10-21` @ `f9a501b3` (iOS builds 73 / 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — = `main` minus `0c30979d`), and the 1.2.10 runtimes from `main` @ `0039d960` (build 74 `a55af49c…`, vc 53 `e989353d…` pinned). Rules (`travelPeriods`, eyeballed-meal fields, weigh-in `note`, session `reentry`/`notComparable`) deployed first. Groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download, and on foreground only after 30+ min in the background |
@@ -104,6 +104,12 @@ deleted and its outcome goes to `CHANGELOG.md`.
   `1fc2a550`, now in `main`, the older ten from `ota/perf-2026-10-21` @ `88c880d0`.
   Not run on a simulator or phone yet; a session logged on the older bundle has no
   gym tag, so it would feed the home engine until tagged. ADR-0048 amendment.
+- **Pause / resume (2026-11-04, core `session-pause.ts`):** code on the
+  working tree, tests green, rules deployed; **no OTA yet**, so no phone can see
+  a paused session. The owner's 11/4 Travel D IS `paused` (6 steps left;
+  `scripts/owner-data-2026-11-04-pause.mts`): until an OTA lands it is hidden
+  from history, and it can only be resumed until 23:59 La Paz on 11/4, after
+  which the first screen to see it closes it as partial.
 - **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,
   RIR 2); maintenance "Rebuilding n/14" until 14 complete days home. Then
   decide whether `FEATURES.travelMode` goes to everyone and whether the travel

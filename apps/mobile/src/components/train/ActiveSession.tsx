@@ -16,6 +16,8 @@ import {
   moveBlockAware,
   restAfterSetInFlow,
   isBackToBackGymDay,
+  calibrationRanHot,
+  clockStart,
   roundRestWithFloor,
   CLUSTER_ESTIMATE_SEC,
   DEFAULT_TRANSITION_REST_SEC,
@@ -427,6 +429,12 @@ export function ActiveSession({
   const backToBack = useMemo(
     () => isBackToBackGymDay(session, train.recentSessions, train.dayBoundary),
     [session, train.recentSessions, train.dayBoundary],
+  );
+  // The last session at this gym took every calibration activation to RIR 0
+  // (core `calibrationRanHot`, owner 2026-11-04): a reminder, the data stays.
+  const ranHot = useMemo(
+    () => !train.editingExisting && calibrationRanHot(session, train.recentSessions),
+    [session, train.recentSessions, train.editingExisting],
   );
   const volume = sessionVolume(session);
   /** The header's line after the clock: volume, then progress. */
@@ -1120,6 +1128,17 @@ export function ActiveSession({
           onPress: () => menuHandoff(() => setCardioPickerOpen(true)),
         },
         glossaryAction,
+        // Pause (2026-11-04, core `session-pause.ts`): the workout stays open
+        // as `paused` and is resumed from Today or Start, in this record.
+        ...(sessionHasLoggedWork(session)
+          ? [{
+              key: 'pause',
+              icon: 'pause-circle-outline',
+              labelKey: 'train.pause.action',
+              descKey: 'train.pause.desc',
+              onPress: () => menuHandoff(() => void train.pauseWorkout()),
+            } satisfies ExerciseMenuAction]
+          : []),
         {
           key: 'discard',
           icon: 'trash-outline',
@@ -1443,7 +1462,7 @@ export function ActiveSession({
               {[formatDate(session.date, locale, { weekday: 'short', month: 'short', day: 'numeric' }), ...metaParts].join(' · ')}
             </Text>
           ) : (
-            <ElapsedClock startedAt={session.date} parts={metaParts} compact={largeText} />
+            <ElapsedClock startedAt={clockStart(session)} parts={metaParts} compact={largeText} />
           )}
           {/* Offline is said ONCE, in the note at the top of the list below.
               It was said three times — here, in that note, and in the app's
@@ -1548,6 +1567,12 @@ export function ActiveSession({
           {backToBack ? (
             <View style={styles.syncRow} testID="session-back-to-back">
               <Text style={styles.sheetHint}>{t('train.gym.backToBack')}</Text>
+            </View>
+          ) : null}
+          {ranHot ? (
+            <View style={styles.syncRow} testID="session-calibration-hot">
+              <Ionicons name="trending-up-outline" size={16} color={colors.muted} />
+              <Text style={[styles.sheetHint, { flex: 1 }]}>{t('train.gym.calibrationHot')}</Text>
             </View>
           ) : null}
           {session.reentry ? (
