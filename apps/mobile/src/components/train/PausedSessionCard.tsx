@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { remainingSteps, resumeDeadline, type DayBoundary } from '@macrolog/core';
 import type { WorkoutSession } from '@/lib/workout';
 import { useLocale, useT } from '@/i18n';
