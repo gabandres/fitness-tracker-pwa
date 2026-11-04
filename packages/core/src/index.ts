@@ -212,6 +212,7 @@ export * from './template-structure';
 // Supersets (2026-10-11): grouping, the alternating flow, guardrails, the
 // context-change baseline, drafts, and the "is it working" report.
 export * from './superset';
+export * from './session-pause';
 export * from './deload';
 export * from './load-flags';
 export * from './superset-context';

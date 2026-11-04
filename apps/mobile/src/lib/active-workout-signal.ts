@@ -39,6 +39,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clockStart } from '@macrolog/core';
 
 export interface ActiveWorkoutSignal {
   active: boolean;
@@ -88,16 +89,17 @@ function emit(next: ActiveWorkoutSignal) {
  *  cached copy; pass `null` when signed out, which clears the signal. */
 export function publishActiveWorkout(
   uid: string | undefined,
-  session: { templateName?: string; date?: Date; status?: string } | null,
+  session: { templateName?: string; date?: Date; status?: string; segments?: { start: Date; end?: Date }[] } | null,
 ): void {
   // A reopened COMPLETED session is an edit of history, not a workout in
   // progress: no dot, no pill, no clock counting from last Tuesday.
-  const live = session && session.status !== 'completed' ? session : null;
+  const live = session && session.status !== 'completed' && session.status !== 'paused' ? session : null;
   const next: ActiveWorkoutSignal = live
     ? {
         active: true,
         name: live.templateName ?? null,
-        startedAt: live.date instanceof Date ? live.date.getTime() : null,
+        // Active time only: a resumed session's clock does not count the gap.
+        startedAt: live.date instanceof Date ? clockStart({ date: live.date, segments: live.segments }).getTime() : null,
         // A set logged mid-rest must not clear the rest the pill is showing.
         restEndsAt: current.active ? current.restEndsAt : null,
       }

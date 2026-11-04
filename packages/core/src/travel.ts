@@ -90,20 +90,20 @@ export function travelPeriodsOf(profile: { travelPeriods?: unknown } | null | un
   for (const p of raw) {
     if (!p || typeof p !== 'object') continue;
     const r = p as Record<string, unknown>;
-    if (!isYmd(r.start) || !isYmd(r.end) || r.start > r.end) continue;
-    const period: TravelPeriod = { start: r.start, end: r.end };
-    if (typeof r.label === 'string' && r.label.trim()) period.label = r.label.trim().slice(0, TRAVEL_LABEL_MAX);
-    if (typeof r.usualSteps === 'number' && Number.isFinite(r.usualSteps) && r.usualSteps > 0 && r.usualSteps <= 100_000) {
-      period.usualSteps = Math.round(r.usualSteps);
+    if (!isYmd(r['start']) || !isYmd(r['end']) || r['start'] > r['end']) continue;
+    const period: TravelPeriod = { start: r['start'], end: r['end'] };
+    if (typeof r['label'] === 'string' && r['label'].trim()) period.label = r['label'].trim().slice(0, TRAVEL_LABEL_MAX);
+    if (typeof r['usualSteps'] === 'number' && Number.isFinite(r['usualSteps']) && r['usualSteps'] > 0 && r['usualSteps'] <= 100_000) {
+      period.usualSteps = Math.round(r['usualSteps']);
     }
-    const a = r.altitude as Record<string, unknown> | undefined;
+    const a = r['altitude'] as Record<string, unknown> | undefined;
     if (
-      a && typeof a === 'object' && typeof a.place === 'string' && a.place.trim()
-      && typeof a.meters === 'number' && a.meters > 0 && a.meters < 9000 && isYmd(a.arrival)
+      a && typeof a === 'object' && typeof a['place'] === 'string' && a['place'].trim()
+      && typeof a['meters'] === 'number' && a['meters'] > 0 && a['meters'] < 9000 && isYmd(a['arrival'])
     ) {
-      period.altitude = { place: a.place.trim().slice(0, TRAVEL_LABEL_MAX), meters: Math.round(a.meters), arrival: a.arrival };
+      period.altitude = { place: a['place'].trim().slice(0, TRAVEL_LABEL_MAX), meters: Math.round(a['meters']), arrival: a['arrival'] };
     }
-    const plan = sanitizeTravelPlan(r.plan);
+    const plan = sanitizeTravelPlan(r['plan']);
     if (plan.length) period.plan = plan;
     out.push(period);
   }

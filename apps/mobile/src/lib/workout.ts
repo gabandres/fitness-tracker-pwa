@@ -45,6 +45,7 @@ export type { SetStructure } from '@macrolog/core/workout';
 // enumerations of one union is exactly how a chip goes missing.
 export type { LoadUnit, MuscleGroup } from '@macrolog/core/workout';
 import type { LoadUnit } from '@macrolog/core/workout';
+import type { PartialClose, SessionSegment } from '@macrolog/core';
 
 /** How a set counts. v1 only creates `working`; the others exist so docs
  *  written by the PWA round-trip cleanly. */
@@ -54,7 +55,8 @@ export type SetKind =
    *  (ADR-0040). Not `mini`, which means autoregulated to failure. */
   | 'continuation';
 
-export type SessionStatus = 'active' | 'completed';
+/** `paused`: core `session-pause.ts`. A partial session is `completed` + `partial`. */
+export type SessionStatus = 'active' | 'paused' | 'completed';
 
 /** How an exercise is logged. `weight-reps` (default) is load×reps;
  *  `bodyweight` logs reps only; `time` logs a hold duration in seconds. */
@@ -119,6 +121,9 @@ export interface WorkoutSet {
    *  excluded from the engine's band derivation, kept as history (ADR-0039).
    *  Written by `scripts/mark-legacy-effort-standard.mjs`, never by the app. */
   legacyEffortStandard?: boolean;
+  /** The 1-based part of a paused-and-resumed session it was logged in —
+   *  core `WorkoutSet.segment`. Absent = part 1. */
+  segment?: number;
 }
 
 export interface SessionExercise {
@@ -383,6 +388,10 @@ export interface WorkoutSession {
    *  `WorkoutSession.dismissedSourceIds` (2026-10-15). */
   dismissedSourceIds?: string[];
   nextNotes?: string;
+  /** Pause / resume parts — core `WorkoutSession.segments`. */
+  segments?: SessionSegment[];
+  /** Closed early — core `WorkoutSession.partial`. */
+  partial?: PartialClose;
   createdAt: Date;
   updatedAt: Date;
 }

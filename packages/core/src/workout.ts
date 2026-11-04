@@ -8,6 +8,7 @@
  */
 
 import type { CardioBlock, PlannedCardioBlock } from './cardio';
+import type { PartialClose, SessionSegment } from './session-pause';
 
 /** How a set counts. `working` is the default straight set; `activation`
  *  + `mini` model cluster training; `warmup` is excluded from PR/progression
@@ -195,6 +196,9 @@ export interface WorkoutSet {
    * `scripts/mark-legacy-effort-standard.mjs`, never by a client.
    */
   legacyEffortStandard?: boolean;
+  /** The 1-based part of a paused-and-resumed session this set was logged in
+   *  (`session-pause.ts`), stamped when that part closes. Absent = part 1. */
+  segment?: number;
 }
 
 export interface SessionExercise {
@@ -264,7 +268,10 @@ export interface RecommendationSnapshot {
   predictedReps?: number;
 }
 
-export type SessionStatus = 'active' | 'completed';
+/** `paused` (2026-11-04, `session-pause.ts`): stopped partway, to be resumed
+ *  in the same record. A PARTIAL session is `completed` with `partial` set —
+ *  not a status of its own, so every `completed` reader counts it as it is. */
+export type SessionStatus = 'active' | 'paused' | 'completed';
 
 /**
  * A logged workout instance — the full read-model both frontends map to
@@ -328,6 +335,11 @@ export interface WorkoutSession {
   notComparable?: boolean;
   /** "Next session notes" carried forward to the next session of the template. */
   nextNotes?: string;
+  /** The active parts of a session that was paused (`session-pause.ts`).
+   *  Absent on one that never was. `durationMin` is their sum. */
+  segments?: SessionSegment[];
+  /** Closed before all of it was done — see `session-pause.ts`. */
+  partial?: PartialClose;
   createdAt: Date;
   updatedAt: Date;
 }

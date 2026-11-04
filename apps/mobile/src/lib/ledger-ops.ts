@@ -48,6 +48,8 @@ import {
   newLedgerId,
   parseYmd,
   sessionHasLoggedWork,
+  closeAsPartial,
+  isExpiredPause,
 } from '@macrolog/core';
 import { track } from './analytics';
 import { captureError } from './sentry';
@@ -219,6 +221,8 @@ export async function finishWorkout(
     // Start to finish, stamped by the caller at the tap (`useTrain`); the
     // superset report compares it across sessions.
     ...(session.durationMin != null ? { durationMin: session.durationMin } : {}),
+    // A resumed session's parts (`session-pause.ts`): its duration is their sum.
+    ...(session.segments !== undefined ? { segments: session.segments } : {}),
   };
   try {
     await updateSession(uid, id, patch);
@@ -358,4 +362,42 @@ export async function repeatYesterday(
   // a closed set validated by the rules, and both answer the same question.
   if (yLogs.length > 0) track('repeat_yesterday');
   return ids;
+}
+
+/**
+ * Close every paused session whose resume window has passed as PARTIAL (core
+ * `closeAsPartial`, owner 2026-11-04): completed, only its logged sets, the
+ * steps it never reached named on `partial.skipped`. There is no server job
+ * for this (the scheduler's three free jobs are spent): whichever screen sees
+ * the session first closes it — Train and Today both call this on every
+ * delivery of their sessions. Idempotent: a closed session is no longer
+ * `paused`, and two screens racing write the same document.
+ *
+ * Returns the sessions it closed. A refused write is reported and left for the
+ * next delivery.
+ */
+export async function closeExpiredPauses(
+  uid: string,
+  sessions: readonly WorkoutSession[],
+  boundary: DayBoundary,
+  now: Date = new Date(),
+): Promise<WorkoutSession[]> {
+  const closed: WorkoutSession[] = [];
+  for (const s of sessions) {
+    if (!s.id || !isExpiredPause(s, now, boundary)) continue;
+    const c = closeAsPartial(s, now);
+    try {
+      await updateSession(uid, s.id, {
+        status: c.status,
+        exercises: c.exercises,
+        ...(c.segments !== undefined ? { segments: c.segments } : {}),
+        ...(c.durationMin != null ? { durationMin: c.durationMin } : {}),
+        ...(c.partial !== undefined ? { partial: c.partial } : {}),
+      });
+      closed.push(c);
+    } catch (e) {
+      captureError(e, { where: 'closeExpiredPauses' });
+    }
+  }
+  return closed;
 }

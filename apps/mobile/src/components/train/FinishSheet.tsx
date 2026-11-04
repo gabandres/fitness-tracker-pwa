@@ -19,6 +19,7 @@ import {
   finishProgression,
   finishSummary,
   formatLoad,
+  rowUnitSystem,
   isStorableDurationMin,
   isStorableSleepHours,
   parseWeightToLb,
@@ -272,6 +273,8 @@ export function FinishSheet({
     () => finishSummary(session, recentSessions, openedAt),
     [session, recentSessions, openedAt],
   );
+  /** A kg row's loads in kg (`loadUnit`), the rest in the account's unit. */
+  const unitsOf = (exerciseId: string) => rowUnitSystem(session.exercises.find((e) => e.exerciseId === exerciseId)?.loadUnit, unitSystem) ?? unitSystem;
   const vsLast = summary.previousVolume && summary.previousVolume > 0 && summary.volume > 0
     ? Math.round(((summary.volume - summary.previousVolume) / summary.previousVolume) * 100)
     : null;
@@ -603,7 +606,7 @@ export function FinishSheet({
           <View key={pr.exerciseId} style={styles.syncRow} testID={`finish-pr-${pr.exerciseId}`}>
             <Ionicons name="trophy-outline" size={16} color={colors.accent} />
             <Text style={styles.summaryBest}>
-              {t('train.summaryNewBest', { name: pr.name, weight: formatLoad(pr.weight, unitSystem), reps: pr.reps })}
+              {t('train.summaryNewBest', { name: pr.name, weight: formatLoad(pr.weight, unitsOf(pr.exerciseId)), reps: pr.reps })}
             </Text>
           </View>
         ))}
@@ -615,7 +618,7 @@ export function FinishSheet({
             <Text style={[styles.summaryBest, { flexShrink: 1 }]}>
               {t('train.summaryTopSet', {
                 name: summary.topSet.name,
-                weight: formatLoad(summary.topSet.weight, unitSystem),
+                weight: formatLoad(summary.topSet.weight, unitsOf(summary.topSet.exerciseId)),
                 reps: summary.topSet.reps,
               })}
             </Text>

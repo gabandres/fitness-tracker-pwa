@@ -69,6 +69,7 @@ import {
 } from './train-summary';
 import { createStyles } from './train-styles';
 import { ProgramSignals } from './ProgramSignals';
+import { PausedSessionCard } from './PausedSessionCard';
 
 /** History rows shown inline before "Show all" (Train review item 32): the
  *  list rendered every one of the 50 loaded sessions, every visit. */
@@ -277,6 +278,13 @@ export function StartView({
     <ScrollView contentContainerStyle={styles.body} testID="train-start-scroll">
       {/* Outside the body's padding, so the row sits where the pinned one did. */}
       {header ? <View style={{ marginHorizontal: -space.xl, marginTop: -space.xl }}>{header}</View> : null}
+      {/* Paused workouts (core `session-pause.ts`) come before anything new:
+          resuming continues the same record. */}
+      {(train.paused ?? []).map((p) => (
+        <View key={p.id} style={{ marginBottom: space.md }}>
+          <PausedSessionCard session={p} boundary={train.dayBoundary} onResume={() => void train.resumeSession(p.id!)} />
+        </View>
+      ))}
       {train.error ? (
         <View style={styles.errorRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
           {/* A failed write is not a failed load: the tab still has its data
