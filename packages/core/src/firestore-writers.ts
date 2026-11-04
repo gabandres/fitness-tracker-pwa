@@ -45,6 +45,7 @@ import {
   clampCutPace,
 } from './types';
 import type { CardioBlock, PlannedCardioBlock } from './cardio';
+import type { PartialClose, SessionSegment } from './session-pause';
 import type {
   EffortStandard,
   ExerciseCategory,
@@ -651,7 +652,21 @@ export interface SessionDraftInput {
   /** Imported blocks the user removed (`WorkoutSession.dismissedSourceIds`). */
   dismissedSourceIds?: string[];
   nextNotes?: string;
+  /** Pause / resume parts (`session-pause.ts`). Dates → the codec's timestamp. */
+  segments?: SessionSegment[];
+  /** A session closed early (`session-pause.ts`). */
+  partial?: PartialClose;
 }
+
+/** The stored shape of `segments` (rules: a list of ≤ 20). */
+function segmentFields<TS>(segments: readonly SessionSegment[], codec: DocCodec<TS>): Record<string, TS>[] {
+  return segments.slice(0, SEGMENTS_MAX).map((g) => ({ start: codec.timestamp(g.start), ...(g.end ? { end: codec.timestamp(g.end) } : {}) }));
+}
+function partialFields<TS>(p: PartialClose, codec: DocCodec<TS>): Record<string, unknown> {
+  return { closedAt: codec.timestamp(p.closedAt), skipped: p.skipped.slice(0, 40).map((x) => x.slice(0, 120)) };
+}
+/** The most parts one session keeps (rules: `size() <= 20`). */
+export const SEGMENTS_MAX = 20;
 
 /** `users/{uid}/workoutSessions/{id}` — `isValidWorkoutSession`. The domain
  *  calls it `date`; the stored field is `timestamp`, matching every other
@@ -711,6 +726,8 @@ export function toSessionDoc<TS>(
     ...(draft.cardio !== undefined ? { cardio: cardioFields(draft.cardio, codec) } : {}),
     ...(draft.dismissedSourceIds?.length ? { dismissedSourceIds: dismissedIds(draft.dismissedSourceIds) } : {}),
     ...(draft.nextNotes !== undefined ? { nextNotes: draft.nextNotes } : {}),
+    ...(draft.segments?.length ? { segments: segmentFields(draft.segments, codec) } : {}),
+    ...(draft.partial ? { partial: partialFields(draft.partial, codec) } : {}),
   };
 }
 
@@ -748,6 +765,9 @@ export function toSessionPatch<TS>(
   if (patch.cardio !== undefined) data['cardio'] = cardioFields(patch.cardio, codec);
   if (patch.dismissedSourceIds !== undefined) data['dismissedSourceIds'] = dismissedIds(patch.dismissedSourceIds);
   if (patch.nextNotes !== undefined) data['nextNotes'] = patch.nextNotes;
+  // Whole-list overwrite, like `exercises`.
+  if (patch.segments !== undefined) data['segments'] = segmentFields(patch.segments, codec);
+  if (patch.partial !== undefined) data['partial'] = partialFields(patch.partial, codec);
   return data;
 }
 

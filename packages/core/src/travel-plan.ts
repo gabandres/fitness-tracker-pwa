@@ -57,16 +57,16 @@ export function sanitizeTravelPlan(raw: unknown): TravelPlanEntry[] {
   for (const e of raw) {
     if (!e || typeof e !== 'object') continue;
     const r = e as Record<string, unknown>;
-    if (!isYmd(r.from) || !isYmd(r.to) || r.from > r.to) continue;
-    if (r.kind !== 'session' && r.kind !== 'rest' && r.kind !== 'note') continue;
-    if (typeof r.label !== 'string' || !r.label.trim()) continue;
+    if (!isYmd(r['from']) || !isYmd(r['to']) || r['from'] > r['to']) continue;
+    if (r['kind'] !== 'session' && r['kind'] !== 'rest' && r['kind'] !== 'note') continue;
+    if (typeof r['label'] !== 'string' || !r['label'].trim()) continue;
     out.push({
-      from: r.from,
-      to: r.to,
-      kind: r.kind,
-      label: r.label.trim(),
-      ...(typeof r.templateId === 'string' && r.templateId ? { templateId: r.templateId } : {}),
-      ...(typeof r.note === 'string' && r.note.trim() ? { note: r.note.trim() } : {}),
+      from: r['from'],
+      to: r['to'],
+      kind: r['kind'],
+      label: r['label'].trim(),
+      ...(typeof r['templateId'] === 'string' && r['templateId'] ? { templateId: r['templateId'] } : {}),
+      ...(typeof r['note'] === 'string' && r['note'].trim() ? { note: r['note'].trim() } : {}),
     });
   }
   return out.sort(byDate).slice(0, MAX_TRAVEL_PLAN_ENTRIES);
@@ -131,4 +131,28 @@ export function isBackToBackGymDay(
   if (!gym) return false;
   const yesterday = calendarDateKey(addDays(parseYmd(dayKeyAt(session.date, boundary)), -1));
   return sessions.some((s) => s.status === 'completed' && dayKeyAt(s.date, boundary) === yesterday && s.exercises.some((e) => e.awayGym === gym));
+}
+
+/**
+ * The last session at this gym ran its calibration past the target: every
+ * logged calibration activation at RIR 0 where RIR 2 was asked (owner,
+ * 2026-11-04 — the first Haven session). The next session at the gym shows a
+ * non-blocking note: compounds at RIR 1–2 at altitude. It reads only the
+ * LATEST completed session at the gym, so it lapses on its own once a session
+ * there is logged to target. The data is never changed.
+ */
+export function calibrationRanHot(
+  session: { id?: string; date: Date; exercises: readonly { awayGym?: string }[] },
+  sessions: readonly Pick<WorkoutSession, 'id' | 'status' | 'date' | 'exercises'>[],
+): boolean {
+  const gym = session.exercises.find((e) => e.awayGym)?.awayGym;
+  if (!gym) return false;
+  const last = sessions
+    .filter((s) => s.status === 'completed' && s.id !== session.id && s.date.getTime() < session.date.getTime() && s.exercises.some((e) => e.awayGym === gym))
+    .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+  if (!last) return false;
+  const reads = last.exercises
+    .filter((e) => e.calibration)
+    .flatMap((e) => e.sets.filter((x) => x.kind === 'activation' && x.reps != null && x.rir != null));
+  return reads.length > 0 && reads.every((x) => x.rir === 0);
 }

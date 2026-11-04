@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Touchable } from './Touchable';
-import { finishSummary, formatLoad, otherSetCells, sessionCounts } from '@macrolog/core';
+import { finishSummary, formatLoad, otherSetCells, rowUnitSystem, sessionCounts } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { SheetHeader } from '@/components/SheetHeader';
 import { type I18nKey, useLocale, useT } from '@/i18n';
@@ -112,7 +112,7 @@ export function SessionDetailSheet({
             <View key={pr.exerciseId} style={styles.syncRow} testID={`detail-pr-${pr.exerciseId}`}>
               <Ionicons name="trophy-outline" size={16} color={colors.accent} />
               <Text style={styles.summaryBest}>
-                {t('train.summaryNewBest', { name: pr.name, weight: formatLoad(pr.weight, unitSystem), reps: pr.reps })}
+                {t('train.summaryNewBest', { name: pr.name, weight: formatLoad(pr.weight, rowUnitSystem(session.exercises.find((e) => e.exerciseId === pr.exerciseId)?.loadUnit, unitSystem) ?? unitSystem), reps: pr.reps })}
               </Text>
             </View>
           ))}
@@ -124,7 +124,7 @@ export function SessionDetailSheet({
               // Warm-up, drop and mobility sets, on a muted line of their own:
               // the "12 sets" tile counts every logged set, and a list of the
               // working ones alone showed nine under it (train-ux H3).
-              const others = otherSetCells(ex, style, unitSystem)
+              const others = otherSetCells(ex, style, rowUnitSystem(ex.loadUnit, unitSystem) ?? unitSystem)
                 .map((c) => `${t(OTHER_KIND_KEY[c.kind])} ${c.cell}`)
                 .join(' · ');
               return (

@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // Train derivations — shared with the Angular Train tab so the two cannot
@@ -49,6 +50,17 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
   const resolving = train.loading || train.activePending;
   // Siri / Shortcuts "Start my next workout" and ignia://train?start=next.
   useStartNextWorkoutIntent({ ...train, loading: resolving });
+  // Today's "Resume …" card: `/train?resume=<id>` (core `session-pause.ts`).
+  // Waits until the screen knows whether a workout is open and the paused
+  // list has arrived; cleared once handled so a re-render does not repeat it.
+  const { resume } = useLocalSearchParams<{ resume?: string }>();
+  const router = useRouter();
+  useEffect(() => {
+    if (!resume || resolving) return;
+    if (!train.active && !(train.paused ?? []).some((p) => p.id === resume) && train.recentSessions.length === 0) return;
+    if (!train.active) train.resumeSession(resume);
+    router.setParams({ resume: undefined });
+  }, [resume, resolving, train, router]);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   // On the SCREEN, not on the live session: finishing unmounts the session,
   // and a native sheet has to be closed by an owner that is still mounted.

@@ -1677,6 +1677,20 @@ describe('firestore.rules', () => {
     await assertFails(addDoc(col, validSession({ notComparable: 'yes' })));
   });
 
+  it('accepts paused sessions, segments and a partial close (pause / resume)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const col = collection(db, 'users', 'alice', 'workoutSessions');
+    const t = Timestamp.now();
+    await assertSucceeds(addDoc(col, validSession({ status: 'paused', segments: [{ start: t, end: t }] })));
+    await assertSucceeds(addDoc(col, validSession({ segments: [{ start: t, end: t }, { start: t }], partial: { closedAt: t, skipped: ['E1 Skull Crusher'] } })));
+    await assertFails(addDoc(col, validSession({ status: 'partial' })));
+    await assertFails(addDoc(col, validSession({ segments: 'one' })));
+    await assertFails(addDoc(col, validSession({ segments: Array.from({ length: 21 }, () => ({ start: t })) })));
+    await assertFails(addDoc(col, validSession({ partial: { closedAt: t, skipped: [], extra: 1 } })));
+    await assertFails(addDoc(col, validSession({ partial: { closedAt: 'tonight', skipped: [] } })));
+  });
+
   it('accepts a workout session with no cardio field at all', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

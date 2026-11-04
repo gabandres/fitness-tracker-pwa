@@ -104,6 +104,22 @@ export function toWorkoutSession(id: string, data: Record<string, unknown>): Wor
     })),
     cardio: (data['cardio'] as CardioBlock[] | undefined)?.map(toCardioBlock),
     nextNotes: data['nextNotes'] as string | undefined,
+    ...(Array.isArray(data['segments'])
+      ? {
+          segments: (data['segments'] as Record<string, unknown>[]).map((g) => ({
+            start: toDate(g['start']),
+            ...(g['end'] != null ? { end: toDate(g['end']) } : {}),
+          })),
+        }
+      : {}),
+    ...(data['partial'] && typeof data['partial'] === 'object'
+      ? {
+          partial: {
+            closedAt: toDate((data['partial'] as Record<string, unknown>)['closedAt']),
+            skipped: (((data['partial'] as Record<string, unknown>)['skipped'] as unknown[]) ?? []).filter((x): x is string => typeof x === 'string'),
+          },
+        }
+      : {}),
     createdAt: toDate(data['createdAt']),
     updatedAt: toDate(data['updatedAt']),
   };

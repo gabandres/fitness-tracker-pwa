@@ -31,6 +31,7 @@ import { MealEntries } from '@/components/MealEntries';
 import { MilestoneNote } from '@/components/MilestoneNote';
 import { TravelCard } from '@/components/TravelCard';
 import { TravelPlanCard } from '@/components/TravelPlanCard';
+import { PausedSessionCard } from '@/components/train/PausedSessionCard';
 import { EyeballMealSheet } from '@/components/EyeballMealSheet';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { track } from '@/lib/analytics';
@@ -1008,6 +1009,16 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               onEyeballMeal={() => setEyeballOpen(true)}
             />
           ) : null}
+          {/* A workout paused partway (core `session-pause.ts`): resumed on
+              Train, in the same record. */}
+          {recentSessions.filter((s) => s.status === 'paused').map((s) => (
+            <PausedSessionCard
+              key={s.id}
+              session={s}
+              boundary={dayBoundaryOf(todayProfile)}
+              onResume={() => router.navigate({ pathname: '/train', params: { resume: s.id! } })}
+            />
+          ))}
           {trip?.plan?.length ? (
             <TravelPlanCard plan={trip.plan} todayKey={todayKey} sessions={recentSessions} boundary={dayBoundaryOf(todayProfile)} />
           ) : null}
