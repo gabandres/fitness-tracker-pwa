@@ -522,9 +522,8 @@ captures belong there; the raw-capture convention is
 
 ### Review notes
 ```
-All features in Ignia are free. There is no subscription, no paywall and no
-gated content. The optional tip (consumable in-app purchase) unlocks nothing
-— it is a donation.
+All features in Ignia are free. There is no subscription, no paywall, no
+gated content and nothing to buy.
 
 Account deletion is available in-app: Settings → Delete account.
 
