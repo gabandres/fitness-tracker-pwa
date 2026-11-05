@@ -45,7 +45,7 @@ export type { SetStructure } from '@macrolog/core/workout';
 // enumerations of one union is exactly how a chip goes missing.
 export type { LoadUnit, MuscleGroup } from '@macrolog/core/workout';
 import type { LoadUnit } from '@macrolog/core/workout';
-import type { PartialClose, SessionSegment } from '@macrolog/core';
+import type { PartialClose, RowAlternative, RowCarryover, SessionSegment, TimeCap } from '@macrolog/core';
 
 /** How a set counts. v1 only creates `working`; the others exist so docs
  *  written by the PWA round-trip cleanly. */
@@ -95,6 +95,8 @@ export interface Exercise {
   loadable?: boolean;
   /** Microplates are available for this lift. */
   microplates?: boolean;
+  /** Core `Exercise.unitByGym`: the last unit used, per gym. */
+  unitByGym?: Partial<Record<string, LoadUnit>>;
   createdAt: Date;
 }
 
@@ -124,6 +126,8 @@ export interface WorkoutSet {
   /** The 1-based part of a paused-and-resumed session it was logged in —
    *  core `WorkoutSet.segment`. Absent = part 1. */
   segment?: number;
+  /** The unit the load was TYPED in — core `WorkoutSet.unit`. */
+  unit?: LoadUnit;
 }
 
 export interface SessionExercise {
@@ -156,6 +160,10 @@ export interface SessionExercise {
   linkedHome?: boolean;
   /** Core `SessionExercise.calibration`. */
   calibration?: boolean;
+  /** Core `row-options.ts` — snapshotted from the template row. */
+  alternatives?: RowAlternative[];
+  optional?: boolean;
+  carryover?: RowCarryover;
 }
 
 // ─── Templates ──────────────────────────────────────────────────
@@ -243,6 +251,11 @@ export interface TemplateExercise {
   loadUnit?: LoadUnit;
   awayGym?: string;
   linkedHome?: boolean;
+  /** Core `row-options.ts`. No editor screen shows these; core's carried
+   *  fields keep them across an editor save. */
+  alternatives?: RowAlternative[];
+  optional?: boolean;
+  carryover?: RowCarryover;
 }
 
 export interface WorkoutTemplate {
@@ -266,6 +279,8 @@ export interface WorkoutTemplate {
    *  by `archiveTemplate` / `unarchiveTemplate` — the template writers never
    *  carry it, so an editor save (a merge) leaves it untouched. */
   archivedAt?: Date;
+  /** Core `WorkoutTemplate.timeCap` — written by owner-data scripts only. */
+  timeCap?: TimeCap;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -325,6 +340,9 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
       ...(ex.loadUnit ? { loadUnit: ex.loadUnit } : {}),
       ...(ex.awayGym ? { awayGym: ex.awayGym } : {}),
       ...(ex.linkedHome ? { linkedHome: true } : {}),
+      ...(ex.alternatives?.length ? { alternatives: ex.alternatives } : {}),
+      ...(ex.optional ? { optional: true } : {}),
+      ...(ex.carryover ? { carryover: ex.carryover } : {}),
     };
   });
 }

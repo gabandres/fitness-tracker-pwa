@@ -217,6 +217,8 @@ const CARRIED_ROW_FIELDS = [
   'loadUnit',
   'awayGym',
   'linkedHome',
+  // Row options (2026-11-05, `row-options.ts`): swaps, optional, carryover.
+  'alternatives', 'optional', 'carryover',
 ] as const;
 
 /** The fields that make a row's PRESCRIPTION — what a change stamp is about. */

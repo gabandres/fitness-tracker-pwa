@@ -1,6 +1,8 @@
 import type { CardioBlock, CardioModality } from './cardio';
 import { normalizeClusterGroups } from './cluster-groups';
-import type { SessionExercise, SetKind, WorkoutSession, WorkoutSet } from './workout';
+import type { LoadUnit, SessionExercise, SetKind, WorkoutSession, WorkoutSet } from './workout';
+import { switchRowUnit } from './gym-units';
+import { canSwap, swapToAlternative } from './row-options';
 
 /**
  * Every structural edit an in-progress workout accepts, as data.
@@ -62,7 +64,22 @@ export type SessionAction =
   // ── Travel mode (2026-10-26) ──
   /** "Different equipment — not comparable": out of the engine's reads and
    *  out of e1RM / PRs (`WorkoutSession.notComparable`). */
-  | { type: 'setNotComparable'; value: boolean };
+  | { type: 'setNotComparable'; value: boolean }
+  // ── kg / lb and row options (2026-11-05) ──
+  /** The row reads and takes `unit`; unticked sets follow (`switchRowUnit`). */
+  | { type: 'setRowUnit'; exerciseIndex: number; unit: LoadUnit }
+  /** One-tap swap to the row's alternative `alternativeIndex` (`row-options.ts`). */
+  | { type: 'swapExercise'; exerciseIndex: number; alternativeIndex: number; calibration: boolean }
+  /** Replace the rows wholesale (the "kg or lb?" answer re-labels them). */
+  | { type: 'setExercises'; exercises: SessionExercise[] };
+
+/** A load typed or a set ticked records the unit it was in (`WorkoutSet.unit`):
+ *  the patch's own, else the row's. A set already carrying one keeps it. */
+function stampUnit(next: WorkoutSet, patch: Partial<WorkoutSet>, rowUnit: LoadUnit | undefined): WorkoutSet {
+  if (next.unit !== undefined || !rowUnit || next.weight == null) return next;
+  if (patch.weight === undefined && patch.done !== true) return next;
+  return { ...next, unit: rowUnit };
+}
 
 /** One empty working set — the row every "add set" produces. */
 export function newWorkoutSet(kind: SetKind = 'working'): WorkoutSet {
@@ -136,6 +153,18 @@ export function applySessionAction(
   action: SessionAction,
 ): WorkoutSession {
   switch (action.type) {
+    case 'setRowUnit':
+      return mapExercise(session, action.exerciseIndex, (ex) => (ex.loadUnit === action.unit ? ex : switchRowUnit(ex, action.unit)));
+
+    case 'swapExercise':
+      return mapExercise(session, action.exerciseIndex, (ex) => {
+        const alt = ex.alternatives?.[action.alternativeIndex];
+        return alt && canSwap(ex) ? swapToAlternative(ex, alt, action.calibration) : ex;
+      });
+
+    case 'setExercises':
+      return { ...session, exercises: action.exercises };
+
     case 'setNotComparable':
       if ((session.notComparable === true) === action.value) return session;
       return { ...session, notComparable: action.value };
@@ -197,7 +226,7 @@ export function applySessionAction(
     case 'patchSet':
       return mapExercise(session, action.exerciseIndex, (ex) =>
         mapSets(ex, (sets) =>
-          sets.map((s, j) => (j === action.setIndex ? { ...s, ...action.patch } : s)),
+          sets.map((s, j) => (j === action.setIndex ? stampUnit({ ...s, ...action.patch }, action.patch, ex.loadUnit) : s)),
         ),
       );
 

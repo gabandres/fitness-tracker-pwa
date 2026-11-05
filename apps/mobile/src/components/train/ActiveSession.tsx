@@ -16,7 +16,18 @@ import {
   moveBlockAware,
   restAfterSetInFlow,
   isBackToBackGymDay,
-  calibrationRanHot,
+  calibrationRanHotOn,
+  timeCapOf,
+  overTimeCap,
+  activeMinutes,
+  segmentsOf,
+  unitAskOf,
+  canSwap,
+  unitByGymOf,
+  rememberUnit,
+  gymKeyOf,
+  relabelRows,
+  previousHistory,
   clockStart,
   roundRestWithFloor,
   CLUSTER_ESTIMATE_SEC,
@@ -65,6 +76,7 @@ import {
 } from '../../../modules/intent-inbox';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
+import { useAuth } from '@/lib/auth';
 import { DEFAULT_LOG_STYLE, isLoggedSet, isTickedSet, type Exercise, type SessionExercise, type SetKind } from '@/lib/workout';
 import { AddExerciseSheet } from './AddExerciseSheet';
 import { CardioPickerSheet } from './CardioPickerSheet';
@@ -116,7 +128,9 @@ const menuHandoff = (run: () => void) => {
 /** The rows an exercise's ⋯ can carry. */
 type ExerciseMenuKey =
   | 'move-up' | 'move-down' | 'history' | 'replace' | 'cluster' | 'block'
-  | 'plates' | 'rest' | 'rest-now' | 'lift' | 'remove' | 'unpair-today';
+  | 'plates' | 'rest' | 'rest-now' | 'lift' | 'remove' | 'unpair-today'
+  // One-tap swap to the row's alternative N (core `row-options.ts`).
+  | `swap-${number}`;
 
 /**
  * What one exercise's ⋯ offers, as plain values. The rows are built from this
@@ -143,6 +157,8 @@ interface ExerciseMenuShape {
   lift: boolean;
   /** In a superset: "Unpair for today"'s description; null otherwise. */
   unpairToday: string | null;
+  /** The row's one-tap swaps, while nothing is ticked ("Swap to One-arm DB Row"). */
+  swaps: { label: string; desc?: string }[];
 }
 
 /** The ⋯ rows for a shape, each pressing through `run`. */
@@ -154,6 +170,9 @@ function exerciseMenuActions(shape: ExerciseMenuShape, run: (key: ExerciseMenuKe
     extra: Partial<ExerciseMenuAction> = {},
   ): ExerciseMenuAction => ({ key, icon, labelKey, onPress: () => run(key), ...extra });
   return [
+    // A busy machine or a missing cable: the planned alternative, one tap
+    // (2026-11-05). First, because it is the reason to open ⋯ before a set.
+    ...shape.swaps.map((sw, i) => row(`swap-${i}`, 'shuffle-outline', 'train.swapTo', { label: sw.label, ...(sw.desc ? { desc: sw.desc } : {}) })),
     ...(shape.canMoveUp ? [row('move-up', 'arrow-up-outline', 'train.moveUp')] : []),
     ...(shape.canMoveDown ? [row('move-down', 'arrow-down-outline', 'train.moveDown')] : []),
     // Strong's in-workout History tab, Hevy's tap on the name: what this lift
@@ -433,9 +452,27 @@ export function ActiveSession({
   // The last session at this gym took every calibration activation to RIR 0
   // (core `calibrationRanHot`, owner 2026-11-04): a reminder, the data stays.
   const ranHot = useMemo(
-    () => !train.editingExisting && calibrationRanHot(session, train.recentSessions),
+    () => (train.editingExisting ? null : calibrationRanHotOn(session, train.recentSessions)),
     [session, train.recentSessions, train.editingExisting],
   );
+  // Past the template's time cap, what to drop first (2026-11-05; core
+  // `row-options.ts`). Read off the template: display only.
+  const timeCap = useMemo(
+    () => timeCapOf(train.templates.find((tp) => tp.id === session.templateId)?.timeCap),
+    [train.templates, session.templateId],
+  );
+  const [capNow, setCapNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!timeCap || train.editingExisting) return;
+    const id = setInterval(() => setCapNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [timeCap, train.editingExisting]);
+  const overCap = !train.editingExisting && overTimeCap(timeCap, activeMinutes(segmentsOf(session), new Date(capNow)));
+  // "Haven dumbbells — kg or lb?" (2026-11-05; core `UnitAsk`): asked once,
+  // on the next session, from the profile.
+  const { profile } = useAuth();
+  const unitAsk = useMemo(() => (train.editingExisting ? null : unitAskOf((profile as { unitAsk?: unknown } | null)?.unitAsk)), [profile, train.editingExisting]);
+  const [unitAskBusy, setUnitAskBusy] = useState(false);
   const volume = sessionVolume(session);
   /** The header's line after the clock: volume, then progress. */
   const metaParts = [
@@ -956,6 +993,67 @@ export function ActiveSession({
   // here. What was removed is kept in the toast's closure and put back by
   // core's `undoRemoval` — by exercise id, so a move in between cannot send a
   // set into the wrong lift.
+  /** kg ⇄ lb on one lift: the row and its unticked sets follow, and the
+   *  choice is remembered for the lift at this gym (core `gym-units.ts`). */
+  const onSwitchUnit = useCallback(
+    (exerciseIndex: number, unit: 'kg' | 'lb') => {
+      const ex = exercisesRef.current[exerciseIndex];
+      if (!ex) return;
+      haptics.tap();
+      void dispatch({ type: 'setRowUnit', exerciseIndex, unit });
+      const cat = train.catalog.find((c) => c.id === ex.exerciseId);
+      if (!cat?.id) return;
+      const map = unitByGymOf(cat.unitByGym);
+      const next = rememberUnit(map, gymKeyOf(ex.awayGym), unit);
+      if (next !== map) void train.saveUnitByGym?.(cat.id, next).catch(() => {});
+    },
+    [dispatch, train],
+  );
+
+  /** One-tap swap to a planned alternative: history follows the lift done. */
+  function swapExercise(index: number, altIndex: number) {
+    const ex = session.exercises[index];
+    const alt = ex?.alternatives?.[altIndex];
+    if (!ex || !alt || !canSwap(ex)) return;
+    haptics.tap();
+    // Its first session at this gym is calibration, as a start would mark it.
+    const calibration = ex.awayGym != null
+      && previousHistory(train.recentSessions.filter((x) => x.status === 'completed'), { exerciseId: alt.exerciseId, awayGym: ex.awayGym }).length === 0;
+    void dispatch({ type: 'swapExercise', exerciseIndex: index, alternativeIndex: altIndex, calibration });
+    showToast(t('train.swapped', { from: ex.name, to: alt.name }), { durationMs: UNDO_TOAST_MS, testID: 'train-toast' });
+  }
+
+  /** The one-time "kg or lb?" answer: remembered for each lift it names at the
+   *  gym, today's rows follow, the session that raised it is re-labelled
+   *  (core `relabelRows`), and the question is deleted. */
+  async function answerUnitAsk(unit: 'kg' | 'lb') {
+    if (!unitAsk) return;
+    setUnitAskBusy(true);
+    try {
+      haptics.tap();
+      for (const id of unitAsk.exerciseIds) {
+        const cat = train.catalog.find((c) => c.id === id);
+        if (!cat?.id) continue;
+        const map = unitByGymOf(cat.unitByGym);
+        const next = rememberUnit(map, unitAsk.gym, unit);
+        if (next !== map) await train.saveUnitByGym?.(cat.id, next);
+      }
+      session.exercises.forEach((e, i) => {
+        if (unitAsk.exerciseIds.includes(e.exerciseId) && gymKeyOf(e.awayGym) === unitAsk.gym) {
+          void dispatch({ type: 'setRowUnit', exerciseIndex: i, unit });
+        }
+      });
+      const past = unitAsk.relabelSessionId ? train.recentSessions.find((x) => x.id === unitAsk.relabelSessionId) : undefined;
+      const exercises = past ? relabelRows(past.exercises, unitAsk.exerciseIds, unit) : null;
+      const changed = past?.id && exercises && exercises.some((e, i) => e !== past.exercises[i]);
+      await train.settleUnitAsk?.(changed ? { sessionId: past.id as string, exercises } : undefined);
+    } catch {
+      showToast(t('metrics.saveFailed'), { testID: 'train-toast' });
+    } finally {
+      setUnitAskBusy(false);
+    }
+  }
+
   const onRemoveSet = useCallback(
     (exerciseIndex: number, setIndex: number) => {
       const ex = exercisesRef.current[exerciseIndex];
@@ -1167,6 +1265,7 @@ export function ActiveSession({
       // The card already names the pair; the row's subtitle no longer
       // repeats it and truncates (L8).
       unpairToday: group ? t('train.superset.unpairTodayDesc') : null,
+      swaps: canSwap(ex) ? (ex.alternatives ?? []).map((a) => ({ label: t('train.swapTo', { name: a.name }), ...(a.note ? { desc: a.note } : {}) })) : [],
       // Only when the move does something: a superset moves as one block.
       canMoveUp: moveBlockAware(session.exercises, index, -1).newIndex !== index,
       canMoveDown: moveBlockAware(session.exercises, index, 1).newIndex !== index,
@@ -1241,6 +1340,10 @@ export function ActiveSession({
   function runExerciseAction(index: number, key: ExerciseMenuKey) {
     const ex = session.exercises[index];
     if (!ex) return;
+    if (key.startsWith('swap-')) {
+      swapExercise(index, Number(key.slice(5)));
+      return;
+    }
     switch (key) {
       case 'move-up':
         moveExercise(index, index - 1);
@@ -1572,7 +1675,33 @@ export function ActiveSession({
           {ranHot ? (
             <View style={styles.syncRow} testID="session-calibration-hot">
               <Ionicons name="trending-up-outline" size={16} color={colors.muted} />
-              <Text style={[styles.sheetHint, { flex: 1 }]}>{t('train.gym.calibrationHot')}</Text>
+              <Text style={[styles.sheetHint, { flex: 1 }]}>{t('train.gym.calibrationHot', { date: formatDate(ranHot, locale, { month: 'numeric', day: 'numeric' }) })}</Text>
+            </View>
+          ) : null}
+          {overCap && timeCap ? (
+            <View style={styles.syncRow} testID="session-time-cap" accessibilityRole="alert">
+              <Ionicons name="time-outline" size={16} color={colors.warn} />
+              <Text style={[styles.sheetHint, { flex: 1, color: colors.ink }]}>
+                {t('train.timeCap', { min: timeCap.minutes, order: timeCap.drop.join(' → ') })}
+              </Text>
+            </View>
+          ) : null}
+          {unitAsk ? (
+            <View style={styles.syncRow} testID="session-unit-ask">
+              <Ionicons name="help-circle-outline" size={16} color={colors.muted} />
+              <Text style={[styles.sheetHint, { flex: 1, color: colors.ink }]}>{unitAsk.question}</Text>
+              {(['kg', 'lb'] as const).map((u) => (
+                <Touchable
+                  key={u}
+                  style={styles.unitAskBtn}
+                  disabled={unitAskBusy}
+                  onPress={() => void answerUnitAsk(u)}
+                  accessibilityRole="button"
+                  testID={`session-unit-ask-${u}`}
+                >
+                  <Text style={styles.unitAskBtnText}>{u}</Text>
+                </Touchable>
+              ))}
             </View>
           ) : null}
           {session.reentry ? (
@@ -1654,6 +1783,7 @@ export function ActiveSession({
               onOpenLift={onOpenLift}
               onSetDone={onSetDone}
               onRemoveSet={onRemoveSet}
+              onSwitchUnit={onSwitchUnit}
             />
             </View>
             );

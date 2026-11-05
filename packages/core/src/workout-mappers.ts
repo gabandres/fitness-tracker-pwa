@@ -16,6 +16,8 @@
  */
 import type { CardioBlock, PlannedCardioBlock } from './cardio';
 import { toDate } from './firestore-mappers';
+import { unitByGymOf } from './gym-units';
+import { timeCapOf, type TimeCap } from './row-options';
 import type { Exercise, SessionExercise, TemplateExercise, WorkoutSession, WorkoutTemplate } from './workout';
 
 /**
@@ -52,6 +54,7 @@ export function toWorkoutExercise(id: string, data: Record<string, unknown>): Ex
     smithBarEffectiveLb: data['smithBarEffectiveLb'] as number | undefined,
     loadable: data['loadable'] as boolean | undefined,
     microplates: data['microplates'] as boolean | undefined,
+    ...(Object.keys(unitByGymOf(data['unitByGym'])).length ? { unitByGym: unitByGymOf(data['unitByGym']) } : {}),
     createdAt: toDate(data['createdAt']),
   };
 }
@@ -70,6 +73,7 @@ export function toWorkoutTemplate(id: string, data: Record<string, unknown>): Wo
     })),
     cardioBlocks: data['cardioBlocks'] as PlannedCardioBlock[] | undefined,
     seedKey: data['seedKey'] as string | undefined,
+    ...(timeCapOf(data['timeCap']) ? { timeCap: timeCapOf(data['timeCap']) as TimeCap } : {}),
     // Absent stays absent: `toDate(undefined)` would invent "now" and archive
     // every template. A pending serverTimestamp reads as null in a local
     // snapshot — still archived, so it falls back to "now" until the server
@@ -120,6 +124,7 @@ export function toWorkoutSession(id: string, data: Record<string, unknown>): Wor
           },
         }
       : {}),
+    ...(typeof data['durationNote'] === 'string' && data['durationNote'] ? { durationNote: data['durationNote'] } : {}),
     createdAt: toDate(data['createdAt']),
     updatedAt: toDate(data['updatedAt']),
   };

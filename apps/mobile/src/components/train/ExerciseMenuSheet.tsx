@@ -11,6 +11,8 @@ export interface ExerciseMenuAction {
   key: string;
   icon: keyof typeof Ionicons.glyphMap;
   labelKey: I18nKey;
+  /** A label that carries a value ("Swap to One-arm DB Row"). Wins over `labelKey`. */
+  label?: string;
   /** Explains what it does, for the ones that are gym jargon. */
   descKey?: I18nKey;
   /** A description that carries a value ("1:30 after each set"). Wins over
@@ -91,7 +93,7 @@ export function ExerciseMenuSheet({
           />
           <View style={styles.menuMain}>
             <Text style={[styles.menuLabel, a.destructive && styles.menuLabelDanger]}>
-              {t(a.labelKey)}
+              {a.label ?? t(a.labelKey)}
             </Text>
             {a.desc ?? (a.descKey ? t(a.descKey) : null) ? (
               <Text style={styles.menuDesc}>{a.desc ?? t(a.descKey as I18nKey)}</Text>
