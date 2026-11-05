@@ -38,6 +38,8 @@ import {
   commitDraftSwaps,
   deleteTemplateDraft,
   deleteTemplateWithDraft,
+  clearUnitAsk as clearUnitAskDoc,
+  setExerciseUnitByGym,
 } from '@/lib/ledger';
 import {
   type SessionAction,
@@ -73,6 +75,10 @@ import {
   reentrySessionExercises,
   travelPeriodsOf,
   isTravelTemplate,
+  startUnit,
+  unitByGymOf,
+  gymKeyOf,
+  gymLoadHint,
   type SwapPlan,
   type TemplateDraftDoc,
   canResume,
@@ -224,6 +230,11 @@ export interface TrainState {
   /** Archive a template (2026-10-24): it leaves Start's list and the rotation
    *  but is never deleted — sessions keep referencing it. */
   archiveTemplate: (id: string) => Promise<void>;
+  /** The unit a lift was last used in, per gym (core `gym-units.ts`). */
+  saveUnitByGym?: (exerciseId: string, map: Partial<Record<string, 'kg' | 'lb'>>) => Promise<void>;
+  /** The one-time "kg or lb?" was answered: re-label the session it named
+   *  (when given) and delete the question. */
+  settleUnitAsk?: (relabel?: { sessionId: string; exercises: SessionExercise[] }) => Promise<void>;
   /** Bring an archived template back into Start's list. */
   unarchiveTemplate: (id: string) => Promise<void>;
   /** Create a catalog exercise, returning its id (used by the template
@@ -861,6 +872,51 @@ export function useTrain(): TrainState {
     [uid],
   );
 
+  /**
+   * The unit each lift starts in and, at an away gym, the load hint
+   * (2026-11-05, core `gym-units.ts`): the last unit used for the lift at this
+   * gym, else the row's, else kg on a trip, else the account's — written onto
+   * the row so every set reads in it. A row at an away gym with no load yet
+   * gets the hint's load (last load there, else home −10 %).
+   */
+  const withStartUnits = useCallback(
+    (exercises: SessionExercise[], travel: boolean): SessionExercise[] => {
+      const completed = recentSessions.filter((s) => s.status === 'completed');
+      return exercises.map((se) => {
+        if ((se.logStyle ?? 'weight-reps') !== 'weight-reps') return se;
+        const cat = catalog.find((c) => c.id === se.exerciseId);
+        const unit = startUnit({
+          remembered: unitByGymOf(cat?.unitByGym)[gymKeyOf(se.awayGym)],
+          rowUnit: se.loadUnit,
+          travel,
+          unitSystem: profile?.unitSystem,
+        });
+        let out: SessionExercise = se.loadUnit === unit ? se : { ...se, loadUnit: unit };
+        if (se.awayGym && !se.sets.some((x) => x.weight != null && x.weight > 0)) {
+          const hint = gymLoadHint(completed, { exerciseId: se.exerciseId, name: se.name, awayGym: se.awayGym });
+          if (hint) out = { ...out, sets: out.sets.map((x) => (x.kind === 'warmup' || x.kind === 'drop' ? x : { ...x, weight: hint.lb })) };
+        }
+        return out;
+      });
+    },
+    [recentSessions, catalog, profile],
+  );
+
+  const saveUnitByGym = useCallback(
+    async (exerciseId: string, map: Partial<Record<string, 'kg' | 'lb'>>) => {
+      if (uid) await setExerciseUnitByGym(uid, exerciseId, map);
+    },
+    [uid],
+  );
+  const settleUnitAsk = useCallback(
+    async (relabel?: { sessionId: string; exercises: SessionExercise[] }) => {
+      if (!uid) return;
+      if (relabel) await updateSession(uid, relabel.sessionId, { exercises: relabel.exercises });
+      await clearUnitAskDoc(uid);
+    },
+    [uid],
+  );
+
   const startFromTemplate = useCallback(
     async (template: WorkoutTemplate) => {
       if (!uid || activeRef.current) return;
@@ -876,10 +932,10 @@ export function useTrain(): TrainState {
           templateName: template.name,
           // The template's loads per SIDE too: an L/R lift's sides are
           // their own tracks (`seedSideLoads`, as a normal start does).
-          exercises: deloadSessionExercises(templateToSessionExercises(template).map((se) => {
+          exercises: withStartUnits(deloadSessionExercises(templateToSessionExercises(template).map((se) => {
             const sideLoads = template.exercises.find((e) => e.exerciseId === se.exerciseId)?.sideLoads;
             return sideLoads ? seedSideLoads(se, sideLoads) : se;
-          })),
+          })), activeTravel(dayKeyAt(new Date(), dayBoundaryOf(profile)), travelPeriodsOf(profile)) != null),
           cardio: templateToSessionCardio(template),
           deload: true,
           ...(templateVersion ? { templateVersion } : {}),
@@ -949,14 +1005,14 @@ export function useTrain(): TrainState {
         date: new Date(),
         templateId: template.id,
         templateName: template.name,
-        exercises: reentry ? reentrySessionExercises(exercises, stepFor) : exercises,
+        exercises: withStartUnits(reentry ? reentrySessionExercises(exercises, stepFor) : exercises, activeTravel(today, periods) != null),
         cardio: templateToSessionCardio(template),
         ...(templateVersion ? { templateVersion } : {}),
         ...(reentry ? { reentry } : {}),
         ...(awayGym ? { notComparable: true } : {}),
       });
     },
-    [uid, begin, recentSessions, engineCatalog, deload, profile, templates],
+    [uid, begin, recentSessions, engineCatalog, deload, profile, templates, withStartUnits],
   );
 
   /**
@@ -1808,6 +1864,8 @@ export function useTrain(): TrainState {
       reopenSession,
       finishEdit,
       cancelEdit,
+      saveUnitByGym,
+      settleUnitAsk,
     }),
     [
       loading, error, errorKind, clearError, catalog, engineCatalog, deload, setDeloadStartedAt, templates, drafts, planDraftSwaps, switchDrafts,
@@ -1817,7 +1875,7 @@ export function useTrain(): TrainState {
       cloneStarterTemplate, addCatalogExercise, addLibraryExercise, addLibraryExerciseToActive, addManyToActive,
       editCatalogExercise, deleteCatalogExercise, mergeCatalogExercises, addExerciseToActive,
       moveExerciseInActive, undoMove, undoRemoval, dispatch, commitActive, finishWorkout, discardWorkout, paused, pauseWorkout, resumeSession, deleteSession,
-      editingExisting, reopenSession, finishEdit, cancelEdit,
+      editingExisting, reopenSession, finishEdit, cancelEdit, saveUnitByGym, settleUnitAsk,
     ],
   );
 }

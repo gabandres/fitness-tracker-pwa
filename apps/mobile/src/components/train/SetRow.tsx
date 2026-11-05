@@ -152,7 +152,9 @@ export const SetRow = memo(function SetRow({
   chain,
   loadUnit: rowUnit,
 }: SetRowProps) {
-  const unitSystem = rowUnitSystem(rowUnit, useUnitSystem()) ?? 'us';
+  // A set reads in the unit it was TYPED in (core `WorkoutSet.unit`,
+  // 2026-11-05), else its row's, else the account's.
+  const unitSystem = rowUnitSystem(set.unit ?? rowUnit, useUnitSystem()) ?? 'us';
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -295,7 +297,9 @@ export const SetRow = memo(function SetRow({
         // Through the shared ceiling (@macrolog/core) for the same reason RIR
         // is: `parseLoadToLb` only converts units and rejects negatives, so a
         // mistyped 12750 was storable (#85).
-        patch: { weight: clampSetLoad(parseLoadToLb(text, unitSystem)) },
+        // …with the unit it was typed in: a kg entry is stored as
+        // full-precision pounds, and shown back in kg.
+        patch: { weight: clampSetLoad(parseLoadToLb(text, unitSystem)), unit: loadUnit(unitSystem) },
       },
       { defer: true },
     );

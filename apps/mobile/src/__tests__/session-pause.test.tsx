@@ -36,8 +36,14 @@ describe('PausedSessionCard', () => {
 describe('history line for a kg row', () => {
   it('reads in kg, with the pound equivalent as a secondary label', () => {
     const row = ex('row', 'Seated Cable Row', [{ kind: 'activation', group: 1, weight: kgToLb(40), reps: 9 }], { loadUnit: 'kg' });
-    expect(setLine(row, 'weight-reps', 'us')).toBe('40×9   kg · 40 kg = 88 lb');
+    expect(setLine(row, 'weight-reps', 'us')).toBe('40×9   kg · 40 kg (88.2 lb)');
     const home = ex('row', 'Row', [{ kind: 'activation', group: 1, weight: 135, reps: 9 }]);
     expect(setLine(home, 'weight-reps', 'us')).toBe('135×9');
+  });
+  it('a set reads in the unit it was typed in: 12 kg is "12 kg (26.5 lb)", never "12.0 kg"', () => {
+    const rdl = ex('rdl', 'DB RDL', [{ kind: 'working', weight: kgToLb(12), reps: 8, unit: 'kg' }]);
+    expect(setLine(rdl, 'weight-reps', 'us')).toBe('12×8   kg · 12 kg (26.5 lb)');
+    const lb = ex('c', 'Curl', [{ kind: 'working', weight: 25, reps: 10, unit: 'lb' }]);
+    expect(setLine(lb, 'weight-reps', 'metric')).toBe('25×10   lb · 25 lb (11.3 kg)');
   });
 });

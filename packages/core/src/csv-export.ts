@@ -23,6 +23,8 @@ import { DELOAD_RIR } from './deload';
 import { REENTRY_RIR } from './reentry';
 import { isTravelDay, travelPeriodsOf, TRAVEL_SCALE_NOTE } from './travel';
 import { remainingStepText, remainingSteps, sessionStatusLabel } from './session-pause';
+import { accountUnit, kgOf, setUnit } from './gym-units';
+import type { UnitSystem } from './unit-system';
 
 const COLS = [
   'type', 'date', 'timestamp',
@@ -129,6 +131,12 @@ const COLS = [
   // 'workout' row's notes name the skipped steps, a paused one's the steps
   // left). 'workout_set' rows: the 1-based part the set was logged in.
   'sessionStatus', 'segmentIndex',
+  // ── kg (2026-11-05, `gym-units.ts`), appended for the same reason ──
+  // `setWeightKg` ('workout_set') and `loadKg` ('template') are DERIVED from
+  // the stored pounds, round(lb ÷ 2.2046, 1), for every row home or away.
+  // `unit`: the unit the set was typed in ('workout_set'), else its row's,
+  // else the account's; on 'template' rows the row's unit.
+  'setWeightKg', 'loadKg', 'unit',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -213,6 +221,9 @@ export interface ExportData {
   /** The profile's `travelPeriods`, for `travel` rows and the travel-scale
    *  note on weigh-ins inside a trip. */
   travelPeriods?: unknown;
+  /** The account's unit system, for the `unit` column of a row that names
+   *  none. Absent → lb. */
+  unitSystem?: UnitSystem;
 }
 
 /**
@@ -350,7 +361,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       date,
       timestamp,
       sessionStatus: status,
-      notes: [statusNote, parts].filter(Boolean).join(' · ') || undefined,
+      notes: [statusNote, parts, s.durationNote].filter(Boolean).join(' · ') || undefined,
       template: s.templateName,
       weight: s.bodyweight,
       durationMin: s.durationMin,
@@ -398,8 +409,15 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
           rirTarget: set.kind === 'activation' || set.kind === 'working'
             ? (s.deload ? DELOAD_RIR : s.reentry || ex.calibration ? REENTRY_RIR : targetRirOf(data.effortStandards?.[ex.exerciseId]))
             : undefined,
-          sessionFlags: [ex.calibration ? 'calibration' : '', ex.calibration && ex.linkedHome ? 'travel-re-entry' : ''].filter(Boolean).join(';'),
+          sessionFlags: [
+            ex.calibration ? 'calibration' : '',
+            ex.calibration && ex.linkedHome ? 'travel-re-entry' : '',
+            ex.carryover ? `carryover:${ex.carryover.from}:${ex.carryover.clusters}` : '',
+            ex.optional ? 'optional' : '',
+          ].filter(Boolean).join(';'),
           ...unitCols(ex.loadUnit, set.weight),
+          setWeightKg: set.weight != null ? kgOf(set.weight) : undefined,
+          unit: ex.logStyle === 'time' ? undefined : setUnit(set, ex.loadUnit, data.unitSystem),
           sessionStatus: status,
           segmentIndex: set.segment ?? 1,
         }));
@@ -570,6 +588,9 @@ function templateRows(data: ExportData): string[] {
         ...drops.map((d) => `+ drop set${d.weight != null ? ` at ${d.weight}` : ''}`),
         ...(ex.baseline ? [`baseline since ${ex.baseline.since}: ${ex.baseline.reason}`] : []),
         ...(ex.excludedReads ?? []).map((x) => `${x.date} not read: ${x.reason}`),
+        ...(ex.alternatives ?? []).map((a) => `alt: ${a.name}${a.note ? ` (${a.note})` : ''}`),
+        ...(ex.optional ? ['optional'] : []),
+        ...(ex.carryover ? [`carryover from ${ex.carryover.from}: ${ex.carryover.clusters}`] : []),
         ...(ccc ? [`cluster count changed ${ccc.from}→${ccc.to}${ccc.since ? ` on ${ccc.since}` : ''}; baseline`] : []),
       ].join('; ');
       out.push(row({
@@ -595,6 +616,8 @@ function templateRows(data: ExportData): string[] {
         supersetOrder: supersets[i].pairPosition,
         transitionSec: supersets[i].transitionRestSec,
         ...unitCols(ex.loadUnit, ex.targetLoad),
+        loadKg: ex.targetLoad != null ? kgOf(ex.targetLoad) : undefined,
+        unit: ex.logStyle === 'time' ? undefined : (ex.loadUnit ?? accountUnit(data.unitSystem)),
       }));
     });
     (t.cardioBlocks ?? []).forEach((b, j) => {

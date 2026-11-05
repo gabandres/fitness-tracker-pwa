@@ -1351,6 +1351,16 @@ describe('firestore.rules', () => {
     await assertFails(setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), travelPeriods: [bolivia] }));
   });
 
+  it('accepts a one-time unit question on a completed profile (2026-11-05)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ask = { gym: 'Haven Gym', question: 'Haven dumbbells — kg or lb?', exerciseIds: ['a', 'b'], relabelSessionId: 's1' };
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), unitAsk: ask }));
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), unitAsk: { ...ask, extra: 1 } }));
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), unitAsk: { ...ask, exerciseIds: Array(41).fill('x') } }));
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), unitAsk: 'kg' }));
+  });
+
   it('rejects training settings on an incomplete profile (only Settings writes them)', async () => {
     const db = authed('alice');
     await assertFails(setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), trainingPhase: 'cut' }));
@@ -1541,6 +1551,15 @@ describe('firestore.rules', () => {
     );
   });
 
+  it('accepts a per-gym unit memory on a catalog exercise, as a small map (2026-11-05)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const col = collection(db, 'users', 'alice', 'exercises');
+    await assertSucceeds(addDoc(col, { name: 'X', createdAt: Timestamp.now(), unitByGym: { home: 'lb', 'Haven Gym': 'kg' } }));
+    await assertFails(addDoc(col, { name: 'X', createdAt: Timestamp.now(), unitByGym: 'kg' }));
+    await assertFails(addDoc(col, { name: 'X', createdAt: Timestamp.now(), unitByGym: Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`g${i}`, 'kg'])) }));
+  });
+
   it('rejects a malformed per-lift configuration', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
@@ -1666,6 +1685,16 @@ describe('firestore.rules', () => {
     source: 'manual',
   });
 
+  it('accepts a template time cap, and only its two fields (2026-11-05)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const col = collection(db, 'users', 'alice', 'workoutTemplates');
+    await assertSucceeds(addDoc(col, validTemplate({ timeCap: { minutes: 65, drop: ['3rd lateral', '2nd rear delt', 'leg curl'] } })));
+    await assertFails(addDoc(col, validTemplate({ timeCap: { minutes: 65, drop: [], extra: 1 } })));
+    await assertFails(addDoc(col, validTemplate({ timeCap: { minutes: 0, drop: [] } })));
+    await assertFails(addDoc(col, validTemplate({ timeCap: { minutes: 65, drop: 'leg curl' } })));
+  });
+
   it('accepts re-entry and not-comparable sessions (travel mode), enumerated', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
@@ -1689,6 +1718,10 @@ describe('firestore.rules', () => {
     await assertFails(addDoc(col, validSession({ segments: Array.from({ length: 21 }, () => ({ start: t })) })));
     await assertFails(addDoc(col, validSession({ partial: { closedAt: t, skipped: [], extra: 1 } })));
     await assertFails(addDoc(col, validSession({ partial: { closedAt: 'tonight', skipped: [] } })));
+    // A corrected duration says how (2026-11-05).
+    await assertSucceeds(addDoc(col, validSession({ durationMin: 43, durationNote: 'auto-corrected: 901 → 43 min' })));
+    await assertFails(addDoc(col, validSession({ durationNote: 901 })));
+    await assertFails(addDoc(col, validSession({ durationNote: 'x'.repeat(301) })));
   });
 
   it('accepts a workout session with no cardio field at all', async () => {

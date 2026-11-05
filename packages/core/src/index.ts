@@ -213,6 +213,8 @@ export * from './template-structure';
 // context-change baseline, drafts, and the "is it working" report.
 export * from './superset';
 export * from './session-pause';
+export * from './gym-units';
+export * from './row-options';
 export * from './deload';
 export * from './load-flags';
 export * from './superset-context';

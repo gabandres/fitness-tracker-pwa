@@ -695,6 +695,16 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // muted — it is advice about the NEXT set, not the absence of a call. The
   // calibration count under an invalid read is muted like the reason.
   recWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs, marginTop: 2 },
+  // Row options and the kg / lb switch (2026-11-05).
+  optionChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: 2 },
+  optionChip: { fontSize: font.tiny, color: colors.muted, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: space.sm, paddingVertical: 2, overflow: 'hidden' },
+  unitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm, marginTop: 2 },
+  unitSwitch: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 28, paddingHorizontal: space.sm, borderRadius: 999, borderWidth: 1, borderColor: colors.line },
+  unitSwitchText: { fontSize: font.small, color: colors.faint, fontWeight: '600' },
+  unitSwitchOn: { color: colors.ink, fontWeight: '800' },
+  unitSwitchSep: { fontSize: font.small, color: colors.line },
+  unitAskBtn: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: colors.lineStrong, paddingHorizontal: space.sm },
+  unitAskBtnText: { fontSize: font.body, color: colors.ink, fontWeight: '800' },
   recWarnText: { flex: 1, fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
   recCalib: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
   recGear: { marginLeft: 'auto', minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },

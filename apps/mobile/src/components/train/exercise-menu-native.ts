@@ -37,7 +37,7 @@ export function toMenuButtonActions(actions: readonly ExerciseMenuAction[], t: T
     const sfSymbol = IONICON_TO_SF[a.icon as string];
     return {
       key: a.key,
-      title: t(a.labelKey),
+      title: a.label ?? t(a.labelKey),
       ...(subtitle ? { subtitle } : {}),
       ...(sfSymbol ? { sfSymbol } : {}),
       ...(a.destructive ? { destructive: true } : {}),
