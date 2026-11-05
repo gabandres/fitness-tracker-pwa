@@ -4,6 +4,27 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-04 (evening) — kg everywhere, typed units, one-tap swaps, time cap (`b979c4fa`, OTA on all twelve runtimes)
+
+kg sits next to lb on every load, worked out from the stored pounds with the
+owner's rule round(lb ÷ 2.2046, 1) and never stored. What IS stored is the unit a
+set was typed in (`WorkoutSet.unit`); a kg entry is full-precision pounds, and the
+set reads back in its own unit ("12 kg (26.5 lb)"). Each loaded lift has a kg | lb
+switch, remembered per lift per gym (`Exercise.unitByGym`); on a trip kg leads. At
+an away gym a lift shows a load hint (the last load there, else the last home load
+−10 % down to 2 kg for dumbbells / plates or 1 kg for a stack) and an empty row is
+pre-filled with it. Template rows gained one-tap alternatives (history follows the
+lift done), `optional` and `carryover`; templates gained a time cap with a drop
+order. "Use the range" fires on three sets running at exactly 10 reps and RIR ≥ 2.
+A one-time "kg or lb?" question (profile `unitAsk`) remembers the answer per lift
+and re-labels the session that raised it. Export: `setWeightKg`, `loadKg`, `unit`.
+Data the same evening (`scripts/owner-data-2026-11-05-carryover.mts`,
+`scripts/user-data-2026-11-05-stephanie-travel.mts`): the owner's 11/4 Travel D
+closed partial at 37 min with its kg sets labelled, Travel C / D alternatives, the
+11/5 "Travel C + D carryover" one-off, the trip plan; Stephanie's 11/4 closed
+partial (901 → 45 min, estimated from her 10/27 pace and flagged in
+`durationNote`), her Bolivia trip and plan, Day 2B, and the kg-or-lb question.
+
 ## 2026-11-02 — Haven Gym plan: Travel C / D, kg rows, "This week" (`1fc2a550`, OTA on all twelve runtimes)
 
 The owner's Bolivia trip gained a gym with a kg rack and a week-by-week plan
