@@ -2033,6 +2033,17 @@ export async function setTravelPeriods(uid: string, periods: readonly TravelPeri
   });
 }
 
+/** The one-time "kg or lb?" question was answered (core `UnitAsk`): delete it. */
+export async function clearUnitAsk(uid: string): Promise<void> {
+  await updateDoc(userDoc(uid), { unitAsk: deleteField() });
+}
+
+/** The unit an exercise was last used in, per gym (core `Exercise.unitByGym`) —
+ *  the whole map, since gym names are not safe field-path segments. */
+export async function setExerciseUnitByGym(uid: string, id: string, map: Partial<Record<string, 'kg' | 'lb'>>): Promise<void> {
+  await ackOrQueued(updateDoc(exerciseDoc(uid, id), { unitByGym: { ...map } }));
+}
+
 /** Settings → Training (progression engine, 2026-10-07). Only the keys
  *  passed are written; `volumeGateLb: null` clears the gate. Absent fields
  *  read as cut / auto-apply off / no gate (core `Profile`). */

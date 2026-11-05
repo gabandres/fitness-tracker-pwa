@@ -373,7 +373,7 @@ service cloud.firestore {
                                   'availableLoads', 'assisted', 'effortStandard',
                                   'targetRepBand', 'setStructure', 'category',
                                   'repRange', 'smithBarEffectiveLb', 'loadable',
-                                  'microplates', 'createdAt'])
+                                  'microplates', 'unitByGym', 'createdAt'])
           && data.keys().hasAll(['name', 'createdAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.createdAt is timestamp
@@ -421,7 +421,11 @@ service cloud.firestore {
                && data.smithBarEffectiveLb >= 0
                && data.smithBarEffectiveLb <= 200))
           && (!('loadable' in data.keys()) || data.loadable is bool)
-          && (!('microplates' in data.keys()) || data.microplates is bool);
+          && (!('microplates' in data.keys()) || data.microplates is bool)
+          // The unit this lift was last used in, per gym (2026-11-05; core
+          // gym-units.ts): a small map; `unitByGymOf` drops anything not kg/lb.
+          && (!('unitByGym' in data.keys()) ||
+              (data.unitByGym is map && data.unitByGym.size() <= 20));
     }
 
     // `cardioBlocks` is the PRESCRIPTION half of ADR-0025 — cardio a template
@@ -472,8 +476,14 @@ service cloud.firestore {
       return data.keys().hasOnly([
               'name', 'notes', 'restMiniSec', 'restClusterSec',
               'exercises', 'cardioBlocks', 'seedKey', 'createdAt', 'updatedAt',
-              'templateVersion', 'archivedAt'
+              'templateVersion', 'archivedAt', 'timeCap'
           ])
+          // Past N active minutes, what to drop first (2026-11-05; core
+          // row-options.ts `timeCapOf` drops a malformed one on read).
+          && (!('timeCap' in data.keys()) ||
+              (data.timeCap is map && data.timeCap.keys().hasOnly(['minutes', 'drop'])
+               && data.timeCap.minutes is number && data.timeCap.minutes > 0 && data.timeCap.minutes <= 600
+               && data.timeCap.drop is list && data.timeCap.drop.size() <= 10))
           && (!('archivedAt' in data.keys()) || data.archivedAt is timestamp)
           && (!('templateVersion' in data.keys()) ||
               (data.templateVersion is string && data.templateVersion.size() > 0 && data.templateVersion.size() <= 16))
@@ -631,8 +641,13 @@ service cloud.firestore {
               'reentry', 'notComparable',
               // Pause / resume (2026-11-04; core session-pause.ts): the active
               // parts, and a session closed early (still `completed`).
-              'segments', 'partial'
+              'segments', 'partial',
+              // A duration corrected after the fact, and how (2026-11-05):
+              // written by owner-data scripts, exported in the notes.
+              'durationNote'
           ])
+          && (!('durationNote' in data.keys()) ||
+              (data.durationNote is string && data.durationNote.size() <= 300))
           && data.keys().hasAll(['status', 'timestamp', 'exercises', 'createdAt', 'updatedAt'])
           && data.status in ['active', 'paused', 'completed']
           && (!('segments' in data.keys()) ||
@@ -776,7 +791,11 @@ service cloud.firestore {
               // Travel mode (2026-10-26; core travel.ts): every trip, kept so
               // a past trip's days stay out of the maintenance fit. Settings
               // writes it, a completed-profile screen only.
-              'travelPeriods'
+              'travelPeriods',
+              // A one-time "kg or lb?" question for a gym (2026-11-05; core
+              // gym-units.ts `UnitAsk`). Written by an owner-data script; the
+              // app deletes it once answered.
+              'unitAsk'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -913,6 +932,10 @@ service cloud.firestore {
           // drops any entry that is not a well-formed {start, end} on read.
           && (!('travelPeriods' in keys) ||
               (data.travelPeriods is list && data.travelPeriods.size() <= 24))
+          && (!('unitAsk' in keys) ||
+              (data.unitAsk is map
+               && data.unitAsk.keys().hasOnly(['gym', 'question', 'exerciseIds', 'relabelSessionId'])
+               && data.unitAsk.exerciseIds is list && data.unitAsk.exerciseIds.size() <= 40))
           // Body weight in lb, the weigh-in sanity band widened to a gate
           // somebody could actually set.
           && (!('volumeGateLb' in keys) ||

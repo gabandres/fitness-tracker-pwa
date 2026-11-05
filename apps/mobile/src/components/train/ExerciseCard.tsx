@@ -8,6 +8,10 @@ import {
   computePlateLoad,
   previousHistory,
   rowUnitSystem,
+  rangeNudge,
+  gymLoadHint,
+  dualLoadText,
+
   flatRepsWarning,
   formatLoad,
   generateWarmup,
@@ -35,6 +39,7 @@ import {
   type WorkoutSet,
 } from '@/lib/workout';
 import type { TrainState } from '@/hooks/useTrain';
+import type { LoadUnit } from '@macrolog/core/workout';
 import { RecommendationNote } from '@/components/train/RecommendationNote';
 import { useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
@@ -106,6 +111,9 @@ export interface ExerciseCardProps {
   onSetDone: (exerciseIndex: number, setIndex: number, info: { pr: boolean; complete: boolean; logged?: string }) => void;
   /** Remove one set, with the session's Undo. */
   onRemoveSet: (exerciseIndex: number, setIndex: number) => void;
+  /** The kg / lb switch: the row reads in `unit`, remembered for the lift at
+   *  this gym (core `gym-units.ts`). */
+  onSwitchUnit?: (exerciseIndex: number, unit: LoadUnit) => void;
 }
 
 /**
@@ -145,6 +153,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   onOpenLift,
   onSetDone,
   onRemoveSet,
+  onSwitchUnit,
 }: ExerciseCardProps) {
   const t = useT();
   const locale = useLocale();
@@ -243,6 +252,19 @@ export const ExerciseCard = memo(function ExerciseCard({
     [quiet, recentSessions, ex.exerciseId, structure],
   );
   const flatWarning = flat && !ex.sets.some((s) => s.kind === 'working' && s.rir != null) ? flat : null;
+  // "Use the range" (owner, 2026-11-05; core `rangeNudge`): three sets running
+  // at exactly 10 reps and RIR ≥ 2, across the last session and this one.
+  const nudge = useMemo(() => {
+    if (quiet || structure !== 'straight') return false;
+    return rangeNudge(ex, history[0] ?? null);
+  }, [quiet, structure, history, ex]);
+  // The load hint at another gym (owner, 2026-11-05; core `gymLoadHint`):
+  // the last load there, else the last home load −10 %, in both units.
+  const gymHint = useMemo(
+    () => (ex.awayGym && style === 'weight-reps' ? gymLoadHint(recentSessions, { exerciseId: ex.exerciseId, name: ex.name, awayGym: ex.awayGym }) : null),
+    [ex.awayGym, ex.exerciseId, ex.name, style, recentSessions],
+  );
+  const rowUnit: LoadUnit = unitSystem === 'metric' ? 'kg' : 'lb';
   // When core withheld a recommendation because the last activation was
   // unreadable, SAY so. Silence and "no bump today" look identical otherwise,
   // and the second one is a claim about the training rather than about the data.
@@ -412,6 +434,31 @@ export const ExerciseCard = memo(function ExerciseCard({
 
       {collapsed ? null : (
         <Animated.View entering={BODY_ENTER} exiting={BODY_EXIT}>
+          {ex.optional || ex.carryover ? (
+            <View style={styles.optionChips} testID={`row-options-${exerciseIndex}`}>
+              {ex.optional ? <Text style={styles.optionChip}>{t('train.row.optional')}</Text> : null}
+              {ex.carryover ? (
+                <Text style={styles.optionChip}>
+                  {t('train.row.carryover', { n: ex.carryover.clusters, date: ex.carryover.from })}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+          {nudge ? (
+            <View style={styles.recWarnRow} testID={`range-nudge-${exerciseIndex}`}>
+              <Ionicons name="trending-up-outline" size={16} color={colors.warn} />
+              <Text style={styles.recWarnText}>{t('train.rangeNudge')}</Text>
+            </View>
+          ) : null}
+          {gymHint ? (
+            <Text style={styles.recReason} testID={`gym-hint-${exerciseIndex}`}>
+              {t(gymHint.source === 'gym' ? 'train.gymHint.gym' : 'train.gymHint.home', {
+                load: dualLoadText(gymHint.lb, 'kg', locale),
+                gym: ex.awayGym ?? '',
+                from: dualLoadText(gymHint.fromLb, 'lb', locale),
+              })}
+            </Text>
+          ) : null}
           {flatWarning ? (
             <View style={styles.recWarnRow} testID={`flat-reps-${exerciseIndex}`}>
               <Ionicons name="alert-circle-outline" size={16} color={colors.warn} />
@@ -519,10 +566,26 @@ export const ExerciseCard = memo(function ExerciseCard({
             </View>
           ) : null}
 
-          {ex.loadUnit === 'kg' && style === 'weight-reps' && keyWeight != null && keyWeight > 0 ? (
-            <Text style={styles.recReason} testID={`lb-equivalent-${exerciseIndex}`}>
-              {`${formatLoad(keyWeight, 'metric')} = ${formatLoad(keyWeight, 'us', 0)}`}
-            </Text>
+          {style === 'weight-reps' ? (
+            <View style={styles.unitRow}>
+              <Text style={styles.recReason} testID={`lb-equivalent-${exerciseIndex}`}>
+                {keyWeight != null && keyWeight > 0 ? dualLoadText(keyWeight, rowUnit, locale) : ''}
+              </Text>
+              {onSwitchUnit ? (
+                <Touchable
+                  style={styles.unitSwitch}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => onSwitchUnit(exerciseIndex, rowUnit === 'kg' ? 'lb' : 'kg')}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('train.unitSwitchA11y', { unit: rowUnit === 'kg' ? 'lb' : 'kg' })}
+                  testID={`unit-switch-${exerciseIndex}`}
+                >
+                  <Text style={[styles.unitSwitchText, rowUnit === 'kg' && styles.unitSwitchOn]}>kg</Text>
+                  <Text style={styles.unitSwitchSep}>|</Text>
+                  <Text style={[styles.unitSwitchText, rowUnit === 'lb' && styles.unitSwitchOn]}>lb</Text>
+                </Touchable>
+              ) : null}
+            </View>
           ) : null}
 
           {/* Row labels are derived from the whole sequence, not the index: a

@@ -7,6 +7,7 @@ import type {
   UnitSystem,
 } from '@macrolog/core';
 import {
+  dualLoadText,
   calibrationRaise,
   engineHistory,
   engineSessions,
@@ -210,13 +211,15 @@ export function setLine(ex: SessionExercise, style: LogStyle, unitSystem: UnitSy
   // A row trained in its own unit (a kg gym, `loadUnit`) reads in THAT unit —
   // "12×8", not the pound value "26.5×8" (owner, 2026-11-04). The account's
   // unit follows as a secondary label on the heaviest load: "kg · 12 kg = 26 lb".
-  const rowUnits = rowUnitSystem(ex.loadUnit, unitSystem) ?? unitSystem;
+  // Since 2026-11-05 a SET says which unit it was typed in (`WorkoutSet.unit`):
+  // the line reads in the unit the heaviest set was typed in, and that set is
+  // restated in both units — "12 kg (26.5 lb)".
+  const topSet = ex.sets.reduce<WorkoutSet | null>((m, x) => ((x.weight ?? 0) > (m?.weight ?? 0) ? x : m), null);
+  const typed = topSet?.unit ?? ex.loadUnit;
+  const rowUnits = rowUnitSystem(typed, unitSystem) ?? unitSystem;
   const line = workingSetCells(ex, style, rowUnits).join('   ');
-  if (!line || style !== 'weight-reps' || !ex.loadUnit || rowUnits === unitSystem) return line;
-  const top = ex.sets.reduce((m, x) => Math.max(m, x.weight ?? 0), 0);
-  return top > 0
-    ? `${line}   ${loadUnit(rowUnits)} · ${formatLoad(top, rowUnits)} = ${formatLoad(top, unitSystem, 0)}`
-    : line;
+  if (!line || style !== 'weight-reps' || !typed || !topSet?.weight) return line;
+  return `${line}   ${loadUnit(rowUnits)} · ${dualLoadText(topSet.weight, typed)}`;
 }
 
 /** "3 exercises · 12 sets" from the counts core derived. Pluralization is

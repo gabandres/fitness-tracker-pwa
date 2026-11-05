@@ -125,7 +125,7 @@ describe('RIR 0 and load 0 from the set row', () => {
     await logSetAtZero(ui, 0, '11');
 
     expect(patchesFor(0)).toContainEqual({ rir: 0 });
-    expect(patchesFor(0)).toContainEqual({ weight: 0 });
+    expect(patchesFor(0)).toContainEqual({ weight: 0, unit: 'lb' });
   });
 
   it('what the row dispatched exports as "0" in setRir and setWeight', async () => {

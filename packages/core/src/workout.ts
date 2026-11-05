@@ -7,6 +7,7 @@
  * the minimal shapes @macrolog/core needs and is the dedup target.
  */
 
+import type { RowAlternative, RowCarryover, TimeCap } from './row-options';
 import type { CardioBlock, PlannedCardioBlock } from './cardio';
 import type { PartialClose, SessionSegment } from './session-pause';
 
@@ -199,6 +200,10 @@ export interface WorkoutSet {
   /** The 1-based part of a paused-and-resumed session this set was logged in
    *  (`session-pause.ts`), stamped when that part closes. Absent = part 1. */
   segment?: number;
+  /** The unit the lifter TYPED this set's load in (`gym-units.ts`). `weight`
+   *  stays pounds — a kg entry is full-precision pounds — and the set is shown
+   *  in this unit. Absent (every set before 2026-11-05) = the row's unit. */
+  unit?: LoadUnit;
 }
 
 export interface SessionExercise {
@@ -242,6 +247,11 @@ export interface SessionExercise {
   /** Set at start: the lift's first session at {@link awayGym}. Its activation
    *  is RIR 2 and the engine does not judge its first mini (`readExercise`). */
   calibration?: boolean;
+  /** Snapshotted from the template row — see `row-options.ts`. After a swap,
+   *  the lift it replaced is the first entry. */
+  alternatives?: RowAlternative[];
+  optional?: boolean;
+  carryover?: RowCarryover;
 }
 
 /** The unit a row is trained in. Stored loads are ALWAYS pounds; this only says
@@ -340,6 +350,10 @@ export interface WorkoutSession {
   segments?: SessionSegment[];
   /** Closed before all of it was done — see `session-pause.ts`. */
   partial?: PartialClose;
+  /** `durationMin` was corrected after the fact, and how ("auto-corrected:
+   *  901 → 43 min …", 2026-11-05). Written by owner-data scripts; exported in
+   *  the 'workout' row's notes. */
+  durationNote?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -552,6 +566,9 @@ export interface Exercise {
   /** The DEFAULT structure for this lift (ADR-0040) — used by templates that
    *  do not state one. A template's own `setStructure` wins. */
   setStructure?: SetStructure;
+  /** The unit this lift was last used in, per gym (`gym-units.ts`; key = the
+   *  gym name, or `home`). Written when the lifter switches a row's unit. */
+  unitByGym?: Partial<Record<string, LoadUnit>>;
   createdAt: Date;
 }
 
@@ -647,6 +664,12 @@ export interface TemplateExercise {
    *  record, but a session row carrying this is not home evidence — out of the
    *  home engine's reads, the e1RM chart and PRs (`exerciseHistory`). */
   linkedHome?: boolean;
+  /** One-tap swaps for this row (`row-options.ts`). */
+  alternatives?: RowAlternative[];
+  /** The session may leave this row out; leaving it out is not a skip. */
+  optional?: boolean;
+  /** Clusters carried from an earlier session that did not reach them. */
+  carryover?: RowCarryover;
 }
 
 export interface WorkoutTemplate {
@@ -678,6 +701,8 @@ export interface WorkoutTemplate {
    *  Archived templates leave Start's list and the rotation but are never
    *  deleted — sessions keep referencing them by `templateId`. */
   archivedAt?: Date;
+  /** Past N active minutes, what to drop first (`row-options.ts`). */
+  timeCap?: TimeCap;
   createdAt: Date;
   updatedAt: Date;
 }

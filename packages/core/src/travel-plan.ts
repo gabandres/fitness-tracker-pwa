@@ -145,14 +145,23 @@ export function calibrationRanHot(
   session: { id?: string; date: Date; exercises: readonly { awayGym?: string }[] },
   sessions: readonly Pick<WorkoutSession, 'id' | 'status' | 'date' | 'exercises'>[],
 ): boolean {
+  return calibrationRanHotOn(session, sessions) != null;
+}
+
+/** {@link calibrationRanHot}, answered with the day it happened (the date of
+ *  that last session at the gym) — "you logged RIR 0 on 11/4". Null when not. */
+export function calibrationRanHotOn(
+  session: { id?: string; date: Date; exercises: readonly { awayGym?: string }[] },
+  sessions: readonly Pick<WorkoutSession, 'id' | 'status' | 'date' | 'exercises'>[],
+): Date | null {
   const gym = session.exercises.find((e) => e.awayGym)?.awayGym;
-  if (!gym) return false;
+  if (!gym) return null;
   const last = sessions
     .filter((s) => s.status === 'completed' && s.id !== session.id && s.date.getTime() < session.date.getTime() && s.exercises.some((e) => e.awayGym === gym))
     .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
-  if (!last) return false;
+  if (!last) return null;
   const reads = last.exercises
     .filter((e) => e.calibration)
     .flatMap((e) => e.sets.filter((x) => x.kind === 'activation' && x.reps != null && x.rir != null));
-  return reads.length > 0 && reads.every((x) => x.rir === 0);
+  return reads.length > 0 && reads.every((x) => x.rir === 0) ? last.date : null;
 }

@@ -542,6 +542,8 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
     'estimateQuality', 'proteinFirst', 'sessionFlags',
   'loadUnit', 'loadInUnit',
   'sessionStatus', 'segmentIndex',
+    // 2026-11-05: kg derived from lb, and the unit a set was typed in.
+    'setWeightKg', 'loadKg', 'unit',
   ];
   const csv = buildCsv(HISTORICAL);
   const lines = csv.split('\r\n');
