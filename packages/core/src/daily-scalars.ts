@@ -29,7 +29,20 @@ export const ML_PER_FL_OZ = 29.5735;
 export interface DailyActivity {
   steps?: number;
   activeKcal?: number;
+  /** Walking + running distance, metres (Apple Health
+   *  `distanceWalkingRunning`, 2026-11-06). Same day bucket as `steps`. */
+  distanceM?: number;
+  /** Who wrote the day's steps: `healthkit` / `healthconnect` / `oura`.
+   *  Absent on every doc written before 2026-11-06. */
+  source?: ActivitySource;
+  /** When the importer last CHANGED the day (it writes only changed days). */
+  updatedAt?: Date;
+  /** The IANA zone the day was bucketed in (`steps.ts`, `stepDaysToWrite`). */
+  tz?: string;
 }
+
+export type ActivitySource = 'healthkit' | 'healthconnect' | 'oura';
+const ACTIVITY_SOURCES: readonly ActivitySource[] = ['healthkit', 'healthconnect', 'oura'];
 
 /** A finite number, or null for anything else (missing field, string, NaN). */
 function num(v: unknown): number | null {
@@ -91,11 +104,25 @@ export function readWaterFlOz(data: unknown, opts?: { exact?: boolean }): number
  *  does not carry come back `undefined` rather than 0 — a day with no steps
  *  recorded is not a day with zero steps. */
 export function readActivity(data: unknown): DailyActivity {
-  const d = data as { steps?: unknown; activeKcal?: unknown } | null | undefined;
-  return {
+  const d = data as
+    | { steps?: unknown; activeKcal?: unknown; distanceM?: unknown; source?: unknown; updatedAt?: unknown; tz?: unknown }
+    | null
+    | undefined;
+  const out: DailyActivity = {
     steps: num(d?.steps) ?? undefined,
     activeKcal: num(d?.activeKcal) ?? undefined,
   };
+  // The 2026-11-06 fields are added only when present, so a doc without them
+  // reads exactly as it always did (two keys) — equality checks downstream
+  // compare these objects.
+  const distanceM = num(d?.distanceM);
+  if (distanceM != null) out.distanceM = distanceM;
+  if (typeof d?.source === 'string' && (ACTIVITY_SOURCES as readonly string[]).includes(d.source)) out.source = d.source as ActivitySource;
+  const at = d?.updatedAt as { toDate?: () => Date } | Date | undefined;
+  const when = at instanceof Date ? at : typeof at?.toDate === 'function' ? at.toDate() : undefined;
+  if (when && !Number.isNaN(when.getTime())) out.updatedAt = when;
+  if (typeof d?.tz === 'string' && d.tz) out.tz = d.tz;
+  return out;
 }
 
 /** A clock time "HH:MM" (24 h), as `dailySleep.bedtime` / `wakeTime` store

@@ -20,6 +20,7 @@ import {
   getAllDailySleepTimes,
   getAllDailyHunger,
   getAllDailyLogged,
+  getAllDailyActivity,
   getAllTemplateDrafts,
   getFasts,
 } from './ledger';
@@ -50,7 +51,7 @@ export async function exportDataCsv(
    *  and the travel-scale note on weigh-ins inside one). */
   opts: { travelPeriods?: unknown } = {},
 ): Promise<ExportResult> {
-  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts, templates, exercises, targetRecords, dailySleepTimes, drafts, dailyHunger, dailyLogged] =
+  const [logs, measurements, dailyWeights, dailyWater, dailySleep, workoutSessions, fasts, templates, exercises, targetRecords, dailySleepTimes, drafts, dailyHunger, dailyLogged, dailyActivity] =
     await Promise.all([
       getAllLogs(uid),
       getAllMeasurements(uid),
@@ -77,6 +78,8 @@ export async function exportDataCsv(
       getAllDailyHunger(uid),
       // 2026-10-24: "Day fully logged?" answers, one `dayLogged` row each.
       getAllDailyLogged(uid),
+      // 2026-11-06: daily steps, one `steps` row per counted day.
+      getAllDailyActivity(uid),
     ]);
 
   const csv = '﻿' + buildCsv({
@@ -93,6 +96,7 @@ export async function exportDataCsv(
     dailySleepTimes,
     dailyHunger,
     dailyLogged,
+    dailyActivity,
     travelPeriods: opts.travelPeriods,
     templateVersions: Object.fromEntries(programDrafts(drafts).map((d) => [d.draftOf, d.status === 'active' ? 'v2' : 'v1'] as const)),
     catalogMuscles: exercises.map((e) => ({ id: e.id, muscles: e.muscles })),

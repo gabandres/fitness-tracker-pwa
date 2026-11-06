@@ -75,6 +75,7 @@ import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { contentColumn, font, radius, space, TARGET, type } from '@/theme';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { CompositionLine, RecompCard } from '@/components/CompositionCards';
+import { StepsTrendCard } from '@/components/StepsTrendCard';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useCountViewPerFocus } from '@/hooks/useCountViewPerFocus';
 import { TAB_SCROLL_BAND } from '@/lib/glass';
@@ -174,7 +175,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
     loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal,
     activityLevel, sleep, fasting, water, composition, chartKeys, weightSeries, intakeSeries,
     proteinSeries, carbsSeries, fatSeries, todayKey, historyClip, insightWindow, streak, settledKey,
-    expenditure, historyDays, milestones, progress, zone2, hunger, travelCheck, display,
+    expenditure, historyDays, milestones, progress, zone2, hunger, travelCheck, display, travelPeriods,
   } = useTrends(requestedDays, { maxDays: cap, refreshKey });
   // A new account opened on "1M" and saw 27 blank days of a 30-day axis (sim
   // review 2026-10-06). Under a month of history every fixed range is mostly
@@ -617,6 +618,10 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               </View>
             </Animated.View>
           ) : null}
+
+          {/* Steps (2026-11-06): activity only, beside — not inside — the
+              maintenance cards above. */}
+          <StepsTrendCard uid={user?.uid} todayKey={todayKey} periods={travelPeriods} refreshKey={refreshKey} />
 
           {/* 1c. Accrual line — a four-week wait with no visible progress reads
               as "nothing happened", which is how a Health connection gets

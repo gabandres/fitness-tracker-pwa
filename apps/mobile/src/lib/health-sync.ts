@@ -22,10 +22,15 @@ import {
   toCardioBlockFromHealth,
   valuesToApply,
   zone2MergeIndex,
+  stepDaysToWrite,
+  MIDNIGHT,
+  type ActivitySource,
 } from '@macrolog/core';
+import { deviceTimeZone } from './device-tz';
 import type { CardioBlock } from '@macrolog/core/cardio';
 import type { HealthWorkout } from '@macrolog/core/health-workouts';
 import {
+  getActivityWindow,
   getHealthScalarsOnce,
   getRecentSessionsSince,
   getHealthTombstones,
@@ -87,8 +92,10 @@ const CONNECTED_KEY = HEALTH_CONNECTED_KEY;
  * iOS (2026-10-20), so an imported workout carries its avg / peak HR —
  * iOS only: Health Connect's heart-rate permission is a manifest entry, so
  * Android's scope did not move and must not ask its users to reconnect.
+ * Version 4 (iOS, 2026-11-06) adds walking + running distance; Android does
+ * not read it (`HC_SKIPPED_KINDS`), so its scope again did not move.
  */
-const HEALTH_SCOPE_VERSION = Platform.OS === 'ios' ? 3 : 2;
+const HEALTH_SCOPE_VERSION = Platform.OS === 'ios' ? 4 : 2;
 const SCOPE_VERSION_KEY = 'ignia.health.scopeVersion';
 
 /**
@@ -283,6 +290,8 @@ const EPSILON: Record<ReadableKind, number> = {
   // sub-unit epsilon would rewrite the same doc all day for no visible change.
   steps: 1,
   activeEnergy: 1,
+  // Metres; stored whole.
+  distance: 1,
 };
 
 /**
@@ -326,7 +335,7 @@ async function writeImportedDays(
   const entries = Object.entries(days);
   if (!entries.length) return;
   if (kind !== 'sleep') {
-    await writeHealthScalars(uid, kind, days);
+    await writeHealthScalars(uid, kind, days, ACTIVITY_SOURCE);
     return;
   }
   await mapBounded(entries, SLEEP_WRITE_CONCURRENCY, async ([dateKey, value]) => {
@@ -334,8 +343,11 @@ async function writeImportedDays(
   });
 }
 
+/** Who the OS store is, on the steps / distance days it writes. */
+const ACTIVITY_SOURCE: ActivitySource = Platform.OS === 'ios' ? 'healthkit' : 'healthconnect';
+
 /** Every kind the importer pulls, in the order it pulls them. */
-const IMPORT_KINDS: ReadableKind[] = ['weight', 'sleep', 'water', 'steps', 'activeEnergy'];
+const IMPORT_KINDS: ReadableKind[] = ['weight', 'sleep', 'water', 'steps', 'activeEnergy', 'distance'];
 
 let connectedCache: boolean | null = null;
 
@@ -369,6 +381,8 @@ export async function connectHealth(): Promise<boolean> {
   const ok = await health.requestPermissions();
   if (ok) {
     await setConnectedFlag(true);
+    // Steps in the background (2026-11-06): ask once the grant exists.
+    await health.setStepsBackground?.(true).catch(() => false);
     // Stamped only on success. A declined prompt must leave the stored version
     // behind so the next connect asks again rather than assuming.
     await AsyncStorage.setItem(SCOPE_VERSION_KEY, String(HEALTH_SCOPE_VERSION));
@@ -384,6 +398,45 @@ export async function connectHealth(): Promise<boolean> {
 
 export async function disconnectHealth(): Promise<void> {
   await setConnectedFlag(false);
+  // Stop iOS waking the app for steps nobody imports any more.
+  await health.setStepsBackground?.(false).catch(() => false);
+}
+
+/** Days the steps-only import reads: today, yesterday (final at 03:00 today,
+ *  core `isStepDayFinal`) and the day before, for a watch that synced late. */
+const RECENT_STEP_DAYS = 3;
+
+/**
+ * Steps and their distance for the last {@link RECENT_STEP_DAYS} days ONLY —
+ * what a HealthKit background delivery, a Today focus and the observer run
+ * (2026-11-06). The full import (`importAll`) reads six kinds and the
+ * workouts; this reads two statistics queries and one Firestore range, small
+ * enough for the seconds iOS gives a background launch.
+ *
+ * iOS only (Health Connect does not read steps, `HC_SKIPPED_KINDS`). Shares
+ * the full import's rules: only changed days are written, and a final day
+ * stored in another zone is kept (`stepDaysToWrite`). Returns days written.
+ */
+export async function importRecentSteps(uid: string): Promise<number> {
+  if (Platform.OS !== 'ios' || !uid || !(await isHealthConnected())) return 0;
+  const now = new Date();
+  const fromKey = calendarDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - (RECENT_STEP_DAYS - 1)));
+  const toKey = calendarDateKey(now);
+  const stored = await getActivityWindow(uid, fromKey, toKey);
+  let written = 0;
+  for (const kind of ['steps', 'distance'] as const) {
+    const samples = (await health.readSamples(kind, RECENT_STEP_DAYS, MIDNIGHT)).filter((x) => x.dateKey >= fromKey);
+    const current: Record<string, number> = {};
+    for (const [k, a] of Object.entries(stored)) {
+      const v = kind === 'steps' ? a.steps : a.distanceM;
+      if (v != null) current[k] = v;
+    }
+    const changed = valuesToApply(reduceImportedSamples(samples), current, EPSILON[kind]);
+    const toWrite = stepDaysToWrite(changed, stored, deviceTimeZone(), now);
+    await writeHealthScalars(uid, kind, toWrite, ACTIVITY_SOURCE);
+    written += Object.keys(toWrite).length;
+  }
+  return written;
 }
 
 let importing = false;
@@ -509,7 +562,13 @@ async function importScalars(uid: string, opts: ImportOptions = {}): Promise<num
         boundary,
         wokeAt: kind === 'sleep' ? latestSampleEndByDay(samples) : {},
       };
-      const toApply = valuesToApply(reduced, current[kind], EPSILON[kind]);
+      const changed = valuesToApply(reduced, current[kind], EPSILON[kind]);
+      // Steps and their distance are bucketed at midnight in the device's
+      // CURRENT zone: a final day counted in another zone stays as it was
+      // (core `stepDaysToWrite`, 2026-11-06).
+      const toApply = kind === 'steps' || kind === 'distance'
+        ? stepDaysToWrite(changed, current.activityTz ?? {}, deviceTimeZone(), new Date())
+        : changed;
       await writeImportedDays(uid, kind, toApply, run);
       applied += Object.keys(toApply).length;
     }

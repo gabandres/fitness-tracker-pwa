@@ -56,6 +56,8 @@ import {
   ACTIVE_ENERGY_MAX_KCAL,
   BATCH_CHUNK,
   STEPS_MAX,
+  DISTANCE_MAX_M,
+  type ActivitySource,
   clampCutPace,
   clampSleepHours,
   readSleepClock,
@@ -115,6 +117,7 @@ import {
   type TemplateBody,
   type TemplateDraftDoc,
 } from '@macrolog/core';
+import { deviceTimeZone } from './device-tz';
 import { db } from './firebase';
 import type {
   ExercisePatch,
@@ -1189,7 +1192,9 @@ export async function importDailySleep(
 }
 
 // ─── Daily activity (import-only) ───────────────────────────────
-// users/{uid}/dailyActivity/{dateKey} = { steps?, activeKcal? }.
+// users/{uid}/dailyActivity/{dateKey} = { steps?, activeKcal?, distanceM?,
+//   source?, updatedAt?, tz? } — the last four since 2026-11-06 (core
+//   `steps.ts`): written with every steps / distance write.
 //
 // One doc per day holding BOTH metrics rather than a collection each: they're
 // written together by the same importer, read together by the same UI, and a
@@ -1241,9 +1246,29 @@ export async function getActivityWindow(
   return activity;
 }
 
-export async function setDailySteps(uid: string, dateKey: string, steps: number): Promise<void> {
+/** Who wrote a day's steps, when, and in which zone — merged in with every
+ *  steps / distance write. */
+function activityStamp(source: ActivitySource) {
+  const tz = deviceTimeZone();
+  return { source, updatedAt: serverTimestamp(), ...(tz ? { tz } : {}) };
+}
+
+export async function setDailySteps(uid: string, dateKey: string, steps: number, source: ActivitySource): Promise<void> {
   const v = Math.max(0, Math.min(STEPS_MAX, Math.round(steps)));
-  await setDoc(activityDoc(uid, dateKey), { steps: v }, { merge: true });
+  await setDoc(activityDoc(uid, dateKey), { steps: v, ...activityStamp(source) }, { merge: true });
+}
+
+export async function setDailyDistance(uid: string, dateKey: string, metres: number, source: ActivitySource): Promise<void> {
+  const v = Math.max(0, Math.min(DISTANCE_MAX_M, Math.round(metres)));
+  await setDoc(activityDoc(uid, dateKey), { distanceM: v, ...activityStamp(source) }, { merge: true });
+}
+
+/** Every `dailyActivity` doc — the export's 'steps' rows. */
+export async function getAllDailyActivity(uid: string): Promise<Record<string, DailyActivity>> {
+  const snap = await getDocs(activityCol(uid));
+  const out: Record<string, DailyActivity> = {};
+  for (const d of snap.docs) out[d.id] = readActivity(d.data());
+  return out;
 }
 
 export async function setDailyActiveEnergy(uid: string, dateKey: string, kcal: number): Promise<void> {
@@ -1298,6 +1323,9 @@ export async function getHealthScalarsOnce(uid: string, sinceKey?: string): Prom
   water: Record<string, number>;
   steps: Record<string, number>;
   activeEnergy: Record<string, number>;
+  distance: Record<string, number>;
+  /** The zone each activity day was bucketed in, where recorded. */
+  activityTz: Record<string, { tz?: string }>;
 }> {
   const read = (col: ReturnType<typeof weightsCol>) =>
     getDocs(sinceKey ? query(col, where(documentId(), '>=', sinceKey)) : col);
@@ -1329,28 +1357,36 @@ export async function getHealthScalarsOnce(uid: string, sinceKey?: string): Prom
   // neither — each map only gets the days that actually have that field.
   const steps: Record<string, number> = {};
   const activeEnergy: Record<string, number> = {};
+  const distance: Record<string, number> = {};
+  const activityTz: Record<string, { tz?: string }> = {};
   for (const d of actSnap.docs) {
-    const { steps: s, activeKcal: k } = readActivity(d.data());
+    const { steps: s, activeKcal: k, distanceM: m, tz } = readActivity(d.data());
     if (s != null) steps[d.id] = s;
     if (k != null) activeEnergy[d.id] = k;
+    if (m != null) distance[d.id] = m;
+    if (tz) activityTz[d.id] = { tz };
   }
-  return { weight, sleep, water, steps, activeEnergy };
+  return { weight, sleep, water, steps, activeEnergy, distance, activityTz };
 }
 
 /** The import's scalar kinds that are a plain overwrite. Sleep is not one: an
  *  imported night is guarded per night against a hand-typed one
  *  (`importDailySleep`), which a blind batch cannot express. */
-export type HealthScalarKind = 'weight' | 'water' | 'steps' | 'activeEnergy';
+export type HealthScalarKind = 'weight' | 'water' | 'steps' | 'activeEnergy' | 'distance';
 
 /** Firestore's ceiling on writes in one batch. */
 const BATCH_MAX_OPS = 500;
 
 /** The ONE-day writer per kind — what a refused batch falls back to. */
-const HEALTH_SCALAR_WRITER: Record<HealthScalarKind, (uid: string, dateKey: string, value: number) => Promise<void>> = {
-  weight: setDailyWeight,
-  water: setDailyWater,
+const HEALTH_SCALAR_WRITER: Record<
+  HealthScalarKind,
+  (uid: string, dateKey: string, value: number, source: ActivitySource) => Promise<void>
+> = {
+  weight: (uid, k, v) => setDailyWeight(uid, k, v),
+  water: (uid, k, v) => setDailyWater(uid, k, v),
   steps: setDailySteps,
-  activeEnergy: setDailyActiveEnergy,
+  activeEnergy: (uid, k, v) => setDailyActiveEnergy(uid, k, v),
+  distance: setDailyDistance,
 };
 
 /**
@@ -1378,6 +1414,8 @@ export async function writeHealthScalars(
   uid: string,
   kind: HealthScalarKind,
   days: Readonly<Record<string, number>>,
+  /** Who the OS store is, stamped on steps / distance days. */
+  source: ActivitySource = 'healthkit',
 ): Promise<void> {
   const entries = Object.entries(days);
   for (let i = 0; i < entries.length; i += BATCH_MAX_OPS) {
@@ -1387,7 +1425,9 @@ export async function writeHealthScalars(
       if (kind === 'weight') batch.set(weightDoc(uid, dateKey), { weight: value });
       else if (kind === 'water') batch.set(waterDoc(uid, dateKey), { flOz: clampWaterFlOz(value) });
       else if (kind === 'steps') {
-        batch.set(activityDoc(uid, dateKey), { steps: Math.max(0, Math.min(STEPS_MAX, Math.round(value))) }, { merge: true });
+        batch.set(activityDoc(uid, dateKey), { steps: Math.max(0, Math.min(STEPS_MAX, Math.round(value))), ...activityStamp(source) }, { merge: true });
+      } else if (kind === 'distance') {
+        batch.set(activityDoc(uid, dateKey), { distanceM: Math.max(0, Math.min(DISTANCE_MAX_M, Math.round(value))), ...activityStamp(source) }, { merge: true });
       } else {
         batch.set(
           activityDoc(uid, dateKey),
@@ -1402,7 +1442,7 @@ export async function writeHealthScalars(
       // drops the held first/previous weigh-in reads (`getWeightEdges`).
       if (kind === 'weight') __resetWeightEdges();
     } catch {
-      for (const [dateKey, value] of chunk) await HEALTH_SCALAR_WRITER[kind](uid, dateKey, value);
+      for (const [dateKey, value] of chunk) await HEALTH_SCALAR_WRITER[kind](uid, dateKey, value, source);
     }
   }
 }

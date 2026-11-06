@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { type Href, router, useLocalSearchParams, useScrollToTop } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type Href, router, useFocusEffect, useLocalSearchParams, useScrollToTop } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   Extrapolation,
@@ -12,7 +12,9 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
-import { activeTravel, addDays, calendarDateKey, dayBoundaryOf, fastLengthHours, maintenanceView, parseYmd, travelPeriodsOf } from '@macrolog/core';
+import { activeTravel, addDays, calendarDateKey, dayBoundaryOf, fastLengthHours, maintenanceView, parseYmd, travelPeriodsOf, usualSteps, USUAL_STEPS_WINDOW_DAYS } from '@macrolog/core';
+import { useActivityRange } from '@/hooks/useActivityRange';
+import { refreshStepsSoon } from '@/lib/steps-background';
 import { confirmNative } from '@/components/ConfirmSheet';
 import { onPendingLogsRejected } from '@/lib/pending-logs';
 import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
@@ -327,6 +329,24 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // Travel mode (core `travel.ts`): the trip today is inside, if any. Ends on
   // its own after the last day — nothing writes "travel over".
   const trip = useMemo(() => activeTravel(todayKey, travelPeriodsOf(todayProfile)), [todayKey, todayProfile]);
+  // Steps against the usual count (2026-11-06): the 28 days before today, read
+  // once per day. Activity only — nothing here reaches a target.
+  const usualRange = useMemo(() => {
+    const today = parseYmd(todayKey);
+    return [calendarDateKey(addDays(today, -USUAL_STEPS_WINDOW_DAYS)), calendarDateKey(addDays(today, -1))] as const;
+  }, [todayKey]);
+  const pastActivity = useActivityRange(user?.uid, usualRange[0], usualRange[1]);
+  const usual = useMemo(
+    () => (pastActivity ? usualSteps(pastActivity, todayKey, travelPeriodsOf(todayProfile)) : null),
+    [pastActivity, todayKey, todayProfile],
+  );
+  // Today appearing refreshes today's steps from Apple Health (iOS; skipped
+  // when a run landed in the last few minutes) — `steps-background.ts`.
+  useFocusEffect(
+    useCallback(() => {
+      refreshStepsSoon();
+    }, []),
+  );
   const [eyeballOpen, setEyeballOpen] = useState(false);
   const [fastSheetOpen, setFastSheetOpen] = useState(false);
   /**
@@ -1071,6 +1091,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               water={water}
               sleep={sleep}
               activity={activity}
+              usualSteps={usual}
               fastStartedAt={fastStartedAt}
               onEditFast={() => setFastSheetOpen(true)}
               fastedTodayHours={fastedTodayHours}

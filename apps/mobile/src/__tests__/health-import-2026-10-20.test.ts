@@ -202,7 +202,7 @@ describe('past walks get their heart rate — a one-time backfill', () => {
   });
 
   it('the first import with the HR scope reads a YEAR of HR; later ones the last week', async () => {
-    await AsyncStorage.setItem('ignia.health.scopeVersion', '3');
+    await AsyncStorage.setItem('ignia.health.scopeVersion', '4');
     await importHealthWorkouts('u1');
     expect(mockReadWorkouts.mock.calls[0]).toEqual([365, { hrWindowMs: 365 * 86_400_000 }]);
     expect(await AsyncStorage.getItem(HR_BACKFILL_KEY)).toBe('1');
@@ -219,7 +219,7 @@ describe('past walks get their heart rate — a one-time backfill', () => {
   });
 
   it('past 90 days the backfill only updates stored walks — a year-old unstored walk is not imported', async () => {
-    await AsyncStorage.setItem('ignia.health.scopeVersion', '3');
+    await AsyncStorage.setItem('ignia.health.scopeVersion', '4');
     mockReadWorkouts.mockResolvedValueOnce([
       { id: 'ancient', activityType: 'walking', startMs: Date.now() - 200 * 86_400_000, endMs: Date.now() - 200 * 86_400_000 + 1_800_000, fromUs: false, avgHr: 99 },
     ] as never);
@@ -228,7 +228,7 @@ describe('past walks get their heart rate — a one-time backfill', () => {
   });
 
   it('a Zone 2 block merged before HR was read gets the Watch max HR; its logged avg stays', async () => {
-    await AsyncStorage.setItem('ignia.health.scopeVersion', '3');
+    await AsyncStorage.setItem('ignia.health.scopeVersion', '4');
     mockSessions = [session('pull14', Z('2026-10-14T11:22:51Z'), { durationMin: 58, dismissedSourceIds: ['24D8F0AB'],
       cardio: [zone2({ avgHr: 137, durationSec: 1048, mergedSourceIds: ['24D8F0AB'] })] })];
     mockTombstones = new Set(['24D8F0AB']);

@@ -395,7 +395,7 @@ export async function importOuraDaily(uid: string): Promise<OuraDailyImportResul
         }
       }
       if (row.steps != null) {
-        await setDailySteps(uid, row.dateKey, row.steps);
+        await setDailySteps(uid, row.dateKey, row.steps, 'oura');
         wrote = true;
       }
       if (row.activeKcal != null) {

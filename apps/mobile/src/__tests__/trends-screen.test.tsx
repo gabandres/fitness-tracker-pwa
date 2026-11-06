@@ -1,5 +1,7 @@
 // `@/i18n` pulls in `@/lib/auth`, which imports firebase/auth — untranspiled
 // ESM that jest cannot parse. Every screen test here stubs it for that reason.
+// The steps card reads `dailyActivity` itself (2026-11-06); not this screen's subject.
+jest.mock('@/hooks/useActivityRange', () => ({ useActivityRange: () => null }));
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1' }, profile: null }),
 }));

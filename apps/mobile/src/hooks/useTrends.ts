@@ -93,6 +93,8 @@ const REPLAY_CHUNK_DAYS = 30;
 export type Zone2Trends = ReturnType<typeof zone2Summary>;
 
 export interface TrendsState {
+  /** The profile's trips — the steps card leaves their days out of "usual". */
+  travelPeriods: TravelPeriod[];
   /** Travel mode: the "maintenance check" — this week's hard sets per muscle
    *  against a third of the pre-trip normal. Null outside a trip. */
   travelCheck?: { period: TravelPeriod; check: MaintenanceCheck } | null;
@@ -662,6 +664,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
   }, [profile, weights]);
 
   return {
+    travelPeriods: travelPeriodsOf(profile),
     zone2,
     travelCheck: trip ? travelCheck : null,
     hunger,

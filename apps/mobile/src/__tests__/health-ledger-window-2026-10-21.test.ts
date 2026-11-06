@@ -19,6 +19,7 @@ let mockCommitFails = false;
 
 // Hand-built, as in `ledger-write-annotation.test.ts`: the real package is ESM.
 jest.mock('firebase/firestore', () => ({
+  serverTimestamp: () => 'SERVER_TS',
   setDoc: (...a: [unknown, unknown, unknown?]) => mockSetDoc(...a),
   updateDoc: jest.fn(),
   deleteDoc: jest.fn(),
@@ -103,7 +104,8 @@ describe('writeHealthScalars', () => {
     await writeHealthScalars('u1', 'weight', { '2026-10-20': 180.2 });
     expect(mockBatches.map((b) => b.ops[0])).toEqual([
       ['users/u1/dailyWater/2026-10-20', { flOz: 676 }, undefined],
-      ['users/u1/dailyActivity/2026-10-20', { steps: 4001 }, { merge: true }],
+      // 2026-11-06: steps carry who wrote them, when, and the zone.
+      ['users/u1/dailyActivity/2026-10-20', { steps: 4001, source: 'healthkit', updatedAt: 'SERVER_TS', tz: expect.any(String) }, { merge: true }],
       ['users/u1/dailyActivity/2026-10-20', { activeKcal: 512 }, { merge: true }],
       ['users/u1/dailyWeights/2026-10-20', { weight: 180.2 }, undefined],
     ]);

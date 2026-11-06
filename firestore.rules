@@ -1220,7 +1220,10 @@ service cloud.firestore {
       match /dailyActivity/{dateKey} {
         allow read:   if isOwner(uid) || isAdmin();
         allow write:  if isVerifiedOwner(uid)
-            && request.resource.data.keys().hasOnly(['steps', 'activeKcal'])
+            // 2026-11-06 (core `steps.ts`): the steps' walking + running
+            // distance, who wrote the day, when it last changed and the zone
+            // it was bucketed in. DISTANCE_MAX_M mirrors health-mapping.ts.
+            && request.resource.data.keys().hasOnly(['steps', 'activeKcal', 'distanceM', 'source', 'updatedAt', 'tz'])
             && (!('steps' in request.resource.data)
               || (request.resource.data.steps is number
                 && request.resource.data.steps >= 0
@@ -1228,7 +1231,19 @@ service cloud.firestore {
             && (!('activeKcal' in request.resource.data)
               || (request.resource.data.activeKcal is number
                 && request.resource.data.activeKcal >= 0
-                && request.resource.data.activeKcal <= 20000));
+                && request.resource.data.activeKcal <= 20000))
+            && (!('distanceM' in request.resource.data)
+              || (request.resource.data.distanceM is number
+                && request.resource.data.distanceM >= 0
+                && request.resource.data.distanceM <= 300000))
+            && (!('source' in request.resource.data)
+              || request.resource.data.source in ['healthkit', 'healthconnect', 'oura'])
+            && (!('updatedAt' in request.resource.data)
+              || request.resource.data.updatedAt is timestamp)
+            && (!('tz' in request.resource.data)
+              || (request.resource.data.tz is string
+                && request.resource.data.tz.size() > 0
+                && request.resource.data.tz.size() <= 64));
       }
 
       // The targets in effect each day, and why they moved (2026-10-08,

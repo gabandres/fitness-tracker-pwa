@@ -35,6 +35,9 @@ import { Touchable } from '@/components/Touchable';
  * Connect grant actually succeeded on. Unknown build → assume old.
  */
 const ANDROID_CARDIO_IN_BINARY = Number(Application.nativeBuildVersion ?? 0) >= 38;
+/** HealthKit background delivery needs the entitlement the plugin's
+ *  `background: true` adds — iOS build 75 (1.2.11) on (2026-11-06). */
+const IOS_STEPS_BACKGROUND_IN_BINARY = Number(Application.nativeBuildVersion ?? 0) >= 75;
 
 /** "Oura connected" in and out — module constants, so a render of this screen
  *  does not build two new Reanimated builders for an unchanged config. */
@@ -344,6 +347,18 @@ export default function ConnectedAppsScreen() {
                   </Text>
                   {!healthSync.needsReauth && Platform.OS === 'ios' ? (
                     <Text style={styles.evidenceLine}>{t('health.ouraHint')}</Text>
+                  ) : null}
+                  {/* Steps (2026-11-06). iOS never says whether a READ was
+                      granted, so this states what is asked for and how it
+                      arrives; the reconnect line above covers a scope that
+                      moved (distance, scope 4). */}
+                  {Platform.OS === 'ios' ? (
+                    <>
+                      <Text style={styles.evidenceLine} testID="health-steps-on">{t('health.stepsOn')}</Text>
+                      <Text style={styles.evidenceLine} testID="health-steps-background">
+                        {IOS_STEPS_BACKGROUND_IN_BINARY ? t('health.stepsBackground') : t('health.stepsBackgroundPending')}
+                      </Text>
+                    </>
                   ) : null}
                 </View>
 

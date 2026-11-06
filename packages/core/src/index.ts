@@ -407,6 +407,7 @@ export * from './firestore-writers';
 // four are one number per day and used to be re-read inline at every call
 // site, legacy `ml` branch and all.
 export * from './daily-scalars';
+export * from './steps';
 
 // ─────────────────────────── AI surfaces ───────────────────────────
 // Wire format + renderer of the two text-generation callables. The app sends

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ignia",
     "slug": "macro-log",
-    "version": "1.2.10",
+    "version": "1.2.11",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ignia",
@@ -123,7 +123,7 @@
         {
           "NSHealthShareUsageDescription": "Ignia reads your weight, sleep and water from Apple Health so you don't have to re-type them.",
           "NSHealthUpdateUsageDescription": "Ignia writes the weight, sleep, water and meals you log to Apple Health.",
-          "background": false
+          "background": true
         }
       ],
       "react-native-health-connect",
