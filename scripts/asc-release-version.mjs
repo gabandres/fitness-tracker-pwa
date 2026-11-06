@@ -31,17 +31,17 @@ if (!versionString || !buildNumber) {
   process.exit(2);
 }
 
-// 1.2.10 — the wording lives in docs/app-store-metadata.md ("What's New — 1.2.10");
+// 1.2.11 — the wording lives in docs/app-store-metadata.md ("What's New — 1.2.11");
 // this copy must match it. Earlier versions' text is in git history.
 const WHATS_NEW = {
   'en-US':
-    '• Faster: switching between Today, Train, Trends and Body no longer reloads each tab, saving a meal and searching foods are quicker, and the app catches up right away when you come back to it.\n' +
-    '• Smarter workouts: a lift moves up a step once you reach 15 reps at your target effort, a set logged closer to failure than its target RIR is flagged as you log it, and straight-set lifts now count toward your weekly volume.\n' +
-    '• Smoother and more stable: updated animation, keyboard and crash-reporting components, and full-screen support for iPhone Duo.',
+    '• Steps that keep up: your daily steps now update from Apple Health in the background, about hourly, without opening Ignia. Today shows them against your usual count, Trends shows a 7-day average, and a trip lists its steps day by day.\n' +
+    '• Workouts that fit the gym you are in: pause and resume a workout, log each lift in kg or lb (remembered per gym), and swap a lift for an alternative in one tap.\n' +
+    '• Your data export now includes one row of steps per day.',
   'es-MX':
-    '• Más rápida: cambiar entre Hoy, Entrenar, Tendencias y Cuerpo ya no recarga cada pestaña, guardar una comida y buscar alimentos es más ágil, y la app se pone al día enseguida cuando regresas.\n' +
-    '• Entrenamientos más inteligentes: el peso sube un paso cuando llegas a 15 repeticiones con tu esfuerzo meta, una serie registrada más cerca del fallo que tu RIR meta se marca al registrarla, y los ejercicios de series rectas ahora cuentan en tu volumen semanal.\n' +
-    '• Más fluida y estable: componentes de animación, teclado y reporte de errores actualizados, y soporte de pantalla completa para el iPhone Duo.',
+    '• Pasos al día: tus pasos diarios ahora se actualizan desde Apple Health en segundo plano, más o menos cada hora, sin abrir Ignia. Hoy los compara con lo usual, Tendencias muestra un promedio de 7 días y un viaje lista sus pasos día por día.\n' +
+    '• Entrenamientos para el gimnasio donde estés: pausa y reanuda un entrenamiento, registra cada ejercicio en kg o lb (se recuerda por gimnasio) y cambia un ejercicio por una alternativa con un toque.\n' +
+    '• Tu exportación de datos ahora incluye una fila de pasos por día.',
 };
 
 const OPEN = ['READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'IN_REVIEW', 'UNRESOLVED_ISSUES'];

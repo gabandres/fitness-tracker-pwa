@@ -4,6 +4,30 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-06 — daily steps from Apple Health in the background (`d4048d8c`; OTA on all twelve runtimes; iOS 1.2.11 / build 75 in review)
+
+Steps already imported (HealthKit `cumulativeSum` per local day, so iPhone + Watch
+count once and a recorded walk is inside the total); what was missing was the
+export, distance, provenance, display and any update without opening the app.
+`dailyActivity` gained `distanceM` (walking + running, iOS Health scope 4),
+`source`, `updatedAt` and `tz`; a FINAL day (past 03:00 the next morning)
+stored in another zone is never re-bucketed (core `steps.ts`,
+`stepDaysToWrite`). Export: one `steps` row per day (`steps`, `distanceM`,
+`source`, `lastUpdated`). Today shows steps against the usual (28-day median,
+travel days out), Trends a 7-day average of complete days, Settings → Travel the
+trip's steps day by day, Connected apps the steps + background status. Steps
+stay activity only. Background: the HealthKit plugin's `background: true`
+(build 75); a delivery launches the app and `index.js` →
+`steps-background.ts` runs a steps-only import (today + two days), as does the
+in-app step observer and Today appearing. The plugin's native launch hook does
+not match Expo 57's AppDelegate (STATUS §3). Rules deployed first; 989 rules
+tests, core 2,715, mobile 3,308. Data the same morning
+(`scripts/owner-data-2026-11-06-haven.mts`): the owner's 11/6 session fixed
+(pull-ups, three Haven machines replacing DB lifts, three machine rows added,
+partial close), the 11/4 Travel D re-capped at 37 min after a stale on-device
+finish undid it, five Haven machines in the catalog as Travel C / D
+alternatives, and the 11/9 starting loads.
+
 ## 2026-11-04 (evening) — kg everywhere, typed units, one-tap swaps, time cap (`b979c4fa`, OTA on all twelve runtimes)
 
 kg sits next to lb on every load, worked out from the stored pounds with the

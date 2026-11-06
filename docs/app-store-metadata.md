@@ -236,6 +236,26 @@ Ignia is not a medical device and does not provide medical advice.
 > page written to convert a store visitor, and it carries the browser fallback
 > for anyone who bounces off the install.
 
+### What's New — 1.2.11 · submitted 2026-11-06 with build 75
+
+`scripts/asc-release-version.mjs` carries this copy; keep the two in step.
+
+**en-US**
+
+```
+• Steps that keep up: your daily steps now update from Apple Health in the background, about hourly, without opening Ignia. Today shows them against your usual count, Trends shows a 7-day average, and a trip lists its steps day by day.
+• Workouts that fit the gym you are in: pause and resume a workout, log each lift in kg or lb (remembered per gym), and swap a lift for an alternative in one tap.
+• Your data export now includes one row of steps per day.
+```
+
+**es-MX**
+
+```
+• Pasos al día: tus pasos diarios ahora se actualizan desde Apple Health en segundo plano, más o menos cada hora, sin abrir Ignia. Hoy los compara con lo usual, Tendencias muestra un promedio de 7 días y un viaje lista sus pasos día por día.
+• Entrenamientos para el gimnasio donde estés: pausa y reanuda un entrenamiento, registra cada ejercicio en kg o lb (se recuerda por gimnasio) y cambia un ejercicio por una alternativa con un toque.
+• Tu exportación de datos ahora incluye una fila de pasos por día.
+```
+
 ### What's New — 1.2.10 · submitted 2026-10-22 with build 74 (supersedes the never-submitted 1.2.9 / build 73)
 
 `scripts/asc-release-version.mjs` carries this copy; keep the two in step.

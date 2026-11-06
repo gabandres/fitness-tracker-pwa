@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-11-04 · **Owns:** current state only. Not history
+**Updated:** 2026-11-06 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`), not fingerprints or publish rules
@@ -26,14 +26,14 @@ same way before trusting them — `docs/COMMANDS.md` has every command;
 
 | Surface | State |
 |---|---|
-| **App Store (iOS)** | **1.2.8 / build 72 LIVE** (read 2026-10-22 via `app-version-sync --check`). **1.2.10 / build 74 `WAITING_FOR_REVIEW`** since 2026-10-22 16:59 UTC (AFTER_APPROVAL, §3). 175 of 175 territories since 2026-08-28. This Mac reads ASC (`ASC_ISSUER_ID` + `ASC_KEY_PATH` in `.env.local`) |
+| **App Store (iOS)** | **1.2.10 / build 74 LIVE** (read 2026-11-06 via `app-version-sync --check`). **1.2.11 / build 75 `WAITING_FOR_REVIEW`** since 2026-11-06 (AFTER_APPROVAL, §3: steps in the background). 175 of 175 territories since 2026-08-28. This Mac reads ASC (`ASC_ISSUER_ID` + `ASC_KEY_PATH` in `.env.local`) |
 | **TestFlight** | **Not re-read since 2026-09-08** (build 64 was the external build then). Read the group's builds AND each build's `externalBuildState` (`asc-testflight-external.mjs`) — `VALID` + in the group ≠ installable; a build of an already-released version never reaches an external tester |
 | **Play** | **Production: vc 52 / 1.2.8 is the newest COMPLETED release** (tracks API, 2026-10-16). **The tracks API cannot tell "in review" from "live"** — the store page or the Console row is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
 | **Web `ignia.fit`** | **Shell + `/admin`** — the web logging app was retired 2026-08-30 (ADR-0036). 113 prerendered pages, EN + es-PR, both store badges. `/app` and the old tabs render "moved to the apps"; SEO pages and `/u/**` KEPT, owner-ratified. Grep `public/` as well as `src/` before claiming copy is gone |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last deployed 2026-11-04 evening (`unitByGym`, `timeCap`, `unitAsk`, `durationNote`; before that the same day: pause / resume) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only. `docs/research/off-branded-ingest.md` scopes branded text results |
-| **OTA (EAS Update)** | **Newest, 2026-11-04 evening, on all twelve runtimes: kg next to lb (derived), the unit a set was typed in, kg \| lb per lift per gym, away-gym load hint, one-tap alternatives, optional / carryover rows, time cap, "use the range" nudge, one-time kg-or-lb question** — `main` @ `06e6244e` (build 74, vc 53 pinned) and `ota/perf-2026-10-21` @ `2e9affac` (the ten Sentry-7.11 runtimes). Not run on a device yet. **Every runtime in use — twelve — has travel mode (2026-10-26, ADR-0048)** on top of S-v2: maintenance held for trips, eyeballed meals, travel weigh-ins out of the trend, re-entry / not-comparable sessions, the no-equipment ladder, the Trends maintenance check (Settings editor admin-only), plus the same-day fix that switching "not comparable" off no longer breaks the workout's saves. The ten Sentry-7.11 runtimes from `ota/perf-2026-10-21` @ `f9a501b3` (iOS builds 73 / 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — = `main` minus `0c30979d`), and the 1.2.10 runtimes from `main` @ `0039d960` (build 74 `a55af49c…`, vc 53 `e989353d…` pinned). Rules (`travelPeriods`, eyeballed-meal fields, weigh-in `note`, session `reentry`/`notComparable`) deployed first. Groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download, and on foreground only after 30+ min in the background |
+| **OTA (EAS Update)** | **Newest, 2026-11-06, on all twelve runtimes: daily steps — Today vs the usual (28-day median), Trends 7-day average, a trip's steps day by day (Settings → Travel), export `steps` rows, distance + source / zone / updatedAt on `dailyActivity`, a steps-only import when Today appears and from the step observer, iOS Health scope 4 (distance: connected users see the reconnect prompt)** — `main` @ `d3546811` (build 74, vc 53 pinned) and `ota/perf-2026-10-21` @ `d3c6e0b8` (the ten; without the `app.json` change). Rules deployed first. Background delivery itself is build 75 only. Before that, 2026-11-04 evening, on all twelve runtimes: kg next to lb (derived), the unit a set was typed in, kg \| lb per lift per gym, away-gym load hint, one-tap alternatives, optional / carryover rows, time cap, "use the range" nudge, one-time kg-or-lb question** — `main` @ `06e6244e` (build 74, vc 53 pinned) and `ota/perf-2026-10-21` @ `2e9affac` (the ten Sentry-7.11 runtimes). Not run on a device yet. **Every runtime in use — twelve — has travel mode (2026-10-26, ADR-0048)** on top of S-v2: maintenance held for trips, eyeballed meals, travel weigh-ins out of the trend, re-entry / not-comparable sessions, the no-equipment ladder, the Trends maintenance check (Settings editor admin-only), plus the same-day fix that switching "not comparable" off no longer breaks the workout's saves. The ten Sentry-7.11 runtimes from `ota/perf-2026-10-21` @ `f9a501b3` (iOS builds 73 / 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — = `main` minus `0c30979d`), and the 1.2.10 runtimes from `main` @ `0039d960` (build 74 `a55af49c…`, vc 53 `e989353d…` pinned). Rules (`travelPeriods`, eyeballed-meal fields, weigh-in `note`, session `reentry`/`notComparable`) deployed first. Groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download, and on foreground only after 30+ min in the background |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` (Play tracks API; Apple's public lookup) and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Fingerprints and publishing:** current artifact values are the two-row table
@@ -85,6 +85,60 @@ deleted and its outcome goes to `CHANGELOG.md`.
   quality. Check `emailRateLimits/pw_ip_*` differ per caller.
 - Health nutrition samples exported before 2026-10-15 carry no Ignia id;
   undo/edit of those older entries cannot reach Health.
+
+### Travel mode — the owner's Bolivia trip (2026-10-31 → 2026-11-18)
+
+- **Live** (OTA, all runtimes, 2026-10-26); trip + Travel A/B templates on the
+  owner's account. **Owed before 10/31:** open the app once on the phone (the
+  OTA applies on the launch after the download) and check Settings → Travel
+  shows Bolivia. The iOS simulator (Release, QA account) has run the Today
+  travel card, the eyeball sheet, Trends "held" and a re-entry session; no
+  real phone has yet. The Settings editor is admin-only, so only the owner's
+  phone can show it.
+- **During the trip:** maintenance shows "Held for travel": **2,262 ± 60**, frozen as of
+  10/30 (read 2026-11-02; 10/30 closed at 1,766 kcal).
+- **Haven Gym plan (2026-11-02):** templates Travel C / D (`travel-gym-v3`), 14
+  `haven-*` lifts and the trip's plan are on the owner's account. The app code
+  that reads them (kg rows, Haven-only progression, "raise load now" on clusters,
+  Today "This week") is OTA'd to all twelve runtimes: the 1.2.10 runtimes from
+  `1fc2a550`, now in `main`, the older ten from `ota/perf-2026-10-21` @ `88c880d0`.
+  Not run on a simulator or phone yet; a session logged on the older bundle has no
+  gym tag, so it would feed the home engine until tagged. ADR-0048 amendment.
+- **Pause / resume (2026-11-04, core `session-pause.ts`):** OTA'd to all
+  twelve runtimes (1.2.10 from `main` @ `e645bb17`, the older ten from
+  `ota/perf-2026-10-21` @ `c37d10b3`), with the maintenance 7-day range and the
+  walk-during-session fix that were waiting. Rules deployed first. Not run on a
+  simulator or phone. The owner's 11/4 Travel D is `paused` (6 steps left),
+  resumable until 23:59 La Paz on 11/4; after that the first screen to see it
+  closes it as partial.
+- **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,
+  RIR 2); maintenance "Rebuilding n/14" until 14 complete days home. Then
+  decide whether `FEATURES.travelMode` goes to everyone and whether the travel
+  templates are archived.
+
+### 1.2.11 — daily steps in the background (built 2026-11-06)
+
+- **iOS** build 75 / 1.2.11 at `d3546811`, runtime `e6d2973e…` (artifact; the
+  verifier passed, `healthkit.background-delivery` entitlement present) —
+  submitted 2026-11-06, **`WAITING_FOR_REVIEW`** (AFTER_APPROVAL). The only
+  native change: the HealthKit plugin's `background: true` (+ the version).
+  Android has no 1.2.11 binary and needs none (Health Connect reads no steps).
+- **Known gap:** the plugin's AppDelegate hook regex does not match Expo 57's
+  multi-line `didFinishLaunching`, so `setupBackgroundObservers()` is NOT
+  called natively; `index.js` → `steps-background.ts` registers the observers
+  and background delivery a second or two into every launch instead. **Owed:**
+  device QA on the owner's phone — steps update with Ignia closed for an hour
+  or more (Settings → Connected apps says "update in the background").
+  If deliveries stop, add a config plugin with a multi-line-safe insert.
+- **Owed on 1.2.10 (live):** device QA (Sentry init and tracing, Reanimated
+  sheets, keyboard handling); Play production for vc 53 is the owner's call.
+- **Bug found 2026-11-06, not fixed:** a session held open in the phone's
+  memory beats the server copy (`useTrain` "a session started, resumed or
+  edited in THIS runtime wins"), so the owner's 11/4 Travel D — closed by a
+  script on 11/5 — was finished AGAIN on 11/6 with the empty part 2 at the 24 h
+  cap (897 min) and the pre-kg sets. Repaired by
+  `scripts/owner-data-2026-11-06-haven.mts`. Fix: drop the local copy when the
+  server says `completed`.
 
 ### Travel mode — the owner's Bolivia trip (2026-10-31 → 2026-11-18)
 
