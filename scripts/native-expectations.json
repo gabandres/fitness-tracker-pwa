@@ -29,9 +29,12 @@
         "keychain-access-groups"
       ],
       ".": [
-        "aps-environment"
+        "aps-environment",
+        "com.apple.developer.healthkit",
+        "com.apple.developer.healthkit.background-delivery"
       ]
     },
+    "_healthkitBackgroundComment": "com.apple.developer.healthkit.background-delivery: daily steps without opening the app (2026-11-06, build 75 on) — the HealthKit plugin's background: true. Without it enableBackgroundDelivery fails silently and steps only arrive when Ignia is opened.",
     "requiredUrlSchemes": [
       "ignia",
       "fit.ignia.app"
