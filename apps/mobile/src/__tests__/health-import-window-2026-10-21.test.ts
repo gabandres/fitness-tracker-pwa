@@ -126,21 +126,21 @@ describe('importWindow — pure', () => {
 describe('the automatic run is throttled; an asked-for one is not', () => {
   it('a second foreground inside 15 min reads nothing; after it, it runs', async () => {
     await importAll('u1', { auto: true });
-    expect(mockReadSamples).toHaveBeenCalledTimes(5);
+    expect(mockReadSamples).toHaveBeenCalledTimes(6);
     setNow(NOW + 14 * 60_000);
     expect(await importAll('u1', { auto: true })).toBe(0);
-    expect(mockReadSamples).toHaveBeenCalledTimes(5);
+    expect(mockReadSamples).toHaveBeenCalledTimes(6);
     expect(mockReadWorkouts).toHaveBeenCalledTimes(1);
     setNow(NOW + 16 * 60_000);
     await importAll('u1', { auto: true });
-    expect(mockReadSamples).toHaveBeenCalledTimes(10);
+    expect(mockReadSamples).toHaveBeenCalledTimes(12);
   });
 
   it('pull to refresh / Sync now right after a foreground still runs', async () => {
     await importAll('u1', { auto: true });
     setNow(NOW + 60_000);
     await importAll('u1');
-    expect(mockReadSamples).toHaveBeenCalledTimes(10);
+    expect(mockReadSamples).toHaveBeenCalledTimes(12);
   });
 
   it('a scalar-only run (Body refresh) does not hold back the workouts', async () => {

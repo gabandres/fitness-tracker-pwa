@@ -46,7 +46,7 @@ const APP_ID = 'fit.ignia.app';
  * can't produce them). Body-fat / nutrition / workouts are the mirror case —
  * export-only, because the app IS their source of truth.
  */
-export type ReadableKind = 'weight' | 'sleep' | 'water' | 'steps' | 'activeEnergy';
+export type ReadableKind = 'weight' | 'sleep' | 'water' | 'steps' | 'activeEnergy' | 'distance';
 
 export interface NutritionExport {
   at: Date;
@@ -194,6 +194,20 @@ export interface HealthPort {
    *  (iOS; default {@link HR_READ_WINDOW_MS}). The one-time backfill passes
    *  the whole import window. */
   readWorkouts(sinceDays: number, opts?: { hrWindowMs?: number }): Promise<HealthWorkout[]>;
+  /**
+   * Call `onChange` when new step samples land (HealthKit `HKObserverQuery`,
+   * 2026-11-06). Resolves to the unsubscribe. iOS only; absent elsewhere.
+   */
+  watchSteps?(onChange: () => void): Promise<() => void>;
+  /**
+   * Ask iOS to wake the app about hourly when steps change
+   * (`enableBackgroundDelivery(.hourly)`), or stop asking. The types persist
+   * natively and are re-registered at every launch by the HealthKit module's
+   * `BackgroundDeliveryManager` — in a binary built with the plugin's
+   * `background: true` (build 75 on). An older binary accepts the call and
+   * gets nothing: no entitlement. iOS only.
+   */
+  setStepsBackground?(on: boolean): Promise<boolean>;
   /** Write one day's canonical-unit value (weight lb / sleep hours / water
    *  fl oz / body-fat percent). The sample is dated within `dateKey`'s day, so
    *  editing a past day exports to Health on that day, not today. */
@@ -606,6 +620,9 @@ const HK_READ: Record<ReadableKind, string> = {
   sleep: 'HKCategoryTypeIdentifierSleepAnalysis',
   steps: 'HKQuantityTypeIdentifierStepCount',
   activeEnergy: 'HKQuantityTypeIdentifierActiveEnergyBurned',
+  // Walking + running distance (2026-11-06): the steps' distance, display and
+  // export only. Read only, runtime-requested — no native change.
+  distance: 'HKQuantityTypeIdentifierDistanceWalkingRunning',
 };
 
 /** HealthKit unit string per quantity kind (sleep is a category, not a
@@ -615,11 +632,33 @@ const HK_UNIT: Record<Exclude<ReadableKind, 'sleep'>, string> = {
   water: 'fl_oz_us',
   steps: 'count',
   activeEnergy: 'kcal',
+  distance: 'm',
 };
 
 const ms = (d: string | number | Date): number => new Date(d).getTime();
 
+const HK_STEPS = 'HKQuantityTypeIdentifierStepCount';
+/** `HKUpdateFrequency.hourly` — the module's `UpdateFrequency.hourly`. */
+const HK_HOURLY = 2;
+
 const healthKit: HealthPort = {
+  async watchSteps(onChange) {
+    const HK = await hkModule();
+    const sub = HK.subscribeToChanges(HK_STEPS as never, () => onChange());
+    return () => sub.remove();
+  },
+
+  async setStepsBackground(on) {
+    // Loosely typed: both exist in every binary carrying 14.0.2, but a missing
+    // export must read as "not enabled", never as a crash.
+    const HK = (await hkModule()) as unknown as {
+      configureBackgroundTypes?: (types: string[], frequency: number) => Promise<boolean>;
+      clearBackgroundTypes?: () => Promise<boolean>;
+    };
+    if (on) return typeof HK.configureBackgroundTypes === 'function' ? HK.configureBackgroundTypes([HK_STEPS], HK_HOURLY) : false;
+    return typeof HK.clearBackgroundTypes === 'function' ? HK.clearBackgroundTypes() : false;
+  },
+
   async isAvailable() {
     try {
       const HK = await hkModule();
@@ -641,6 +680,8 @@ const healthKit: HealthPort = {
         // permission sheet would make the user grant for nothing.
         'HKQuantityTypeIdentifierStepCount',
         'HKQuantityTypeIdentifierActiveEnergyBurned',
+        // The steps' distance (2026-11-06) — scope version 4.
+        'HKQuantityTypeIdentifierDistanceWalkingRunning',
         // Cardio import (ADR-0026). A READ scope only: we already write
         // workouts via `toShare` below, and re-importing our own exports is
         // guarded by `fromUs` rather than by asking for less access.
@@ -692,7 +733,7 @@ const healthKit: HealthPort = {
     // and without `separateBySource` overlapping sources collapse to one figure
     // per interval. One interval per local day = one deduplicated day-total,
     // which is why `steps`/`activeEnergy` fold as `preAggregated` in core.
-    if (kind === 'steps' || kind === 'activeEnergy') {
+    if (kind === 'steps' || kind === 'activeEnergy' || kind === 'distance') {
       const anchor = startOfLocalDay(sinceDate(sinceDays));
       const buckets = (await HK.queryStatisticsCollectionForQuantity(
         HK_READ[kind] as never,
@@ -1010,6 +1051,7 @@ const HC_READ: Record<ReadableKind, string> = {
   sleep: 'SleepSession',
   steps: 'Steps',
   activeEnergy: 'ActiveCaloriesBurned',
+  distance: 'Distance',
 };
 
 /**
@@ -1068,7 +1110,10 @@ export async function hcReadAllRecords<T>(
   return out;
 }
 
-export const HC_SKIPPED_KINDS: ReadonlySet<ReadableKind> = new Set<ReadableKind>(['steps']);
+// `distance` (2026-11-06) for the same reason as steps: it is only the steps'
+// distance, and Health Connect's READ_DISTANCE would be a manifest change Play
+// reviews under the same Minimum Scope policy.
+export const HC_SKIPPED_KINDS: ReadonlySet<ReadableKind> = new Set<ReadableKind>(['steps', 'distance']);
 
 /** What the Android connect prompt asks for. Exported so a test can pin that
  *  nothing here re-requests a kind in {@link HC_SKIPPED_KINDS}. */
@@ -1101,7 +1146,7 @@ export const HC_PERMISSIONS: ReadonlyArray<{ accessType: 'read' | 'write'; recor
  * dynamic import jest cannot execute.
  */
 export function hcRecordsToSamples(
-  kind: Exclude<ReadableKind, 'steps' | 'activeEnergy'>,
+  kind: Exclude<ReadableKind, 'steps' | 'activeEnergy' | 'distance'>,
   rows: readonly HCRecord[],
   boundary: DayBoundary,
 ): HealthSample[] {
@@ -1193,7 +1238,8 @@ const healthConnect: HealthPort = {
   async readSamples(kind, sinceDays, boundary) {
     // Not requested, not declared in the manifest, so not readable — and a
     // read without the grant throws rather than returning empty.
-    if (HC_SKIPPED_KINDS.has(kind)) return [];
+    // (`distance` is in the set too; named again so the type narrows.)
+    if (HC_SKIPPED_KINDS.has(kind) || kind === 'distance') return [];
     const HC = await hcModule();
     await HC.initialize();
 

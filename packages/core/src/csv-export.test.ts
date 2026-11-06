@@ -544,6 +544,8 @@ describe('buildCsv — Program v2 columns (test 10)', () => {
   'sessionStatus', 'segmentIndex',
     // 2026-11-05: kg derived from lb, and the unit a set was typed in.
     'setWeightKg', 'loadKg', 'unit',
+    // 2026-11-06: one 'steps' row per day.
+    'steps', 'distanceM', 'source', 'lastUpdated',
   ];
   const csv = buildCsv(HISTORICAL);
   const lines = csv.split('\r\n');

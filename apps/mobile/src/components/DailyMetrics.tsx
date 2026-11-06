@@ -40,6 +40,9 @@ interface Props {
   sleepTimes?: { bedtime?: string; wakeTime?: string };
   /** Today's imported activity, or undefined when Health isn't connected. */
   activity?: DailyActivity;
+  /** The user's usual daily steps (core `usualSteps`, a 28-day median), shown
+   *  beside today's count. Activity only — never a target. */
+  usualSteps?: number | null;
   fastStartedAt: Date | null;
   onAddWater: (flOz: number) => void;
   /** Hours slept; with the bedtime / wake time when the sheet shows them
@@ -285,7 +288,7 @@ export function nextPendingWater(
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
-export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHunger, dayLogged = null, onSetDayLogged, activity, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
+export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHunger, dayLogged = null, onSetDayLogged, activity, usualSteps, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -334,7 +337,11 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
     sleep != null ? t('metrics.sleepValue', { n: formatNumber(sleep, locale, { maximumFractionDigits: 2 }) }) : null;
   const activityValue = activity
     ? [
-        activity.steps != null ? t('metrics.steps', { n: formatNumber(activity.steps, locale) }) : null,
+        activity.steps != null
+          ? usualSteps
+            ? t('metrics.stepsVsUsual', { n: formatNumber(activity.steps, locale), usual: formatNumber(usualSteps, locale) })
+            : t('metrics.steps', { n: formatNumber(activity.steps, locale) })
+          : null,
         activity.activeKcal != null
           ? t('metrics.activeKcal', { n: formatNumber(activity.activeKcal, locale) })
           : null,

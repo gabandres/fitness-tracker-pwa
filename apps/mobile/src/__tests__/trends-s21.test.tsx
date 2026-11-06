@@ -8,6 +8,8 @@
  * outlier day that no longer flattens the maintenance line; the carbs line's
  * contrast; and the recalibration card's old → new.
  */
+// The steps card reads `dailyActivity` itself (2026-11-06); not this screen's subject.
+jest.mock('@/hooks/useActivityRange', () => ({ useActivityRange: () => null }));
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1' }, profile: null }),
 }));

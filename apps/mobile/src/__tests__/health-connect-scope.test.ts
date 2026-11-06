@@ -12,6 +12,7 @@ const RECORD_FOR_KIND: Record<string, string> = {
   sleep: 'SleepSession',
   steps: 'Steps',
   activeEnergy: 'ActiveCaloriesBurned',
+  distance: 'Distance',
 };
 
 describe('Health Connect minimum scope', () => {

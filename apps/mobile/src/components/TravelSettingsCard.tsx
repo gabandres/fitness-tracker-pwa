@@ -10,6 +10,7 @@ import {
   type TravelPeriod,
 } from '@macrolog/core';
 import { confirm } from '@/components/ConfirmSheet';
+import { TripStepsList } from '@/components/TripStepsList';
 import { NativeDateField } from '@/components/NativeDatePicker';
 import { useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
@@ -170,6 +171,7 @@ export function TravelSettingsCard({ uid, profile, offline }: { uid: string; pro
                   : shown.start > today ? t('settings.travel.upcoming') : t('settings.travel.past')}
                 {shown.altitude ? ` · ${t('settings.travel.altitudeLine', { place: shown.altitude.place, meters: shown.altitude.meters, arrival: day(shown.altitude.arrival) })}` : ''}
               </Text>
+              <TripStepsList uid={uid} period={shown} todayKey={today} />
               <View style={styles.actions}>
                 <TouchableOpacity
                   style={styles.link}

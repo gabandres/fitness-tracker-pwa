@@ -26,9 +26,10 @@ export type WritableKind = 'weight' | 'sleep' | 'water' | 'bodyFat';
  * the app has no way to produce them, so there is nothing to export and
  * `writeDaily` deliberately won't accept them.
  *
- * Canonical app units: steps=count, activeEnergy=kcal.
+ * Canonical app units: steps=count, activeEnergy=kcal, distance=metres
+ * (walking + running, 2026-11-06).
  */
-export type ImportOnlyKind = 'steps' | 'activeEnergy';
+export type ImportOnlyKind = 'steps' | 'activeEnergy' | 'distance';
 
 /** Every daily-scalar metric that crosses the seam as a `HealthSample`. */
 export type HealthKind = WritableKind | ImportOnlyKind;
@@ -98,6 +99,9 @@ export function clampSleepHours(hours: number): number {
  *  24-hour step record is ~250k and a Tour stage burns ~8k kcal. */
 export const STEPS_MAX = 200_000;
 export const ACTIVE_ENERGY_MAX_KCAL = 20_000;
+/** A day's walking + running distance, metres — 300 km is past any human day;
+ *  the rules cap is the same. */
+export const DISTANCE_MAX_M = 300_000;
 
 /**
  * Per-kind validity gate, applied before a sample is imported (or a value is
@@ -120,6 +124,8 @@ export function isStorableHealthValue(kind: HealthKind, value: number): boolean 
       return value >= 0 && value <= STEPS_MAX;
     case 'activeEnergy':
       return value >= 0 && value <= ACTIVE_ENERGY_MAX_KCAL;
+    case 'distance':
+      return value >= 0 && value <= DISTANCE_MAX_M;
   }
 }
 
@@ -162,6 +168,7 @@ export const DAILY_FOLD: Record<HealthKind, DailyFold> = {
   // one deduplicated day-total per day — already folded.
   steps: 'preAggregated',
   activeEnergy: 'preAggregated',
+  distance: 'preAggregated',
 };
 
 /**

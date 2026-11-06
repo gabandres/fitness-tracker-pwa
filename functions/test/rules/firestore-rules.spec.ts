@@ -2204,6 +2204,33 @@ describe('firestore.rules', () => {
     },
   );
 
+  it('accepts the 2026-11-06 steps fields: distanceM, source, updatedAt, tz', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'alice', 'dailyActivity', '2026-11-04'), {
+        steps: 10641,
+        distanceM: 7613,
+        source: 'healthkit',
+        tz: 'America/La_Paz',
+        updatedAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it.each([
+    ['an unknown source', { steps: 1, source: 'fitbit' }],
+    ['absurd distanceM', { distanceM: 300001 }],
+    ['negative distanceM', { distanceM: -1 }],
+    ['a string updatedAt', { steps: 1, updatedAt: '2026-11-06' }],
+    ['an empty tz', { steps: 1, tz: '' }],
+    ['an over-long tz', { steps: 1, tz: 'x'.repeat(65) }],
+  ])('rejects dailyActivity with %s', async (_label, data) => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertFails(setDoc(doc(db, 'users', 'alice', 'dailyActivity', '2026-11-04'), data));
+  });
+
   it('rejects a dailyActivity doc with an unknown field', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

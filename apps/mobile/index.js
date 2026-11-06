@@ -20,6 +20,13 @@ import { Platform } from 'react-native';
 // the first mount, and before the widget handler is registered below.
 initSentry();
 
+// Daily steps without opening the app (iOS, 2026-11-06): a HealthKit
+// background delivery LAUNCHES the app, and this is the first code of ours
+// that runs — so the steps import has to be wired here, not in a screen.
+if (Platform.OS === 'ios') {
+  require('./src/lib/steps-background').startStepsBackgroundSync();
+}
+
 if (Platform.OS === 'android') {
   const { registerWidgetTaskHandler } = require('react-native-android-widget');
   const { widgetTaskHandler } = require('./src/widgets/widget-task-handler');

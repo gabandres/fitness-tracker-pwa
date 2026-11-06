@@ -25,6 +25,8 @@ import { isTravelDay, travelPeriodsOf, TRAVEL_SCALE_NOTE } from './travel';
 import { remainingStepText, remainingSteps, sessionStatusLabel } from './session-pause';
 import { accountUnit, kgOf, setUnit } from './gym-units';
 import type { UnitSystem } from './unit-system';
+import type { DailyActivity } from './daily-scalars';
+import { activitySourceLabel } from './steps';
 
 const COLS = [
   'type', 'date', 'timestamp',
@@ -137,6 +139,14 @@ const COLS = [
   // `unit`: the unit the set was typed in ('workout_set'), else its row's,
   // else the account's; on 'template' rows the row's unit.
   'setWeightKg', 'loadKg', 'unit',
+  // ── Daily steps (2026-11-06, `steps.ts`), appended for the same reason ──
+  // One 'steps' row per day with a count: `steps` is the day's de-duplicated
+  // total from the source (HealthKit's cumulativeSum over the local day, so a
+  // recorded walk is already inside it — never add 'cardio' rows to it),
+  // `distanceM` walking + running metres, `source` who wrote it ('HealthKit',
+  // 'Oura'; blank on days stored before sources were recorded) and
+  // `lastUpdated` when the importer last changed the day.
+  'steps', 'distanceM', 'source', 'lastUpdated',
 ] as const;
 type Col = typeof COLS[number];
 
@@ -209,6 +219,9 @@ export interface ExportData {
   /** "Day fully logged?" answers per date (`complete-day.ts`), for
    *  `dayLogged` rows. */
   dailyLogged?: Record<string, boolean>;
+  /** `dailyActivity` docs by day — one 'steps' row per day with a count
+   *  (2026-11-06). Absent = no rows, as before. */
+  dailyActivity?: Record<string, DailyActivity>;
   /** The program version each template runs as (`programVersion`), by id. */
   templateVersions?: Record<string, 'v1' | 'v2'>;
   /** The templates that make up the rotation (`rotationTemplates`, the set
@@ -311,6 +324,19 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
   for (const date of sleepKeys) {
     const times = data.dailySleepTimes?.[date];
     rows.push(row({ type: 'sleep', date, sleepHours: data.dailySleep[date], bedtime: times?.bedtime, wakeTime: times?.wakeTime }));
+  }
+
+  for (const date of Object.keys(data.dailyActivity ?? {}).sort()) {
+    const a = data.dailyActivity![date];
+    if (a?.steps == null) continue;
+    rows.push(row({
+      type: 'steps',
+      date,
+      steps: Math.round(a.steps),
+      distanceM: a.distanceM != null ? Math.round(a.distanceM) : undefined,
+      source: activitySourceLabel(a.source),
+      lastUpdated: a.updatedAt?.toISOString(),
+    }));
   }
 
   for (const date of Object.keys(data.dailyHunger ?? {}).sort()) {
