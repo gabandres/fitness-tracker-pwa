@@ -4,6 +4,15 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-07 — update-required minimum set; IGNIA-MOBILE-13 fixed (`a8916bdd`; OTA on iOS build 75, Android vc 52 + 53)
+
+The owner set the update-required minimum in `/admin`: iOS `1.2.11`, Android vc `52` (the gate itself shipped
+2026-10-15, `bf949706`, and reached every runtime by OTA; the minimum had never been set). Older binaries now
+show the full-screen store prompt, so OTAs go to three runtimes instead of twelve. The same day: a new user on
+1.2.11 switched to Mail while `sendVerificationEmail` was in flight and was told the send failed, though the
+function had sent it; a response lost that way (`functions/internal` with no `details`) is now retried once,
+and `RATE_LIMITED` on the retry counts as sent (`apps/mobile/src/lib/callable-errors.ts`).
+
 ## 2026-11-06 — daily steps from Apple Health in the background (`d4048d8c`; OTA on all twelve runtimes; iOS 1.2.11 / build 75 in review)
 
 Steps already imported (HealthKit `cumulativeSum` per local day, so iPhone + Watch
