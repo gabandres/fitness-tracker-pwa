@@ -71,6 +71,7 @@ import { ensureProfile, setTravelPeriodsForWrites, subscribeProfile } from './le
 import { registerAppleRefreshToken } from './appleSignin';
 import { addBreadcrumb, captureError, setSentryUser } from './sentry';
 import { isGoogleInternalError } from './google-signin-errors';
+import { sendWithLostResponseRetry } from './callable-errors';
 import { clearQuickAdd } from './quick-add';
 import { clearPendingBody } from './pending-body';
 import { clearTapeReminder } from './reminders';
@@ -204,7 +205,13 @@ async function sendOwnedVerificationEmail(locale?: Locale): Promise<void> {
     functions,
     'sendVerificationEmail',
   );
-  await call({ locale: locale ?? 'en' });
+  // A response lost to iOS suspending the app mid-request (the user switched
+  // to Mail) is retried once instead of reported as a failed send. See
+  // `callable-errors.ts` and IGNIA-MOBILE-13.
+  await sendWithLostResponseRetry(
+    () => call({ locale: locale ?? 'en' }),
+    () => addBreadcrumb('sendVerificationEmail response lost in transit; retrying once', undefined, 'auth'),
+  );
 }
 
 // Microsoft (Azure AD v2.0) endpoints. `common` = the app registration is
