@@ -1,47 +1,96 @@
-# App Store screenshot capture — the five frames of docs/app-store-metadata.md §3,
-# taken on the iOS simulator (iPhone 16 Pro Max, 1320 × 2868 native, which is
-# exactly the 6.9" slot Apple wants — no scaling afterwards).
+# App Store screenshot capture: the frames of docs/app-store-metadata.md §3,
+# taken on an iPhone 16 Pro Max simulator. Its 1320 × 2868 native size is
+# exactly the 6.9" slot Apple wants, so nothing is scaled afterwards.
 #
-# Run once per locale, signed in as demo@ignia.fit (store-assets/README.md: the
-# demo account owns the screenshots; never review@). Flip the locale between
-# runs with an admin write, not the Settings toggle:
+# Re-shot 2026-11-08 (v2). Each change fixes something the 2026-09-05 set got wrong:
+#   - Train ticks two sets, so the frame shows a session being LOGGED.
+#     v1 showed every rep as 0, "0 of 3 done", which reads as an empty form.
+#   - The add sheet is shot with a search and NO keyboard. In v1 the
+#     keyboard covered half the frame.
+#   - Body (the weight trend) replaces Settings as frame 5. v1's last frame was
+#     a plain list of settings rows.
+#   - The theme is set explicitly by THEME (dark|light), so a set can't mix
+#     themes by accident.
+#
+# Run once per locale, signed in as demo@ignia.fit. Never use review@, which App
+# Review signs in with. Before each run, seed the account:
+#
+#   node scripts/seed-demo-account.mjs --email demo@ignia.fit --reset --any-hour
+#
+# and flip the locale with an admin write, not the Settings toggle:
 #
 #   node scripts/qa-regression-verify.mjs set-locale --email demo@ignia.fit --locale es-PR
 #
-#   maestro test .maestro/capture/store-shots.yaml -e OUT=~/store-shots/en
-#   maestro test .maestro/capture/store-shots.yaml -e OUT=~/store-shots/es \
-#     -e TAB_TODAY=Hoy -e TAB_TRAIN=Entrenar -e TAB_TRENDS=Tendencias
+#   maestro test .maestro/capture/store-shots.yaml -e OUT=en -e THEME=dark \
+#     -e SEARCH='chicken breast' -e SEARCH_RE='.*[Cc]hicken.*' \
+#     -e EMAIL=demo@ignia.fit -e PASSWORD="$(cat ~/demo-pass.txt)"
 #
-# Tabs are matched by their LABEL, not `tab-*` ids: measured 2026-09-05 on the
-# iOS simulator, the tab bar exposes `accessibilityText` "Today"/"Train"/… and
-# no resource-id, so `id: tab-index` never resolves there (it does on Android).
+# Shot ORDER is not frame order. Trends and Body are shot before the workout
+# starts, because the in-progress pill ("Upper A · Resume") sits over every
+# tab once it does. Frame numbers come from the file names (store-screenshots.mjs).
+#
+# Every value goes on the command line, because Maestro 2.8 lets a flow's own
+# `env:` block override `-e`. OUT must be RELATIVE: frames land under
+# ~/.maestro/tests/<run>/…/takeScreenshot/<OUT>/.
+#
+# Tabs are tapped by `tab-<route>` id. Those ids resolve on iOS since
+# 2026-09-17, and unlike the labels they don't change with the locale.
 #
 # Frame 2 STARTS a workout from the seeded "Upper A" template and leaves it in
-# progress on purpose — the other locale's run then finds the session already
-# open on the Train tab and shoots that. `scripts/seed-demo-account.mjs
-# --reset` is the teardown.
-# NO `env:` defaults here, on purpose. Measured 2026-09-05 with Maestro 2.8.0:
-# a value declared in the flow's `env:` block WINS over the same name passed
-# with `-e` — the es-PR run kept asserting "Today" with `-e TAB_TODAY=Hoy` on
-# the command line, and OUT stayed at its file default too. Pass all four:
-#
-#   -e OUT=<dir> -e TAB_TODAY=Today -e TAB_TRAIN=Train -e TAB_TRENDS=Trends
-#
-# OUT must be RELATIVE: 2.8 rejects an absolute path ("resolves outside this
-# run's takeScreenshot output folder") and writes every frame under
-# ~/.maestro/tests/<run>/<flow>/takeScreenshot/<OUT>/ — collect them there.
+# progress. Clear it before the next run (Discard in the app, or delete the
+# session doc and reinstall). A run that finds it open would tick the same
+# sets again, which UNticks them.
 appId: fit.ignia.app
 ---
+# Sign-in is inline rather than `runFlow: ../android-signin.yaml`. On a fresh
+# iOS 27 simulator (2026-11-08) that flow's tap on `password` did not move
+# focus, so the password was appended to the email field. Lowering the
+# keyboard (tap the flame) between the fields fixes it.
 - launchApp:
     clearState: false
-# The guided tour auto-opens once per device for a completed profile and
-# covers Today entirely (DEV_ENVIRONMENT §3.12). A fresh simulator hits it on
-# the first signed-in launch — which is exactly this run.
 - extendedWaitUntil:
     visible:
-      id: 'tour-skip'
-    timeout: 20000
+      id: 'welcome-signin'
+    timeout: 30000
     optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-signin'
+    commands:
+      - tapOn:
+          id: 'welcome-signin'
+- extendedWaitUntil:
+    visible:
+      id: 'signin-submit'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'signin-submit'
+    commands:
+      - tapOn:
+          id: 'email'
+      - eraseText: 80
+      - inputText: ${EMAIL}
+      - tapOn:
+          id: 'flame'
+      - tapOn:
+          id: 'password'
+      - eraseText: 80
+      - inputText: ${PASSWORD}
+      - tapOn:
+          id: 'flame'
+      - tapOn:
+          id: 'signin-submit'
+      - tapOn:
+          text: 'Not Now'
+          optional: true
+- extendedWaitUntil:
+    notVisible:
+      id: 'brand-loader'
+    timeout: 30000
 - runFlow:
     when:
       visible:
@@ -53,48 +102,81 @@ appId: fit.ignia.app
     visible:
       id: 'settings-open'
     timeout: 60000
-# A simulator build carries a lower build number than the store, so the
-# "New version available" card shows over the hero. Dismiss it; the flag is
-# device-local and the store is not something a screenshot should advertise.
+
+# ── Theme ──
+# Theme is per-device AsyncStorage. 10-theme-dark.yaml explains each of these gates.
+- repeat:
+    times: 8
+    while:
+      notVisible:
+        id: 'settings-daily-targets'
+    commands:
+      - tapOn:
+          id: 'settings-open'
+          optional: true
+- assertVisible:
+    id: 'settings-daily-targets'
+- scrollUntilVisible:
+    element:
+      id: 'settings-theme-${THEME}'
+    direction: DOWN
+    timeout: 60000
+    centerElement: true
+- tapOn:
+    id: 'settings-theme-${THEME}'
+- extendedWaitUntil:
+    visible:
+      id: 'BackButton'
+    timeout: 15000
+- tapOn:
+    id: 'BackButton'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-open'
+    timeout: 30000
+
+# One-time cards that would sit over the hero: none of them is what a frame sells.
 - tapOn:
     id: 'store-update-dismiss'
     optional: true
-# The "your measured burn is ready" card, likewise: a one-time notice with a
-# button, not the surface the frame is selling. Acknowledging it is what a
-# user does once; the rings, fasting, water and entries are the pitch.
 - tapOn:
     id: 'recalibration-ack'
     optional: true
-# And What's New, which fires on the SECOND launch after install — i.e. the
-# second locale's run, never the first. A full screen with one Continue
-# button since 287a80db (2026-09-15); the banner's `whats-new-dismiss` went
-# with the banner, so this optional tap had been silently matching nothing.
 - tapOn:
     id: 'whats-new-continue'
     optional: true
-# Wait for the LOCALE, not just the rings: the profile snapshot that carries
-# `preferredLocale` lands a beat after first paint, and on the es-PR run the
-# first frame came out in English with "Entrenar" not yet on screen to tap.
-# The tab label is the cheapest thing that only exists in the right language.
-- extendedWaitUntil:
-    visible: ${TAB_TODAY}
-    timeout: 30000
+
+# ── 1. Today ──
 - extendedWaitUntil:
     visible: '.*kcal.*'
     timeout: 30000
 - takeScreenshot: ${OUT}/01-today
 
-# ── 2. Train — a session in progress ──
-- tapOn: ${TAB_TRAIN}
-# Optional: with a workout already in progress the tab opens straight on the
-# session, and the hero is not on screen at all.
+# ── 4. Trends ──
+- tapOn:
+    id: 'tab-trends'
+- extendedWaitUntil:
+    visible: '.*kcal.*'
+    timeout: 30000
+- takeScreenshot: ${OUT}/04-trends
+
+# ── 5. Body: the weight trend ──
+- tapOn:
+    id: 'tab-body'
+- extendedWaitUntil:
+    visible:
+      id: 'body-hero'
+    timeout: 30000
+- takeScreenshot: ${OUT}/05-body
+
+# ── 2. Train: a session in progress, two sets ticked ──
+- tapOn:
+    id: 'tab-train'
 - extendedWaitUntil:
     visible:
       id: 'train-hero'
     timeout: 30000
     optional: true
-# Already in progress from a previous locale's run? Then the template button
-# is not on screen and the session is; either way the next wait resolves.
 - runFlow:
     when:
       visible:
@@ -102,15 +184,38 @@ appId: fit.ignia.app
     commands:
       - tapOn:
           id: 'start-template-demo-template-upper'
-# Regex, not the bare name: iOS folds the exercise row into one accessibility
-# string — "Bench Press, Last: 170 × 8, 0/3, " — so an exact match never hits.
 - extendedWaitUntil:
-    visible: '.*Bench Press.*'
+    visible:
+      id: 'set-done-0-0'
     timeout: 30000
+# Ticking accepts the target reps and carries last time's load (SetRow), so a
+# tick is the whole act of logging a set. RIR is picked first, because a ticked
+# set without one shows an amber "RIR missing" nudge. The first tick opens the
+# rest-notification prompt once per device; "Not now" leaves it for later.
+- tapOn:
+    id: 'set-rir-0-0'
+- tapOn:
+    id: 'set-sheet-rir-2'
+- tapOn:
+    id: 'set-done-0-0'
+- tapOn:
+    id: 'rest-notify-not-now'
+    optional: true
+- tapOn:
+    id: 'set-rir-0-1'
+- tapOn:
+    id: 'set-sheet-rir-1'
+- tapOn:
+    id: 'set-done-0-1'
+- tapOn:
+    id: 'rest-notify-not-now'
+    optional: true
 - takeScreenshot: ${OUT}/02-train
 
-# ── 3. Food search results ──
-- openLink: 'ignia://?openAdd=store-1'
+# ── 3. Add food: a search with the keyboard down ──
+# The sheet focuses the field on open, so an "unopened" frame has the
+# keyboard over half of it. Only the search is shot.
+- openLink: 'ignia://?openAdd=store-2'
 - tapOn:
     text: 'Open'
     optional: true
@@ -120,36 +225,12 @@ appId: fit.ignia.app
     timeout: 20000
 - tapOn:
     id: 'food-search-input'
-- inputText: 'ribs'
+- inputText: ${SEARCH}
 - extendedWaitUntil:
-    visible: '.*[Rr]ibs.*'
+    visible: ${SEARCH_RE}
     timeout: 45000
+# iOS has no native keyboard dismiss, and Maestro's hideKeyboard only fakes
+# one with a scroll. Pressing Return submits the field and lowers the keyboard.
+- pressKey: Enter
 - takeScreenshot: ${OUT}/03-search
 
-# ── 4. Trends ──
-- launchApp:
-    clearState: false
-- extendedWaitUntil:
-    visible:
-      id: 'settings-open'
-    timeout: 30000
-- tapOn: ${TAB_TRENDS}
-- extendedWaitUntil:
-    visible: '.*kcal.*'
-    timeout: 30000
-- takeScreenshot: ${OUT}/04-trends
-
-# ── 5. Settings — the "no paywall" surface ──
-- tapOn: ${TAB_TODAY}
-- extendedWaitUntil:
-    visible:
-      id: 'settings-open'
-    timeout: 30000
-- tapOn:
-    id: 'settings-open'
-# The first rows, not the sign-out button — that one is below the fold.
-- extendedWaitUntil:
-    visible:
-      id: 'settings-refine'
-    timeout: 30000
-- takeScreenshot: ${OUT}/05-free

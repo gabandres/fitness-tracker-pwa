@@ -70,6 +70,17 @@ Train change since. **Never compose a suite number from individual flow runs**
 **Only genuinely open work belongs here.** A row whose work has shipped gets
 deleted and its outcome goes to `CHANGELOG.md`.
 
+### New App Store screenshots — waiting on a 1.2.12 binary (2026-11-08)
+
+Ten new frames (en-US 5, es-MX 5: dark theme, framed phone, Body as frame 5)
+are uploaded to a **1.2.12 *Prepare for Submission* draft** in ASC (id
+`30305a82…`). ASC can't edit a live version's screenshots, so they go live
+with the next iOS binary. That binary must be **1.2.12**: bump `app.json` to it,
+or delete the draft and re-upload to whichever version ships
+(`asc-upload-screenshots.mjs --locale <en|es> --replace`). The draft copied
+1.2.11's description and keywords, but What's New is empty and must be written before submitting. Details:
+`docs/app-store-metadata.md`, *Screenshots on file*.
+
 ### Open since 1.2.8
 
 - **Flip `ACCEPT_LEGACY_PROMPT_SHAPE` to `false`** (`functions/src/ai-prompt-input.ts`

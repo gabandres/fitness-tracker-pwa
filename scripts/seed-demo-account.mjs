@@ -24,6 +24,11 @@
  *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --reset
  *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --force
  *   node scripts/seed-demo-account.mjs --email review@ignia.fit --mark-only
+ *   node scripts/seed-demo-account.mjs --email demo@ignia.fit --reset --any-hour
+ *
+ * `--any-hour` writes today's partial day even when its meal times are still
+ * ahead of the clock. Without it a screenshot run before 07:40 gets an empty
+ * Today, because future meals are skipped. Use it for capture runs only.
  *
  * `--mark-only` writes just `syntheticAccount: true` on the profile and
  * returns — the backfill path for accounts seeded before that marker existed.
@@ -79,6 +84,7 @@ const dryRun = has('dry-run');
 const force = has('force');
 const reset = has('reset');
 const markOnly = has('mark-only');
+const anyHour = has('any-hour');
 
 /**
  * Collections `--reset` empties first. Day-keyed, so a plain re-seed leaves
@@ -253,7 +259,7 @@ function buildDocs(uid) {
     const meals = d === 0 ? day.slice(0, 3) : day;
     for (const [i, m] of meals.entries()) {
       const ts = dayAt(d, m.hour, m.minute);
-      if (ts > new Date()) continue; // don't write meals in the future
+      if (ts > new Date() && !(anyHour && d === 0)) continue; // don't write meals in the future
       docs.push([
         `users/${uid}/dailyLogs/demo-${dateKey(ts)}-${i}`,
         {
@@ -316,8 +322,9 @@ function buildDocs(uid) {
           name,
           targetLoad: load,
           cues: [],
+          // No warm-up row: the template has three working sets, and a seeded
+          // warm-up at index 0 became set 1's PREV ("94×8") in the Train frame.
           sets: [
-            { kind: 'warmup', weight: Math.round(load * 0.55), reps: 8, done: true },
             { kind: 'working', weight: load, reps: 8, rir: 2, done: true },
             { kind: 'working', weight: load, reps: 8, rir: 1, done: true },
             { kind: 'working', weight: load, reps: rnd() > 0.5 ? 7 : 8, rir: 0, done: true },

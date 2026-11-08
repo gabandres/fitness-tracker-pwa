@@ -495,14 +495,30 @@ here recorded that 1.2.0 was accepted with `usesIdfa: null`; it asked to be
 deleted once the explicit `false` was confirmed to work, which the table row
 above and the 1.2.3 read-back confirm — deleted 2026-09-17.)
 
-### Screenshots on file — RE-SHOT 2026-09-05, uploaded to the 1.2.3 draft (en-US 5, es-MX 5, both `--replace`d; watch slots untouched)
+### Screenshots on file — RE-SHOT 2026-11-08 (v2), uploaded to the 1.2.12 draft (en-US 5, es-MX 5, both `--replace`d; watch slots untouched)
 
-> **These frames are LIVE — 1.2.3 / build 64 went `READY_FOR_SALE` 2026-09-06.**
-> (This note said "1.2.3 exists only as a *Prepare for Submission* draft" until
-> 2026-09-17; the draft, id `e6f6ce2c…`, was created 2026-09-05 because ASC
-> refuses screenshot edits on a `READY_FOR_SALE` version, and shipped the next
-> day.) Source: `store-assets/out/{en,es}/`, captured on the iPhone 16 Pro Max
-> simulator (`.maestro/capture/store-shots.yaml`).
+> **NOT LIVE YET.** ASC refuses screenshot edits on a `READY_FOR_SALE` version,
+> so they sit on a **1.2.12 *Prepare for Submission* draft** (id `30305a82…`,
+> created 2026-11-08 for this purpose, `AFTER_APPROVAL`). They go live only when
+> a 1.2.12 binary is attached and the version passes review. The 1.2.11 listing
+> still shows the 2026-09-05 set. The draft copied 1.2.11's description,
+> keywords and watch frames. What's New is empty; write it before submitting.
+
+What changed from the 2026-09-05 set, which looked flat: dark theme throughout
+(ADR-0014, dark leads), and the whole phone drawn in a bezel with a Dynamic
+Island over an ember glow, where v1 bled a light capture off the bottom of a
+black canvas. The caption copy is unchanged; `*…*` in the `SHOTS` list marks
+the coral words. The frames: Today with a part-logged day; Train with two sets
+ticked, PR badges and a rest timer (v1 showed every rep as 0); the food search
+with the keyboard down (v1's keyboard covered half the frame); Trends; and
+**Body's weight trend as frame 5**, replacing Settings. es-MX now carries real
+Spanish captures (v1 used the English ones). Exercise and USDA food names stay
+English, because that is the data.
+
+Source: `store-assets/out/{en,es}/`, captured on an iPhone 16 Pro Max simulator
+(iOS 27.0) from a Release simulator build of `main` @ `e0a68262` with
+`.maestro/capture/store-shots.yaml`. **Seed with `--reset --any-hour`** first:
+without `--any-hour`, a run before 07:40 gets an empty Today.
 
 The table below is the 1.2.0–1.2.2 record, kept for the watch slots:
 
@@ -698,9 +714,10 @@ visitor decides from the first two frames, before reading a word of the
 description.
 
 ### This costs zero EAS builds
-Capture on the **iPhone that already has the App Store build installed** — the
-shipped app is on your phone, so no dev build, no simulator, no quota.
-Volume-up + side button, then AirDrop to the Mac/PC.
+The current set is shot on the iOS simulator by `.maestro/capture/store-shots.yaml`
+(see *Screenshots on file* above): a local Release simulator build, no EAS
+quota. The fallback still works: an iPhone with the App Store build installed,
+Volume-up + side button, then AirDrop.
 
 ### Required sizes
 Apple needs **one** set; it downscales for smaller devices.
@@ -723,7 +740,7 @@ must land there.
 | 2 | Train — a session in progress, sets/reps/RIR | **The only macro tracker with a real lifting log** | **El único contador de macros con registro de pesas** |
 | 3 | Food search or barcode result | **Log a meal in about five seconds** | **Registra una comida en unos cinco segundos** |
 | 4 | Trends — weekly insights + weight projection | **See where the week actually went** | **Mira a dónde se fue la semana de verdad** |
-| 5 | Settings or a "no paywall" surface | **Every feature. No subscription. No ads.** | **Todas las funciones. Sin suscripción. Sin anuncios.** |
+| 5 | Body — the weight trend toward the goal (Settings until 2026-11-08) | **Every feature. No subscription. No ads.** | **Todas las funciones. Sin suscripción. Sin anuncios.** |
 
 Captions are burned into the image, not an ASC field. Drop the raw captures in
 `store-assets/raw/<locale>/` and run `node scripts/store-screenshots.mjs` — it
