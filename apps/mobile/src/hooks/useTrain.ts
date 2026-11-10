@@ -64,6 +64,7 @@ import {
   seedSideLoads,
   type ProgramVersion,
   sessionDurationMin,
+  capDuration,
   moveInSession,
   canUndoMove,
   undoMoveRows,
@@ -136,6 +137,18 @@ export type TrainErrorKind = 'load' | 'save';
 export type ActivePick =
   | { kind: 'catalog'; exercise: Exercise; logStyle: LogStyle; setKind: SetKind }
   | { kind: 'seed'; seed: SeedExercise };
+
+/** What Finish hands {@link TrainState.finishWorkout}. `durationMin` is a
+ *  length the lifter typed or a rule set (auto-end, the 150-min cap);
+ *  `durationNote` says how (core `durationNoteFor`); `confirmedLong` lets a
+ *  length over the cap through (core `capDuration`). */
+export interface FinishInput {
+  bodyweight?: number;
+  sleepHours?: number;
+  durationMin?: number;
+  durationNote?: string;
+  confirmedLong?: boolean;
+}
 
 export interface TrainState {
   loading: boolean;
@@ -329,7 +342,7 @@ export interface TrainState {
    *  failure. Never rejects. */
   /** `extras.durationMin` is the real length the lifter typed for a workout
    *  left open (train-ux F15); it wins over the start-to-tap interval. */
-  finishWorkout: (extras: { bodyweight?: number; sleepHours?: number; durationMin?: number }) => Promise<boolean>;
+  finishWorkout: (extras: FinishInput) => Promise<boolean>;
   /** Abandon the active session (delete the doc). */
   discardWorkout: () => Promise<void>;
   /**
@@ -1325,7 +1338,10 @@ export function useTrain(): TrainState {
     async (action: SessionAction, opts?: { defer?: boolean }) => {
       const prev = activeRef.current;
       if (!prev) return;
-      const next = applySessionAction(prev, action);
+      // The clock stamps a ticked set's `loggedAt` (the timer's auto-stop,
+      // core `session-idle.ts`) — never while editing a finished session,
+      // where the tap's time is not when the set was lifted.
+      const next = applySessionAction(prev, action, editOriginal.current ? undefined : new Date());
       if (next === prev) return;
       setActive(next);
       // Not awaited: the session is already on screen and journaled, and the
@@ -1580,7 +1596,7 @@ export function useTrain(): TrainState {
   const finishing = useRef(false);
 
   const finishWorkout = useCallback(
-    async (input: { bodyweight?: number; sleepHours?: number; durationMin?: number }): Promise<boolean> => {
+    async (input: FinishInput): Promise<boolean> => {
       const active = activeRef.current;
       if (!uid || !active?.id || finishing.current) return false;
       finishing.current = true;
@@ -1591,13 +1607,22 @@ export function useTrain(): TrainState {
           // replayed on the next launch must not count the hours in between.
           const finishedAt = new Date();
           // A typed length (F15) beats both: the lifter said what it was.
-          const { durationMin: typedMin, ...extras } = input;
+          const { durationMin: typedMin, durationNote: typedNote, confirmedLong, ...extras } = input;
           // A resumed session: its last part closes here and its duration is
           // the sum of the parts, never the gap (`session-pause.ts`).
           const closed = finishedSegments(active, finishedAt);
-          const durationMin = typedMin
+          const rawMin = typedMin
             ?? (closed.segments ? closed.durationMin : active.durationMin ?? sessionDurationMin(active.date, finishedAt));
-          const done = durationMin != null ? { ...closed, durationMin } : closed;
+          // The backstop (core `session-idle.ts` rule 4): nothing over 150 min
+          // saves unless the lifter confirmed it — whatever path got here.
+          const capped = capDuration(active, rawMin, confirmedLong === true);
+          const durationMin = capped.durationMin;
+          const durationNote = capped.note ?? typedNote;
+          const done = {
+            ...closed,
+            ...(durationMin != null ? { durationMin } : {}),
+            ...(durationNote ? { durationNote } : {}),
+          };
           const entry: PendingFinish = { savedAt: finishedAt.getTime(), session: done, extras };
           try {
             // On the device FIRST — this is what the screen moving on rests on.

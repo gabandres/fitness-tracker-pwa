@@ -14,6 +14,7 @@ import {
 import type { I18nKey, TFn } from '@/i18n';
 import { track } from './analytics';
 import { REST_DONE_ID_PREFIX } from '@/lib/rest-notification-id';
+import { SESSION_IDLE_ID_PREFIX } from '@/lib/session-idle-notify';
 
 // Local, on-device smart reminders. The *decision* of what to schedule lives in
 // the shared core `planReminders` (meal windows + streak-at-risk + weigh-in);
@@ -76,7 +77,10 @@ if (isNative) {
       // The rest-over buzz is for a phone in a pocket. With Ignia open, the
       // rest bar already says it and plays its own haptic; a banner on top
       // was the same news twice (Train re-score bug 8).
-      const restDone = notification.request.identifier.startsWith(REST_DONE_ID_PREFIX);
+      // "Still training?" likewise: the Train screen asks in-app at the same
+      // moment (`useSessionIdle`).
+      const restDone = notification.request.identifier.startsWith(REST_DONE_ID_PREFIX)
+        || notification.request.identifier.startsWith(SESSION_IDLE_ID_PREFIX);
       return {
         shouldShowBanner: !restDone,
         shouldShowList: !restDone,

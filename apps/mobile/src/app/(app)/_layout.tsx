@@ -21,6 +21,7 @@ import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, space, TARGET } from '@/theme';
 import { useWorkoutIntentRouter } from '@/hooks/useStartNextWorkoutIntent';
+import { useSessionIdleRouter } from '@/hooks/useSessionIdleRouter';
 import { sweepOrphans } from '@/lib/rest-timer-activity';
 import { GLASS_BAR_HEIGHT, GLASS_TAB_BAR, TAB_PILL_ALPHA, glassBarGap, withAlpha } from '@/lib/glass';
 import { ACCESSIBILITY_FONT_SCALE, RelayoutBoundary, useRelayoutGeneration } from '@/lib/font-scale';
@@ -343,6 +344,9 @@ export default function AppTabsLayout() {
   useAutoApplyOta();
   // A "Start my next workout" waiting from Siri sends the user to Train.
   useWorkoutIntentRouter();
+  // "Still training?" taps, and a workout left open over 2 h, go to Train
+  // (the timer's auto-stop, core `session-idle.ts`).
+  useSessionIdleRouter();
   // A rest countdown left on the Lock Screen by a killed session is ended.
   useEffect(() => {
     void sweepOrphans();

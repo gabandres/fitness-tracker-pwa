@@ -4,6 +4,7 @@ import { AppState, Platform, ScrollView, Switch, Text, View, useWindowDimensions
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useReducedMotion } from 'react-native-reanimated';
 import { Touchable } from './Touchable';
+import { GymBusyPanel } from './GymBusyPanel';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addActionsFor,
@@ -926,6 +927,10 @@ export function ActiveSession({
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Each card's y in the list, for scrolling a superset partner into view. */
   const cardY = useRef(new Map<number, number>());
+  const musclesOfExercise = useCallback(
+    (exerciseId: string) => train.catalog.find((c) => c.id === exerciseId)?.muscles,
+    [train.catalog],
+  );
   /** A card to scroll to on its next layout (the auto-advanced partner). */
   const scrollTo = useRef<number | null>(null);
   useEffect(() => () => {
@@ -1730,6 +1735,19 @@ export function ActiveSession({
 
           {session.exercises.length === 0 && (session.cardio ?? []).length === 0 ? (
             <Text style={styles.empty}>{t('train.addFirst')}</Text>
+          ) : null}
+          {/* "Gym busy" (2026-11-10): the remaining lifts in any order, with
+              each muscle's rest. Off by default; not while editing history. */}
+          {!train.editingExisting && session.exercises.length > 1 ? (
+            <GymBusyPanel
+              exercises={session.exercises}
+              tags={sessionTags}
+              musclesOf={musclesOfExercise}
+              onJump={(i) => {
+                const y = cardY.current.get(i);
+                if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: !reduceMotion });
+              }}
+            />
           ) : null}
           {session.exercises.map((ex, exIdx) => {
             const group = sessionTags[exIdx] ? ex.supersetGroup : undefined;

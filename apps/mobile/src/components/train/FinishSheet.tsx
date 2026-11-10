@@ -6,6 +6,9 @@ import Animated from 'react-native-reanimated';
 import { SheetHeader } from '@/components/SheetHeader';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
+  DURATION_CAP_MIN,
+  durationNoteFor,
+  finishDurationCall,
   type ActivationFinding,
   type MissingRir,
   type Recommendation,
@@ -53,6 +56,7 @@ import * as haptics from '@/lib/haptics';
 import { enterUp, usePulse } from '@/lib/motion';
 import { recordPositiveMoment } from '@/lib/reviewPrompt';
 import { useSheetHiddenBelow } from '@/lib/sheet-detent';
+import { formatTime } from '@/lib/date-format';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { space } from '@/theme';
@@ -68,6 +72,10 @@ export interface FinishExtras {
   /** The real length, typed when the workout was left open (F15). Wins over
    *  the start-to-tap interval `useTrain` would otherwise stamp. */
   durationMin?: number;
+  /** How the saved length came about (core `durationNoteFor`). */
+  durationNote?: string;
+  /** The lifter confirmed a length over the 150-min cap (core `capDuration`). */
+  confirmedLong?: boolean;
 }
 
 /**
@@ -88,8 +96,6 @@ function BelowFoldSpacer() {
   return hidden > 0 ? <View style={{ height: hidden }} testID="finish-below-fold" /> : null;
 }
 
-/** A workout open this long is more likely forgotten than finished (F15). */
-const LONG_OPEN_MIN = 180;
 
 /** The 0–5 RIR scale for a required last set — core's bounds, as the set
  *  sheet's picker uses, so the two cannot drift. */
@@ -163,8 +169,16 @@ export function FinishSheet({
   zone2NoRpe = [],
   aboveZone2 = false,
   onSetRpe,
+  askLength = false,
+  presetMin,
 }: {
   visible: boolean;
+  /** Ask for the length even when the timer looks right — "Enter duration"
+   *  from the stale-session question (`useSessionIdle`). */
+  askLength?: boolean;
+  /** "End at last set" (`useSessionIdle`): the length to pre-fill — the last
+   *  set + 5 min — saved as `ended-at-last-set` when left as it is. */
+  presetMin?: number;
   session: WorkoutSession;
   recentSessions: readonly WorkoutSession[];
   /** Lifts whose activation could not be read. Reported, never blocking. A
@@ -231,6 +245,10 @@ export function FinishSheet({
   const [bodyweight, setBodyweight] = useState('');
   const [sleep, setSleep] = useState('');
   const [length, setLength] = useState('');
+  /** The length pre-filled when the sheet opened asking for one — not "typed". */
+  const [prefill, setPrefill] = useState('');
+  /** "Keep {time}": the lifter confirmed a session over the cap. */
+  const [keepLong, setKeepLong] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [weightErr, setWeightErr] = useState('');
@@ -248,6 +266,8 @@ export function FinishSheet({
       setBodyweight('');
       setSleep('');
       setLength('');
+      setPrefill('');
+      setKeepLong(false);
       setExtrasOpen(false);
       setBusy(false);
       setWeightErr('');
@@ -280,13 +300,26 @@ export function FinishSheet({
     : null;
   // The real length a forgotten workout was given (F15) is typed too: a swipe
   // must not throw it away unasked (fix R).
-  const typed = bodyweight.trim() !== '' || sleep.trim() !== '' || length.trim() !== '';
-  const longOpen = summary.durationMin > LONG_OPEN_MIN;
+  const typed = bodyweight.trim() !== '' || sleep.trim() !== '' || (length.trim() !== '' && length !== prefill) || keepLong;
+  // The timer auto-stop (core `session-idle.ts`): over 150 min, or set times
+  // that cannot place the end, asks for the length — pre-filled with the last
+  // set + 5 min (or 60 min with no set times). Was "open over 180 min" (F15);
+  // the 11/10 session saved 178.
+  const lengthCall = useMemo(() => finishDurationCall(session, summary.durationMin), [session, summary.durationMin]);
+  const longOpen = lengthCall.ask || askLength;
+  useEffect(() => {
+    if (!visible || !longOpen || prefill !== '' || length !== '') return;
+    const v = String(presetMin ?? (lengthCall.ask ? lengthCall.suggestedMin : summary.durationMin));
+    setPrefill(v);
+    setLength(v);
+  }, [visible, longOpen, prefill, length, lengthCall, summary.durationMin, presetMin]);
   // A valid typed length is what will be saved, so it is what the tile says.
   const typedLength = numOrUndef(length);
-  const shownMin = typedLength != null && typedLength >= 1 && isStorableDurationMin(typedLength)
-    ? Math.round(typedLength)
-    : summary.durationMin;
+  const shownMin = keepLong
+    ? summary.durationMin
+    : typedLength != null && typedLength >= 1 && isStorableDurationMin(typedLength)
+      ? Math.round(typedLength)
+      : summary.durationMin;
 
   // A record is the best thing a workout can end on, and it was one trophy
   // line among the stats (Train re-score, delight). It now leads the sheet: a
@@ -372,11 +405,53 @@ export function FinishSheet({
       return;
     }
     setSaveErr('');
+    const lengthOut = finishLength(len);
     const extras: FinishExtras = {
       bodyweight: lb ?? undefined,
       sleepHours: sh,
-      durationMin: len != null ? Math.round(len) : undefined,
+      ...lengthOut,
     };
+    // A typed length over the cap is said back before it saves: no session
+    // stores more than 150 min without the lifter confirming it (rule 4).
+    if (!keepLong && lengthOut.durationMin != null && lengthOut.durationMin > DURATION_CAP_MIN) {
+      confirmNative({
+        title: t('train.finishLongConfirmTitle', { time: durationText(lengthOut.durationMin, t) }),
+        body: t('train.finishLongConfirmBody', { cap: DURATION_CAP_MIN }),
+        confirmText: t('train.finishLongConfirmKeep', { time: durationText(lengthOut.durationMin, t) }),
+        onConfirm: () => settleRir({
+          ...extras,
+          confirmedLong: true,
+          durationNote: durationNoteFor('confirmed-long', { timerMin: summary.durationMin, savedMin: lengthOut.durationMin! }),
+        }),
+      });
+      return;
+    }
+    settleRir(extras);
+  }
+
+  /** What the length field saves, and the note that says how (core
+   *  `durationNoteFor`): kept over the cap, the pre-filled suggestion
+   *  ("auto-capped" when it replaced a timer over the cap), or typed. */
+  function finishLength(len: number | undefined): Pick<FinishExtras, 'durationMin' | 'durationNote' | 'confirmedLong'> {
+    if (keepLong) {
+      return {
+        durationMin: summary.durationMin,
+        confirmedLong: true,
+        durationNote: durationNoteFor('confirmed-long', { timerMin: summary.durationMin, savedMin: summary.durationMin }),
+      };
+    }
+    if (len == null) return {};
+    const durationMin = Math.round(len);
+    const accepted = prefill !== '' && length === prefill;
+    const source = accepted && presetMin != null
+      ? 'ended-at-last-set'
+      : accepted && lengthCall.overCap ? 'auto-capped' : 'entered';
+    const note = durationNoteFor(source, { timerMin: summary.durationMin, savedMin: durationMin, lastSetAt: lengthCall.lastSetAt });
+    return { durationMin, ...(note ? { durationNote: note } : {}) };
+  }
+
+  /** Blank RIRs, then the template question, then the save. */
+  function settleRir(extras: FinishExtras) {
     // Blank RIRs are asked about before anything else: every way a set gets
     // ticked can leave one (core `setsMissingRir`), and once saved it reads as
     // 0 without anyone having said so.
@@ -574,8 +649,28 @@ export function FinishSheet({
         {longOpen ? (
           <View style={styles.finishField} testID="finish-long-open">
             <Text style={styles.summaryLine}>
-              {t('train.finishLongOpen', { time: durationText(summary.durationMin, t) })}
+              {lengthCall.overCap
+                ? lengthCall.lastSetAt
+                  ? t('train.finishCapLastSet', { time: durationText(summary.durationMin, t), n: lengthCall.suggestedMin, at: formatTime(lengthCall.lastSetAt, locale) })
+                  : t('train.finishCapUntimed', { time: durationText(summary.durationMin, t), n: lengthCall.suggestedMin })
+                : lengthCall.untimed
+                  ? t('train.finishUntimed', { time: durationText(summary.durationMin, t) })
+                  : t('train.finishLengthAsk', { time: durationText(summary.durationMin, t) })}
             </Text>
+            {lengthCall.overCap ? (
+              <Touchable
+                onPress={() => setKeepLong((k) => !k)}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: keepLong }}
+                testID="finish-keep-long"
+              >
+                <Text style={[styles.sheetHint, { color: colors.accent }]}>
+                  {keepLong
+                    ? t('train.finishKeepingLong', { time: durationText(summary.durationMin, t) })
+                    : t('train.finishKeepLong', { time: durationText(summary.durationMin, t) })}
+                </Text>
+              </Touchable>
+            ) : null}
             <Text style={styles.fieldLabel}>{t('train.finishLengthLabel')}</Text>
             <SheetTextInput
               style={styles.input}
@@ -988,6 +1083,8 @@ export function TrainFinishSheet({
   visible,
   onClose,
   onShare,
+  askLength = false,
+  presetMin,
 }: {
   train: Pick<TrainState, 'active' | 'editingExisting' | 'templates' | 'recentSessions' | 'finishWorkout'>
     & Partial<Pick<TrainState, 'catalog' | 'engineCatalog' | 'saveTemplate' | 'trainingPhase' | 'autoApplyProgression' | 'maybeAutoSwitchProgram' | 'discardWorkout' | 'programVersion' | 'dispatch' | 'commitActive'>>;
@@ -995,6 +1092,10 @@ export function TrainFinishSheet({
   onClose: () => void;
   /** Share the workout just finished — offered on the "Workout saved" receipt. */
   onShare?: (session: WorkoutSession) => void;
+  /** Ask for the length (`FinishSheet.askLength`). */
+  askLength?: boolean;
+  /** Pre-fill it (`FinishSheet.presetMin`). */
+  presetMin?: number;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -1198,6 +1299,8 @@ export function TrainFinishSheet({
   return (
     <FinishSheet
       visible={visible}
+      askLength={askLength}
+      presetMin={presetMin}
       session={session}
       recentSessions={recentSessions}
       onClose={onClose}

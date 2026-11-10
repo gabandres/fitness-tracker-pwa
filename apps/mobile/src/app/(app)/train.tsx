@@ -26,6 +26,7 @@ import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import type { WorkoutSession } from '@/lib/workout';
 import { useStartNextWorkoutIntent } from '@/hooks/useStartNextWorkoutIntent';
+import { type IdleFinishRequest, useSessionIdle } from '@/hooks/useSessionIdle';
 import { useLargeTitle } from '@/lib/font-scale';
 
 /** Remount boundary for Retry — see Today for why a `key` bump is the
@@ -65,6 +66,14 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
   // On the SCREEN, not on the live session: finishing unmounts the session,
   // and a native sheet has to be closed by an owner that is still mounted.
   const [finishOpen, setFinishOpen] = useState(false);
+  // The timer's auto-stop (core `session-idle.ts`): "Still training?", the
+  // 30-min auto-end, and "End session at last set?" on a session open > 2 h.
+  // Its End / Enter duration open Finish asking for the length.
+  const [lengthAsk, setLengthAsk] = useState<IdleFinishRequest | null>(null);
+  useSessionIdle(train, (r) => {
+    setLengthAsk(r);
+    setFinishOpen(true);
+  }, finishOpen);
   // One share-card capture for the screen, used by the history detail, the
   // history menu and the "Workout saved" receipt. Here because the screen is
   // the one owner that outlives all three (finishing unmounts the session).
@@ -135,7 +144,10 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
         <ActiveSession
           train={train}
           bestByEx={bestByEx}
-          onFinish={() => setFinishOpen(true)}
+          onFinish={() => {
+            setLengthAsk(null);
+            setFinishOpen(true);
+          }}
           onOpenGlossary={() => setGlossaryOpen(true)}
         />
       ) : (
@@ -151,6 +163,8 @@ function TrainScreen({ onRetry }: { onRetry: () => void }) {
         train={train}
         visible={finishOpen}
         onClose={() => setFinishOpen(false)}
+        askLength={lengthAsk != null}
+        presetMin={lengthAsk?.presetMin}
         onShare={shareSession}
       />
       {workoutShare.host}

@@ -221,6 +221,9 @@ export async function finishWorkout(
     // Start to finish, stamped by the caller at the tap (`useTrain`); the
     // superset report compares it across sessions.
     ...(session.durationMin != null ? { durationMin: session.durationMin } : {}),
+    // Why the length is not the clock's — auto-ended, auto-capped, typed
+    // (core `session-idle.ts`). Rules allow it since 2026-11-05.
+    ...(session.durationNote ? { durationNote: session.durationNote } : {}),
     // A resumed session's parts (`session-pause.ts`): its duration is their sum.
     ...(session.segments !== undefined ? { segments: session.segments } : {}),
   };

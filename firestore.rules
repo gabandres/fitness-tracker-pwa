@@ -643,11 +643,17 @@ service cloud.firestore {
               // parts, and a session closed early (still `completed`).
               'segments', 'partial',
               // A duration corrected after the fact, and how (2026-11-05):
-              // written by owner-data scripts, exported in the notes.
-              'durationNote'
+              // written by owner-data scripts, exported in the notes. Since
+              // 2026-11-10 also by Finish (auto-ended / auto-capped / entered,
+              // core session-idle.ts).
+              'durationNote',
+              // A note on the whole session (2026-11-10), exported in the notes.
+              'sessionNote'
           ])
           && (!('durationNote' in data.keys()) ||
               (data.durationNote is string && data.durationNote.size() <= 300))
+          && (!('sessionNote' in data.keys()) ||
+              (data.sessionNote is string && data.sessionNote.size() <= 500))
           && data.keys().hasAll(['status', 'timestamp', 'exercises', 'createdAt', 'updatedAt'])
           && data.status in ['active', 'paused', 'completed']
           && (!('segments' in data.keys()) ||

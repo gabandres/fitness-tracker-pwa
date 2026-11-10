@@ -128,6 +128,8 @@ export interface WorkoutSet {
   segment?: number;
   /** The unit the load was TYPED in — core `WorkoutSet.unit`. */
   unit?: LoadUnit;
+  /** When it was ticked done, ISO — core `WorkoutSet.loggedAt`. */
+  loggedAt?: string;
 }
 
 export interface SessionExercise {
@@ -410,6 +412,11 @@ export interface WorkoutSession {
   segments?: SessionSegment[];
   /** Closed early — core `WorkoutSession.partial`. */
   partial?: PartialClose;
+  /** Why `durationMin` is not the clock's — core `WorkoutSession.durationNote`
+   *  (written by Finish since 2026-11-10: auto-ended / auto-capped / entered). */
+  durationNote?: string;
+  /** A note on the whole session — core `WorkoutSession.sessionNote`. */
+  sessionNote?: string;
   createdAt: Date;
   updatedAt: Date;
 }
