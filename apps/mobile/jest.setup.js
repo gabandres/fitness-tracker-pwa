@@ -125,6 +125,13 @@ jest.mock('@/lib/health-sync', () => ({
   useHealthAutoImport: jest.fn(),
 }));
 
+// The timer's auto-stop (core `session-idle.ts`) reads the REAL clock against
+// each fixture session's start — fixed dates hours or months old — so in every
+// screen test it would ask "End session at last set?" on mount. Off here; its
+// own suite (`session-idle-hook.test.tsx`) uses `jest.requireActual`.
+jest.mock('@/hooks/useSessionIdle', () => ({ useSessionIdle: jest.fn() }));
+jest.mock('@/hooks/useSessionIdleRouter', () => ({ useSessionIdleRouter: jest.fn() }));
+
 // expo-router's focus effect is a navigation-container hook; outside a
 // navigator it throws. Tests that care about focus gating drive the subscribe
 // callbacks directly instead.

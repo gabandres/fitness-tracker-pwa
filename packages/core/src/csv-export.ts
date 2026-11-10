@@ -387,7 +387,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       date,
       timestamp,
       sessionStatus: status,
-      notes: [statusNote, parts, s.durationNote].filter(Boolean).join(' · ') || undefined,
+      notes: [statusNote, parts, s.durationNote, s.sessionNote].filter(Boolean).join(' · ') || undefined,
       template: s.templateName,
       weight: s.bodyweight,
       durationMin: s.durationMin,

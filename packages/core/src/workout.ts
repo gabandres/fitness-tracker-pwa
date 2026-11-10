@@ -204,6 +204,11 @@ export interface WorkoutSet {
    *  stays pounds — a kg entry is full-precision pounds — and the set is shown
    *  in this unit. Absent (every set before 2026-11-05) = the row's unit. */
   unit?: LoadUnit;
+  /** When the set was ticked done, ISO 8601 — stamped by the session reducer
+   *  (`applySessionAction` with a clock), dropped when it is unticked. What the
+   *  timer's auto-stop reads (`session-idle.ts`). Absent on every set before
+   *  2026-11-10 and on one logged while editing a finished session. */
+  loggedAt?: string;
 }
 
 export interface SessionExercise {
@@ -354,6 +359,10 @@ export interface WorkoutSession {
    *  901 → 43 min …", 2026-11-05). Written by owner-data scripts; exported in
    *  the 'workout' row's notes. */
   durationNote?: string;
+  /** A note about the session as a whole ("machines busy — supersets done out
+   *  of order", 2026-11-10). Exported in the 'workout' row's notes. Not
+   *  `nextNotes`, which is carried forward to the next session. */
+  sessionNote?: string;
   createdAt: Date;
   updatedAt: Date;
 }

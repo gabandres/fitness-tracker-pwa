@@ -70,8 +70,11 @@ describe('a workout left open (F15)', () => {
     const ui = await render(
       <FinishSheet visible session={session} recentSessions={[]} invalid={[]} onFinish={onFinish} onClose={jest.fn()} />,
     );
-    expect(ui.getByText('14 h 0 min')).toBeTruthy();
-    expect(ui.getByTestId('finish-long-open')).toHaveTextContent(/Open for 14 h 0 min\. Forgot to finish\?/);
+    // Over the 150-min cap with no set times: 60 min pre-filled (core
+    // `session-idle.ts` rules 4 + 10), and the tile shows what will be saved.
+    expect(ui.getByTestId('finish-long-open')).toHaveTextContent(/The timer ran 14 h 0 min and the sets have no times\. Saving 60 min/);
+    expect(ui.getByTestId('finish-length').props.value).toBe('60');
+    expect(ui.getByText('1 h 0 min')).toBeTruthy();
 
     await fireEvent.changeText(ui.getByTestId('finish-length'), '0');
     await fireEvent.press(ui.getByTestId('finish-confirm'));
@@ -82,7 +85,41 @@ describe('a workout left open (F15)', () => {
     expect(ui.getByText('55 min')).toBeTruthy();
     await fireEvent.press(ui.getByTestId('finish-confirm'));
     await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
-    expect(onFinish.mock.calls[0][0]).toEqual(expect.objectContaining({ durationMin: 55 }));
+    expect(onFinish.mock.calls[0][0]).toEqual(expect.objectContaining({ durationMin: 55, durationNote: 'user-entered: 840 → 55 min' }));
+  });
+
+  it('11/10: 178 min on the timer saves the last set + 5, flagged auto-capped', async () => {
+    const onFinish = jest.fn().mockResolvedValue(true);
+    const start = Date.now() - 178 * 60_000;
+    const timed = (min: number) => ({ ...set(100, 5), loggedAt: new Date(start + min * 60_000).toISOString() });
+    const session = live([ex('bench', [timed(10), timed(52)])], { date: new Date(start) });
+    const ui = await render(
+      <FinishSheet visible session={session} recentSessions={[]} invalid={[]} onFinish={onFinish} onClose={jest.fn()} />,
+    );
+    expect(ui.getByTestId('finish-length').props.value).toBe('57');
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish.mock.calls[0][0]).toEqual(expect.objectContaining({ durationMin: 57, durationNote: expect.stringMatching(/^auto-capped: 178 → 57 min/) }));
+  });
+
+  it('a session over the cap saves only once the lifter confirms it', async () => {
+    mockConfirm.mockClear();
+    const onFinish = jest.fn().mockResolvedValue(true);
+    const start = Date.now() - 178 * 60_000;
+    const session = live([ex('bench', [{ ...set(100, 5), loggedAt: new Date(start + 170 * 60_000).toISOString() }])], { date: new Date(start) });
+    const ui = await render(
+      <FinishSheet visible session={session} recentSessions={[]} invalid={[]} onFinish={onFinish} onClose={jest.fn()} />,
+    );
+    // A typed 170 is said back first…
+    await fireEvent.changeText(ui.getByTestId('finish-length'), '170');
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    expect(onFinish).not.toHaveBeenCalled();
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Save 2 h 50 min?', native: true }));
+    // …and "Keep 2 h 58 min" is the confirm for the timer's own number.
+    await fireEvent.press(ui.getByTestId('finish-keep-long'));
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish.mock.calls[0][0]).toEqual(expect.objectContaining({ durationMin: 178, confirmedLong: true }));
   });
 
   it('a typed length guards the close like the other extras (fix R)', async () => {
@@ -109,11 +146,20 @@ describe('a workout left open (F15)', () => {
     expect(mockConfirm).not.toHaveBeenCalled();
   });
 
-  it('does not ask for an ordinary workout', async () => {
+  it('does not ask for an ordinary, timed workout', async () => {
+    const timed = { ...set(100, 5), loggedAt: new Date(Date.now() - 10 * 60_000).toISOString() };
+    const ui = await render(
+      <FinishSheet visible session={live([ex('bench', [timed])])} recentSessions={[]} invalid={[]} onFinish={jest.fn()} onClose={jest.fn()} />,
+    );
+    expect(ui.queryByTestId('finish-long-open')).toBeNull();
+  });
+
+  it('asks, suggesting 60 min, when the sets carry no times (bulk / older logging)', async () => {
     const ui = await render(
       <FinishSheet visible session={live([ex('bench', [set(100, 5)])])} recentSessions={[]} invalid={[]} onFinish={jest.fn()} onClose={jest.fn()} />,
     );
-    expect(ui.queryByTestId('finish-long-open')).toBeNull();
+    expect(ui.getByTestId('finish-long-open')).toHaveTextContent(/logged without times/);
+    expect(ui.getByTestId('finish-length').props.value).toBe('60');
   });
 });
 

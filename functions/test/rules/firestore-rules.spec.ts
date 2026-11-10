@@ -1722,6 +1722,11 @@ describe('firestore.rules', () => {
     await assertSucceeds(addDoc(col, validSession({ durationMin: 43, durationNote: 'auto-corrected: 901 → 43 min' })));
     await assertFails(addDoc(col, validSession({ durationNote: 901 })));
     await assertFails(addDoc(col, validSession({ durationNote: 'x'.repeat(301) })));
+    // A note on the whole session (2026-11-10), and the auto-stop's per-set
+    // `loggedAt` (inside `exercises`, not validated per set).
+    await assertSucceeds(addDoc(col, validSession({ sessionNote: 'machines busy — supersets done out of order' })));
+    await assertFails(addDoc(col, validSession({ sessionNote: 7 })));
+    await assertFails(addDoc(col, validSession({ sessionNote: 'x'.repeat(501) })));
   });
 
   it('accepts a workout session with no cardio field at all', async () => {

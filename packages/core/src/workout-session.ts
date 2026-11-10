@@ -81,6 +81,23 @@ function stampUnit(next: WorkoutSet, patch: Partial<WorkoutSet>, rowUnit: LoadUn
   return { ...next, unit: rowUnit };
 }
 
+/**
+ * A set ticked done records WHEN (`WorkoutSet.loggedAt`, the timer's auto-stop,
+ * `session-idle.ts`): stamped with `now` on the not-done → done flip, kept on a
+ * re-tick or an edit, dropped on an untick. No clock (`now` absent — editing a
+ * finished session) stamps nothing: the edit's time is not when it was lifted.
+ */
+function stampLoggedAt(prev: WorkoutSet, next: WorkoutSet, patch: Partial<WorkoutSet>, now: Date | undefined): WorkoutSet {
+  if (patch.done === false && next.loggedAt !== undefined) {
+    const { loggedAt: _drop, ...rest } = next;
+    return rest;
+  }
+  if (patch.done === true && prev.done !== true && prev.loggedAt === undefined && next.loggedAt === undefined && now) {
+    return { ...next, loggedAt: now.toISOString() };
+  }
+  return next;
+}
+
 /** One empty working set — the row every "add set" produces. */
 export function newWorkoutSet(kind: SetKind = 'working'): WorkoutSet {
   return { kind, done: false };
@@ -151,6 +168,8 @@ function mapSets(
 export function applySessionAction(
   session: WorkoutSession,
   action: SessionAction,
+  /** The clock, for {@link stampLoggedAt}. Absent = no set is time-stamped. */
+  now?: Date,
 ): WorkoutSession {
   switch (action.type) {
     case 'setRowUnit':
@@ -226,7 +245,9 @@ export function applySessionAction(
     case 'patchSet':
       return mapExercise(session, action.exerciseIndex, (ex) =>
         mapSets(ex, (sets) =>
-          sets.map((s, j) => (j === action.setIndex ? stampUnit({ ...s, ...action.patch }, action.patch, ex.loadUnit) : s)),
+          sets.map((s, j) => (j === action.setIndex
+            ? stampLoggedAt(s, stampUnit({ ...s, ...action.patch }, action.patch, ex.loadUnit), action.patch, now)
+            : s)),
         ),
       );
 

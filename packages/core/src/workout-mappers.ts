@@ -125,6 +125,7 @@ export function toWorkoutSession(id: string, data: Record<string, unknown>): Wor
         }
       : {}),
     ...(typeof data['durationNote'] === 'string' && data['durationNote'] ? { durationNote: data['durationNote'] } : {}),
+    ...(typeof data['sessionNote'] === 'string' && data['sessionNote'] ? { sessionNote: data['sessionNote'] } : {}),
     createdAt: toDate(data['createdAt']),
     updatedAt: toDate(data['updatedAt']),
   };
