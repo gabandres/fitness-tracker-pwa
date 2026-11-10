@@ -4,6 +4,19 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-10 — the workout timer stops itself; "Gym busy" (`81dd9488`; OTA on iOS build 75, Android vc 52 + 53)
+
+Two forgotten Finishes in a week (11/4 saved 897 min, 11/10 saved 178 — under the old 180-min check). Every set
+now records when it was ticked (`WorkoutSet.loggedAt`), and core `session-idle.ts` makes the last set the rule:
+"Still training?" after 20 min with no set (local notification + in-app), an unanswered session ends at the last
+set + 5 min after 30 ("auto-ended"), opening the app on a session open > 2 h asks "End session at last set
+(HH:MM)?", nothing over 150 min saves without a confirm ("auto-capped" at last set + 5 otherwise), and sets with
+no usable times ask for the length at Finish (60 min suggested). "Gym busy" (off by default) lists every lift
+with sets left, any order, with a ≥ 90 s same-muscle rest hint (core `gym-busy.ts`). New optional session field
+`sessionNote` — rules deployed first. Owner data (`scripts/owner-data-2026-11-10-haven-1-fix.mts`, applied): the
+11/10 Haven 1 session 178 → 60 min (user-confirmed) with a session note and an extra Cross-body Hammer Curl set;
+Haven 2's RIR-1 compounds carry "RIR 1 — last 3 sessions logged RIR 0 on compounds"; laterals start at 7.5 kg.
+
 ## 2026-11-07 — update-required minimum set; IGNIA-MOBILE-13 fixed (`a8916bdd`; OTA on iOS build 75, Android vc 52 + 53)
 
 The owner set the update-required minimum in `/admin`: iOS `1.2.11`, Android vc `52` (the gate itself shipped
