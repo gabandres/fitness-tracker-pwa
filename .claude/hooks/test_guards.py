@@ -135,7 +135,20 @@ case(F, edit("Z:/macro-app/src/app/services/foo.service.ts", "const x = 1;"), "u
 # harness does, on whatever interpreter the host has -- plus a host where
 # `python3` exists but fails (the Windows Store stub) and only `python` works.
 print("\n-- settings.json hook commands (the path Claude Code actually runs) --")
-SH = shutil.which("bash") or shutil.which("sh")
+
+def hook_shell():
+    """The shell Claude Code runs hooks in. On Windows that is Git Bash
+    (`CLAUDE_CODE_GIT_BASH_PATH`), NOT the first `bash` on PATH, which there is
+    WSL's launcher: no Python inside, so every hook "exits 127" in this test
+    while the real hooks work (measured on winbox 2026-11-12)."""
+    if os.name == "nt":
+        for p in (os.environ.get("CLAUDE_CODE_GIT_BASH_PATH"), r"C:\Program Files\Git\bin\bash.exe"):
+            if p and os.path.isfile(p):
+                return p
+    return shutil.which("bash") or shutil.which("sh")
+
+
+SH = hook_shell()
 SETTINGS = json.load(open(os.path.join(ROOT, ".claude", "settings.json"), encoding="utf-8"))
 HOOK_CMDS = {}
 for grp in SETTINGS["hooks"]["PreToolUse"]:
