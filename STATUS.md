@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-11-06 · **Owns:** current state only. Not history
+**Updated:** 2026-11-12 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`), not fingerprints or publish rules
@@ -38,15 +38,21 @@ same way before trusting them — `docs/COMMANDS.md` has every command;
 
 **Fingerprints and publishing:** current artifact values are the two-row table
 in `apps/mobile/AGENTS.md`; the publish procedure (one runtime per command,
-older runtimes PINNED to the artifact value and reverted, both platforms from
-`ignia-mac`, assert `git rev-parse HEAD` before publishing) is the
-`build-android` skill. After an Android Gradle build, restore the masked-view
-manifest before an iOS gate (AGENTS.md).
+Android PINNED to the artifact value and reverted, assert `git rev-parse HEAD`
+before publishing) is the `build-android` skill. **OTAs publish from the Windows
+PC (`winbox`, checkout `Z:\fitness-tracker-pwa`) since 2026-11-12** — it computes
+the Mac's fingerprints (iOS build 75 `e6d2973e…`) and exports the Mac's
+bundles, measured that day (AGENTS.md). No OTA has gone out from it yet; the
+first one is the end-to-end proof — read it back with `eas update:list`.
 
-**`ignia-mac` is a dedicated, closed-lid Ignia box since 2026-09-10** (Tailscale
-`100.83.226.52`, SSH + RustDesk). Setup and disk: `docs/DEV_ENVIRONMENT.md`
-§3.15, `CLAUDE.local.md`. Its PATH has no `firebase` CLI: run it from the npx
-cache, and the emulator suites through `scripts/require-java21.mjs`.
+**`ignia-mac` is sold on 2026-11-13. There is no iOS build host until another Mac
+is set up**, and the Android build path on the Windows PC is not re-verified
+since vc 45 — so a change that moves either fingerprint is blocked on a build
+machine. The Mac's git-ignored local files were copied into the PC's checkout on
+2026-11-12: `.env.local` (ASC key path rewritten), the ASC `.p8`, Android
+signing (`apps/mobile/credentials*`), the Train-UX captures and review notes,
+regression shots and raw store assets; build 75's `.ipa` is in the PC's
+`C:\Users\gabri\build-artifacts`.
 
 ## 2. Merged, on `main`, and not delivered anywhere
 
@@ -211,7 +217,7 @@ or delete the draft and re-upload to whichever version ships
   `UX_AUDIT.md` §S23), Program v2.1 (deload card, dumbbell toggle, Zone 2 on
   Trends). The Android guarded-sheet fix touches every guarded sheet in the app.
 - **1.2.7 features in 1.2.8, submitted without device QA:** the script in
-  `FIX-N2.md` (on `ignia-mac`, `apps/mobile/.maestro/capture/train-ux/reviews/`)
+  `FIX-N2.md` (on the Windows PC since 2026-11-12, `apps/mobile/.maestro/capture/train-ux/reviews/`)
   — lock-screen Done set on an iPhone and on the OnePlus 8T; the Android 16
   promoted chip on the `pixel_api36` emulator. Plus the owner's
   VoiceOver/TalkBack pass (`DEVICE-A11Y-CHECKLIST.md`, same folder). Also

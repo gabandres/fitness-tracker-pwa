@@ -5,6 +5,16 @@ constraint**, which is why this is reference material rather than status: both
 platforms build locally on the MacBook Air (`ignia-mac`) at zero EAS quota, and
 JS-only changes need no build at all.
 
+> **2026-11-13: `ignia-mac` (the M1 Air below) is sold.** Until another Mac is
+> set up there is **no iOS build host**, and the Android Windows path below
+> (raw Gradle, vc 31–45) is not re-verified. **OTAs are unaffected**: they
+> publish from the Windows PC (`winbox`, checkout `Z:\fitness-tracker-pwa`),
+> which computes the Mac's fingerprints and exports its bundles since
+> 2026-11-12 (`apps/mobile/AGENTS.md`). The Android signing material
+> (`apps/mobile/credentials*`) and the ASC key are on the PC; a new Mac needs
+> them copied back plus `scripts/mac-bootstrap.sh`. The rest of this file
+> describes the Air as it was.
+
 Operational runbook: `docs/DEV_ENVIRONMENT.md` §3.10 (iOS) / §3.11 (Android),
 plus the `build-ios` and `build-android` skills. Current fingerprints: the
 table in `apps/mobile/AGENTS.md`; every build/OTA reading with its post-mortem:

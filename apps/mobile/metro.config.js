@@ -65,7 +65,36 @@ const HK = '@kingstinct/react-native-healthkit';
 // bundled all three into the native app; the fallthrough now hands every
 // ordinary module to it instead of straight to Metro.
 const sentryResolveRequest = config.resolver.resolveRequest;
+
+// Two of Sentry's exclusions test the ORIGIN path for "@sentry/core" /
+// "@sentry/browser", which Windows writes with backslashes, so on the PC they
+// never fire: its bundle carried 67 server-only @sentry/core modules (AI
+// tracing, MCP, Node integrations) and @sentry/browser's feedback wrappers that
+// the Mac leaves out (measured 2026-11-12). The same tests on the forward-slash
+// path, Windows only, make a PC export the Mac's module for module; on macOS
+// this is off. Not a patch-package patch: `node_modules/@sentry/react-native`
+// is hashed WHOLE into the fingerprint, so editing it moves every runtime.
+// Copied from @sentry/react-native 8.31 `metroconfig.js`; after a Sentry
+// upgrade, diff a PC export against a Mac one (`docs/COMMANDS.md`).
+const ON_WINDOWS = path.sep === '\\';
+const SENTRY_SERVER_ONLY =
+  /\/(mcp-server|integrations\/(http|express|postgresjs|requestdata|consola|spanStreaming)|tracing\/(vercel-ai|openai|anthropic-ai|google-genai|langchain|langgraph)|utils\/ai)(\/|\.js|$)/;
+const SENTRY_FEEDBACK_WRAPPER = /\/feedback(Sync|Async)/;
+const sentryExcludedOnWindows = (context, moduleName, platform) => {
+  const origin = (context.originModulePath ?? '').replace(/\\/g, '/');
+  if (origin.includes('@sentry/browser') && SENTRY_FEEDBACK_WRAPPER.test(moduleName)) return true;
+  return (
+    (platform === 'ios' || platform === 'android') &&
+    origin.includes('@sentry/core') &&
+    SENTRY_SERVER_ONLY.test(moduleName)
+  );
+};
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (ON_WINDOWS && sentryExcludedOnWindows(context, moduleName, platform)) {
+    return { type: 'empty' };
+  }
+
   if (
     moduleName === './index.js' &&
     typeof context.originModulePath === 'string' &&

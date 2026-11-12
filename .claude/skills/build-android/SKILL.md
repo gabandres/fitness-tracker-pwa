@@ -1,20 +1,19 @@
 ---
 name: build-android
-description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. Android builds on `ignia-mac` since 2026-09-17 (`eas build --local`); iOS is the `build-ios` skill, also on the Mac. Android OTAs publish from the Mac too since vc 46 (2026-09-28), with `runtimeVersion` pinned to the artifact value. After ANY Gradle build, restore the masked-view manifest before an iOS gate (Step 3b).
+description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. Android builds on `ignia-mac` since 2026-09-17 (`eas build --local`); iOS is the `build-ios` skill, also on the Mac. OTAs for both platforms publish from the Windows PC (`winbox`, `Z:\fitness-tracker-pwa`) since 2026-11-12, Android with `runtimeVersion` pinned to the artifact value; `ignia-mac` is sold 2026-11-13. After ANY Gradle build, restore the masked-view manifest before an iOS gate (Step 3b).
 ---
 
 # Ship an Android change
 
-**Both platforms build on `ignia-mac`** — iOS since 2026-08-07, Android again
-since 2026-09-17 (it was on this Windows workstation from 2026-08-17; the
-reversal and its reasons are in `docs/build-infrastructure.md`). Both are local
-and cost zero EAS quota. A session ON the Mac (T3 Code, Remote Control) runs the
-Mac commands bare; a session on Windows wraps them in `ssh ignia-mac "…"`.
+**OTAs publish from the Windows PC since 2026-11-12** (`winbox`, checkout
+`Z:\fitness-tracker-pwa`; from the Mac, `ssh winbox "…"`, whose shell is `cmd`).
+It computes the Mac's fingerprints and exports the Mac's bundles exactly
+(`apps/mobile/AGENTS.md`), and **`ignia-mac` is sold on 2026-11-13**.
 
-**Cutover DONE 2026-09-28**: vc 46 is the first Mac-built Android binary, so
-both platforms gate and publish from `ignia-mac`; `guard_eas_update.py` says so.
-**Until vc 46 is live on Play production, vc 45 users are on the Windows runtime
-`15c1cfc8…`** and can only be OTA'd from Windows at `98fb0646` — `STATUS.md`.
+**Builds (Step 3 on) describe `ignia-mac`**, where both platforms were built
+locally at zero EAS quota (iOS since 2026-08-07, Android again since 2026-09-17,
+`docs/build-infrastructure.md`). Android once built on this Windows PC (vc 31–45,
+raw Gradle); that path is not re-verified since. iOS needs a Mac.
 
 `REFERENCE.md` in this directory holds the evidence behind every rule below — the
 measurement, the incident, the wrong conclusion it replaced. **Read it when a rule
@@ -42,8 +41,9 @@ Compare against the binary testers run — the two-row current-state table in
 
 Rules, all measured (`REFERENCE.md` → *The fingerprint gate*):
 
-- **Generate on the machine that BUILDS that platform.** A hash from the wrong
-  host matches no binary. (Prebuild does *not* affect it — a rule saying so was
+- **Generate on the machine that will PUBLISH**, after the install that machine
+  needs (`apps/mobile/AGENTS.md`). Since 2026-11-12 the Windows PC and the Mac
+  agree; before that a hash from the wrong host matched no binary. (Prebuild does *not* affect it — a rule saying so was
   written and withdrawn on 2026-08-17; the real mover was line endings.)
 - **A computed hash can drift with a clean `git status`.** `.gitignore` and
   `targets/widget/expo-target.config.js` are hashed sources *and* the two files
@@ -57,7 +57,9 @@ Rules, all measured (`REFERENCE.md` → *The fingerprint gate*):
   Generate both platforms after any edit to it.
 - **Also moves it:** native dependencies, `eas.json`, the `plugins` array, an SDK
   upgrade. **Does not:** `.ts`/`.tsx`/`.js`, UI, styles, i18n, Metro assets.
-- **Do not try to make the two hosts agree.** They cannot; they do not need to.
+- **The two hosts agree since 2026-11-12** (this line said "they cannot" until
+  then; the cause was a backslash bug, `AGENTS.md`). Re-check after an Expo,
+  `@expo/fingerprint` or Sentry upgrade.
 
 ## Step 2 — OTA (no build, no queue, no review)
 
@@ -91,19 +93,25 @@ cold start. It grew **+2.0 MB in one publish** when the food index shipped
 either a regression to find or a growth to accept on the record with
 `npm run perf:budget -- --update` — never by raising `headroomPct`.
 
+In Git Bash on the Windows PC (`C:\Program Files\Git\bin\bash.exe`; the
+`bash` on PATH is WSL's), from `/z/fitness-tracker-pwa/apps/mobile`, one runtime
+per command:
+
 ```sh
-# Android — here
-cd apps/mobile && npx eas update --platform android --branch production \
+# iOS — the tree hash IS the live runtime (gate above), no pin
+npx eas update --platform ios --branch production \
   --environment production --message '<what changed>'
-# iOS — on the Mac
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx eas update --platform ios \
-  --branch production --environment production --message '<what changed>'"
+# Android — pin runtimeVersion to the ARTIFACT value (AGENTS.md table), publish, revert
+node -e "const f='app.json',j=require('./'+f);j.expo.runtimeVersion='<artifact hash>';require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+npx eas update --platform android --branch production \
+  --environment production --message '<what changed>'
+git checkout app.json
 # confirm WHICH RUNTIME each went out under
-cd apps/mobile && npx eas update:list --branch production --limit 3
+npx eas update:list --branch production --limit 3
 ```
 
-- **`--platform` is mandatory** — bare `eas update` publishes both and is correct
-  on neither host. **`--environment` is mandatory** from SDK 55 on.
+- **`--platform` is mandatory** — bare `eas update` publishes both in one
+  command, with no per-platform pin. **`--environment` is mandatory** from SDK 55 on.
   `.claude/hooks/guard_eas_update.py` enforces both.
 - Testers get it on the **next** launch. Undo with
   `eas update:roll-back-to-embedded`. `--message` is for the dashboard, not users.

@@ -70,41 +70,61 @@ the bug you "fixed" keeps getting reported.
 
 ## The fingerprint is a property of the MACHINE, not just the commit
 
-**Run the gate — and `eas update` itself — on the machine that BUILT the binary
-testers run. Since 2026-08-17 that is not one machine, and since 2026-09-17 the
-Android answer is in transition:**
+**Since 2026-11-12 the Windows PC and the Mac compute the same fingerprints and
+export the same bundles, so OTAs publish from the Windows PC** (`winbox`,
+checkout `Z:\fitness-tracker-pwa`). `ignia-mac` is sold on 2026-11-13. No machine
+here can build an iOS binary after that, and a change that moves the fingerprint
+still needs one per platform.
 
-| Platform | Build host | Gate + `eas update` from |
+| Platform | Gate + `eas update` from | Runtime value |
 |---|---|---|
-| **Android** | `ignia-mac` since 2026-09-17; **vc 46 (2026-09-28) is the first Mac-built binary** (vc 31–45 were Windows-built) | **`ignia-mac`** for vc 46+ (runtime `3e596c87…`). vc 45 users still run the Windows runtime `15c1cfc8…` until they update; a publish for THEM is Windows at `98fb0646` — `STATUS.md` says whether that still matters |
-| **iOS** | `ignia-mac` | **`ignia-mac`** |
+| **iOS** | the Windows PC (or any Mac) | the tree hash, which equals the live `.ipa`'s (build 75 `e6d2973e…`, both machines, 2026-11-12) |
+| **Android** | the Windows PC (or any Mac) | **pinned**: `runtimeVersion` in `app.json` set to the ARTIFACT value for the publish, then reverted. No tree has reproduced a Mac-built `.aab`'s hash since vc 46 |
 
-**Both rows are the Mac since vc 46, with two mechanical rules** (measured
-2026-09-28, ledger rows): an Android publish pins `runtimeVersion` in `app.json`
-to the ARTIFACT value and reverts it (the Mac tree never reproduces the Android
-artifact hash); and **an Android Gradle build rewrites
-`node_modules/@react-native-masked-view/masked-view/android/src/main/AndroidManifest.xml`,
-which the iOS fingerprint hashes whole** — restore it (`npm ci`, or the
-`npm pack` one-liner in `docs/COMMANDS.md`) before an iOS gate. A gate that
-mismatches on a clean tree: `eas fingerprint:compare <live-runtime>` names the
-source.
+Measured 2026-11-12 at `f4782857`: both machines give iOS `e6d2973e…` and
+Android `ce716521…` with **identical `sources` arrays**, and `expo export` gives
+the same JavaScript for both platforms (apart from Sentry's Debug ID, a random
+UUID that differs between two runs on one Mac too) and the same 37 assets.
+Three things make it so, and **each one fails silently if it goes**:
 
-This table read "Android: built on Windows, gate from Windows" until
-2026-09-17, when the Android toolchain went back onto the Mac
-(`docs/build-infrastructure.md`, `DEV_ENVIRONMENT.md` §3.11,
-[ADR-0042](../../docs/adr/0042-android-build-host-returns-to-the-mac.md)). The
-OTA host lags the build host by one release on purpose: the hash follows the
-machine that produced the *live* binary, not the one that will produce the next.
+- **`patches/@expo+fingerprint+0.20.14.patch`.** `@expo/fingerprint` 0.20 matched
+  the config-plugin require graph against its ignore globs with BACKSLASH paths
+  on Windows, so the globs never matched and ~283 extra files (`@expo/config-plugins`,
+  `xml2js`, `@bacons/xcode`…) were hashed — the "228 entries" below. Upstream
+  fixed it in 0.21 (`toPosixPath`); delete the patch with the SDK bump that
+  brings 0.21+. It changes nothing on macOS (`toPosixPath` is a no-op there), and
+  a root `patches/` file is not hashed (the PatchPackage sourcer reads
+  `apps/mobile/patches/`).
+- **The Windows-only Sentry tests in `metro.config.js`.** Two of
+  `@sentry/react-native`'s exclusions test the origin path for `@sentry/core` /
+  `@sentry/browser`; on Windows they miss, and the bundle carried 67 server-only
+  `@sentry/core` modules and the feedback wrappers. **Not a patch-package
+  patch**: `node_modules/@sentry/react-native` is hashed WHOLE (it is autolinked
+  and a config plugin), so patching it moved both runtimes (measured:
+  `e6d2973e…` → `0920fa91…`). `metro.config.js` is not hashed.
+- **The install.** `git -c core.autocrlf=false clone` (and `core.autocrlf false`
+  in the checkout: the fingerprint hashes file contents), then
+  `npm ci --ignore-scripts && npx patch-package && npm rebuild @firebase/util`.
+  Plain `npm ci` fails on this ARM PC (`msgpackr-extract`); with
+  `--ignore-scripts` alone, `@firebase/util` keeps its unbuilt `postinstall.mjs`
+  and the bundle differs.
 
-**So do not edit this table yet.** The Mac computes `7514d026…` for Android
-while the live vc 45 binary carries `15c1cfc8…`, so an Android OTA published
-here would reach nobody. Flip it, and `guard_eas_update.py` with it, only once a
-Mac-built AAB is live on the Play alpha track.
+**After an Expo, `@expo/fingerprint` or Sentry upgrade, re-check parity before
+the first publish**: `fingerprint:generate` for both platforms against the
+artifact values, and an `expo export --no-bytecode` diffed against the last
+known-good export (`docs/COMMANDS.md`). Compare the JavaScript, not the `.hbc`:
+Ignia's Hermes output differs between two runs on the same Mac.
 
-**Bare `eas update` publishes BOTH platforms and is therefore correct on
-NEITHER machine — always pass `--platform`.** `.claude/hooks/guard_eas_update.py`
-enforces the whole table; it blocks the bare form everywhere and blocks each
-platform from the wrong host.
+**Bare `eas update` publishes BOTH platforms in one command — always pass
+`--platform`.** `.claude/hooks/guard_eas_update.py` blocks the bare form and a
+missing `--environment` everywhere.
+
+**History, superseded by the above.** From 2026-08-17 to 2026-11-12 each
+platform was gated and published only on the host that built its live binary:
+iOS on the Mac; Android on Windows through vc 45 and on the Mac from vc 46
+(2026-09-28, [ADR-0042](../../docs/adr/0042-android-build-host-returns-to-the-mac.md)).
+The sections below explain why the hashes differed; their conclusion that
+parity "is not achievable" was wrong. The cause was the backslash bug above.
 
 The rule below is why, and it still holds — only the "which machine" answer
 changed. The same commit fingerprints differently on the two machines:
@@ -156,7 +176,7 @@ Three commit-independent causes, found by diffing the two `sources` arrays
   and stops at them on macOS. Aligning Node/npm cannot converge the two hashes,
   and `npm ci` is not a fix for a mismatch.
 
-**Consequence: cross-host fingerprint parity is not achievable and is no longer a
+**Consequence (SUPERSEDED 2026-11-12: parity was achieved, see above): cross-host fingerprint parity is not achievable and is no longer a
 goal.** It also does not need to be. Since 2026-08-17 each platform is built,
 gated and published on one host — iOS on the Mac; Android on Windows through
 vc 45 and on the Mac from vc 46 (2026-09-28) onward (table above) — so each
@@ -192,18 +212,14 @@ day was largely this artifact: one machine's number was being compared against
 another machine's. The 22:00 update is the first one published from the Mac and
 the first that provably matches a shipped binary.
 
-So the gate before every publish runs **on the host that built the live
-binary** — iOS on the Mac; Android on Windows through vc 45 and on the Mac from vc 46
-(table above):
+So the gate before every publish runs on the machine that will publish — the
+Windows PC since 2026-11-12, in Git Bash (`C:\Program Files\Git\bin\bash.exe`;
+the `bash` on PATH is WSL's):
 
 ```sh
-# iOS — on ignia-mac
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git checkout main && git pull --ff-only"
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios"
-
-# Android — on the Windows workstation while vc 45 (Windows-built) is live;
-# on ignia-mac once the first Mac-built vc ships (STATUS.md)
-cd apps/mobile && npx expo-updates fingerprint:generate --platform android
+cd /z/fitness-tracker-pwa && git pull --ff-only
+cd apps/mobile && npx expo-updates fingerprint:generate --platform ios
+npx expo-updates fingerprint:generate --platform android
 ```
 
 Compare the `hash` against the fingerprint read out of the binary testers are

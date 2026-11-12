@@ -1,45 +1,38 @@
 #!/usr/bin/env python3
 """PreToolUse(Bash): stop an `eas update` published from the wrong machine.
 
-The EAS Update runtime fingerprint follows the BUILD HOST, per platform. Since
-2026-08-17 the two platforms are built on different machines:
-
-    Android  ->  this Windows workstation   (vc 31+, fingerprint 3d3bc410...)
-    iOS      ->  ignia-mac                  (build 55, fingerprint 886bf0b3...)
-
-So there is no machine that can correctly publish both, and the old rule
-("always publish from the Mac") is now wrong for Android. Publishing to the
-wrong host lands the update on a runtime version NOBODY IS RUNNING: it exits 0,
-prints a group id, and reaches zero devices -- indistinguishable from a working
-update. Three OTAs were lost that way in one day (2026-08-07), back when the
-mistake was possible in only one direction.
+The EAS Update runtime fingerprint is computed on the machine that publishes,
+and a publish whose hash matches no shipped binary exits 0, prints a group id
+and reaches zero devices -- indistinguishable from a working update. Three OTAs
+were lost that way in one day (2026-08-07).
 
     platform    on Windows    on the Mac    via `ssh ignia-mac`
-    android     ALLOW         BLOCK         BLOCK
-    ios         BLOCK         ALLOW         ALLOW
+    android     ALLOW         ALLOW         ALLOW
+    ios         ALLOW         ALLOW         ALLOW
     all / none  BLOCK         BLOCK         BLOCK
 
-"On the Mac" means a Claude session running ON ignia-mac (Remote Control,
-since 2026-09-14): there a bare `eas update --platform ios` is the right
-command and `ssh ignia-mac` is not needed. The local host is read from
-`sys.platform`; `GUARD_HOST=mac|windows` overrides it for the test matrix.
+**2026-11-12: both machines compute the same fingerprints** (iOS build 75's
+`e6d2973e...` on both) and export the same bundles, so either may publish
+either platform. Until then the Windows hash differed -- `@expo/fingerprint`
+0.20 matched backslash paths against forward-slash ignore globs and hashed ~283
+extra config-plugin files, and two Sentry resolver tests missed on backslash
+paths and bundled ~69 extra modules. `patches/@expo+fingerprint+0.20.14.patch`
+and the Windows-only tests in `apps/mobile/metro.config.js` fix both. From
+2026-08-17 to then the table was split (iOS Mac-only; Android Windows-only
+through vc 45, Mac-only from vc 46 on 2026-09-28). ignia-mac is sold on
+2026-11-13, which made Windows the publishing host.
 
-**Bare `eas update` publishes BOTH platforms**, which under a split build host
-is correct on neither machine -- it is blocked everywhere, and that is the rule
-most likely to be tripped over, because it was safe for the app's whole life
-until now.
+The rule that makes this safe is the GATE, not this guard: before a publish,
+compare `npx expo-updates fingerprint:generate --platform <p>` with the value
+read out of the shipped artifact (`apps/mobile/AGENTS.md`), on the machine that
+will publish. Android publishes pin `runtimeVersion` to the artifact value.
 
-2026-09-17: Android's BUILD host moved back to ignia-mac (toolchain, keystore
-and Play service account are there; `docs/build-infrastructure.md`). The OWNER
-table stayed on Windows until the first Mac-built vc reached Play, because an
-OTA must come from the host that built the RUNNING binary. **2026-09-28: vc 46
-(1.2.4, runtime 3e596c87...) was built on ignia-mac via raw Gradle +
-`patch-android-release.mjs` and submitted to the alpha track, so
-`OWNER["android"]` flipped to "mac" in that commit.** Both platforms now gate
-and publish from the Mac; a Windows session reaches it through `ssh ignia-mac`.
-Until vc 46 is LIVE on production, vc 45 users (Windows runtime `15c1cfc8...`)
-can only be reached from Windows at `98fb0646` -- `STATUS.md` says whether that
-window is still open.
+**Bare `eas update` publishes BOTH platforms** in one command, under one
+machine's two computed hashes and with no per-platform pin -- it is blocked
+everywhere.
+
+"On the Mac" means a Claude session running ON a Mac. The local host is read
+from `sys.platform`; `GUARD_HOST=mac|windows` overrides it for the test matrix.
 
 Read-only subcommands (`update:list`, `update:view`, `--help`) are allowed.
 
@@ -49,9 +42,6 @@ says *"Required for projects using Expo SDK 55 or greater"*, and this app is on
 than silent, unlike the host routing above; it is checked here so that anything
 this guard lets through is a command that actually runs.
 
-Gate before publishing: compare `npx expo-updates fingerprint:generate
---platform <p>` against the fingerprint read out of the shipped artifact
-(`apps/mobile/AGENTS.md`), on the machine that owns that platform.
 """
 import json
 import os
@@ -77,13 +67,16 @@ MAC = re.compile(r"\bssh\s+ignia-mac\b")
 # `--environment production`, `--environment=production`. Required from SDK 55.
 ENVIRONMENT = re.compile(r"--environment[=\s]+\S+")
 
-# Which host owns which platform. Update this table when a build host moves --
-# it is the single place the routing lives.
-OWNER = {"android": "mac", "ios": "mac"}
+# Which hosts may publish which platform. Update this table when the hosts stop
+# computing the same fingerprint -- it is the single place the routing lives.
+# Since 2026-11-12 the Windows PC (`winbox`, checkout `Z:\fitness-tracker-pwa`)
+# computes the Mac's hashes for both platforms and exports the Mac's bundles
+# (patches/@expo+fingerprint+0.20.14.patch, the Sentry tests in
+# apps/mobile/metro.config.js), so both machines may publish both platforms.
+# ignia-mac is sold 2026-11-13; its entry stays for whichever Mac comes next.
+OWNER = {"android": {"mac", "windows"}, "ios": {"mac", "windows"}}
 
-# The machine this hook is running on. A session on ignia-mac publishes iOS
-# directly; a session on the Windows workstation publishes Android directly and
-# reaches the Mac through `ssh ignia-mac`.
+# The machine this hook is running on.
 LOCAL_HOST = os.environ.get("GUARD_HOST") or (
     "mac" if sys.platform == "darwin" else "windows"
 )
@@ -182,40 +175,29 @@ here = "mac" if mac_publish and not local_publish else LOCAL_HOST
 if platform not in OWNER:
     block(
         "`eas update` without a single --platform publishes BOTH platforms.\n"
-        "Android is built on Windows and iOS on the Mac, so their runtime "
-        "fingerprints differ and NO machine can publish both correctly. One "
-        "half would land on a runtime nobody runs -- exit 0, a group id "
-        "printed, zero devices reached.",
-        "Publish them separately, each from its own host:\n"
-        "  npx eas update --platform android --branch production "
+        "Each platform's live binaries carry their own runtime, and an Android "
+        "publish pins runtimeVersion to the artifact value first -- one command "
+        "for both would put at least one half on a runtime nobody runs: exit 0, "
+        "a group id printed, zero devices reached.",
+        "Publish them separately, one runtime per command (apps/mobile/AGENTS.md):\n"
+        "  cd apps/mobile && npx eas update --platform ios --branch production "
         "--environment production ...\n"
-        '  ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && '
-        "npx eas update --platform ios --branch production "
-        '--environment production ..."',
+        "  cd apps/mobile && npx eas update --platform android --branch production "
+        "--environment production ...  (runtimeVersion pinned, then reverted)",
     )
 
-owner = OWNER[platform]
-if owner != here:
-    if owner == "mac":
-        fix = (
-            'ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && '
-            f"npx eas update --platform {platform} --branch production "
-            '--environment production ..."'
-        )
-    else:
-        fix = (
-            "Run it directly on this Windows workstation (no ssh wrapper):\n"
-            f"  cd apps/mobile && npx eas update --platform {platform} "
-            "--branch production --environment production ..."
-        )
+owners = OWNER[platform]
+if here not in owners:
+    name = {"mac": "the Mac", "windows": "the Windows PC"}
     block(
-        f"{platform} binaries are built on the "
-        f"{'Mac' if owner == 'mac' else 'Windows workstation'}, but this "
-        f"publish would run on the {'Mac' if here == 'mac' else 'Windows workstation'}.\n"
-        "The runtime fingerprint follows the build host, so this update would "
+        f"{platform} updates are published from "
+        f"{' or '.join(name[o] for o in sorted(owners))}, but this publish "
+        f"would run on {name[here]}.\n"
+        "The runtime fingerprint depends on the machine, so this update would "
         "land on a runtime no shipped binary carries and reach NOBODY -- "
         "indistinguishable from success.",
-        f"Gate first, then publish from the owning host:\n  {fix}",
+        "Gate first (apps/mobile/AGENTS.md), then publish from a host in "
+        "OWNER in .claude/hooks/guard_eas_update.py.",
     )
 
 if not ENVIRONMENT.search(cmd):

@@ -1,0 +1,14 @@
+diff --git a/node_modules/@expo/fingerprint/build/ExpoConfigLoader.js b/node_modules/@expo/fingerprint/build/ExpoConfigLoader.js
+index 0573570..d5337e7 100644
+--- a/node_modules/@expo/fingerprint/build/ExpoConfigLoader.js
++++ b/node_modules/@expo/fingerprint/build/ExpoConfigLoader.js
+@@ -58,7 +58,8 @@ async function runAsync(programName, args = []) {
+     ];
+     const filteredLoadedModules = loadedModules.filter((modulePath) => !virtualModuleNames.has(modulePath));
+     const existingLoadedModules = (await Promise.all(filteredLoadedModules.map(async (modulePath) => {
+-        const relativePath = path_1.default.relative(projectRoot, modulePath);
++        // patch-package: POSIX separators, so the ignore globs below match on Windows too (fixed upstream in 0.21).
++        const relativePath = (0, Path_1.toPosixPath)(path_1.default.relative(projectRoot, modulePath));
+         if ((0, Path_1.isIgnoredPath)(relativePath, ignoredPaths)) {
+             return null;
+         }

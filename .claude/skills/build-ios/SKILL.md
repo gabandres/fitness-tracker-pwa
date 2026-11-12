@@ -1,9 +1,15 @@
 ---
 name: build-ios
-description: Build and optionally submit an iOS binary on the MacBook Air (`ignia-mac`) over SSH, or decide that a JS-only change needs no build at all — a local EAS build that costs no EAS quota and no cloud queue. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill; since 2026-09-17 it builds on the Air too (the Air was iOS-only from 2026-08-17 to then), so do not run both platform builds at once on its 16 GB.
+description: Build and optionally submit an iOS binary on the MacBook Air (`ignia-mac`) over SSH, or decide that a JS-only change needs no build at all — a local EAS build that costs no EAS quota and no cloud queue. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill; since 2026-09-17 it builds on the Air too (the Air was iOS-only from 2026-08-17 to then), so do not run both platform builds at once on its 16 GB. `ignia-mac` is sold 2026-11-13: until another Mac is set up there is no iOS build host; OTAs publish from the Windows PC (`build-android`).
 ---
 
 # Build iOS on the Mac
+
+> **2026-11-13: `ignia-mac` is sold, so there is no iOS build host until another
+> Mac is set up.** Everything below the gate describes that machine; a new Mac
+> needs `scripts/mac-bootstrap.sh`, Xcode with the watchOS platform, the ASC key
+> and the signing material (`docs/build-infrastructure.md`). OTAs do not need a
+> Mac: they publish from the Windows PC (`build-android` Step 2).
 
 `eas build -p ios --profile production --local` on `ignia-mac`, driven headlessly
 over SSH. **Zero EAS quota, no cloud queue.** ~13–16 minutes green.
@@ -37,19 +43,21 @@ still running at 17 days and 3+ weeks (developer.apple.com threads 816092 and
 
 ## Step 0 — do you need a build at all?
 
-**A JS/TS-only change needs no binary.** Gate first, **on the Mac** (the hash is
-machine-dependent) and **after prebuild**:
+**A JS/TS-only change needs no binary.** Gate first, **on the Windows PC**
+(`winbox`, checkout `Z:\fitness-tracker-pwa`) — since 2026-11-12 it computes the
+Mac's fingerprints exactly (`apps/mobile/AGENTS.md`), and `ignia-mac` is sold on
+2026-11-13:
 
 ```sh
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git checkout main && git pull --ff-only"
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios" \
+ssh winbox "cd /d Z:\fitness-tracker-pwa && git checkout main && git pull --ff-only"
+ssh winbox "cd /d Z:\fitness-tracker-pwa\apps\mobile && npx expo-updates fingerprint:generate --platform ios" \
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))"
 ```
 
 **Unchanged hash → `build-android` Steps 1–2**, which own the gate semantics and
-the OTA procedure for both platforms. Do not re-derive them here. Note the OTA is
-now **per-platform**: `--platform ios` from the Mac, and `--environment` is
-required from SDK 55 on.
+the OTA procedure for both platforms. Do not re-derive them here. The OTA is
+**per-platform** (`--platform ios`), and `--environment` is required from SDK 55
+on.
 
 Two that bite on iOS specifically:
 
