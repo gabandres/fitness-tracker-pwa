@@ -163,7 +163,13 @@ function ProgramVersionCard({ stacked, offline }: { stacked: boolean; offline: b
     if (to === p.version) return;
     confirm({
       title: t(to === 'v2' ? 'settings.programToV2Title' : 'settings.programToV1Title'),
-      body: t(to === 'v2' ? 'settings.programToV2Body' : 'settings.programToV1Body'),
+      // Going to v1 replaces whatever the live templates are now — name it
+      // ("This will replace your v2.4 templates"), owner 2026-11-06.
+      body: to === 'v2'
+        ? t('settings.programToV2Body')
+        : p.liveVersion
+          ? t('settings.programToV1BodyVersion', { version: p.liveVersion })
+          : t('settings.programToV1Body'),
       confirmText: t(to === 'v2' ? 'settings.programToV2' : 'settings.programToV1'),
       onConfirm: () => {
         void p.switchTo(to)

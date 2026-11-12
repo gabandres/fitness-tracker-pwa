@@ -615,6 +615,7 @@ function templateRows(data: ExportData): string[] {
         ...(ex.baseline ? [`baseline since ${ex.baseline.since}: ${ex.baseline.reason}`] : []),
         ...(ex.excludedReads ?? []).map((x) => `${x.date} not read: ${x.reason}`),
         ...(ex.alternatives ?? []).map((a) => `alt: ${a.name}${a.note ? ` (${a.note})` : ''}`),
+        ...(ex.sideSwitchSec != null && ex.supersetGroup ? [`L+R in one round, ${ex.sideSwitchSec} s between sides`] : []),
         ...(ex.optional ? ['optional'] : []),
         ...(ex.carryover ? [`carryover from ${ex.carryover.from}: ${ex.carryover.clusters}`] : []),
         ...(ccc ? [`cluster count changed ${ccc.from}→${ccc.to}${ccc.since ? ` on ${ccc.since}` : ''}; baseline`] : []),

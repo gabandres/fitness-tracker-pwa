@@ -70,6 +70,15 @@ export function useProgram() {
   const armed = program.find((d) => d.autoActivate)?.autoActivate;
   const armedTemplate = armed ? templates.find((t) => t.id === armed.afterTemplateId)?.name : undefined;
   const autoActivatedAt = program.find((d) => d.autoActivatedAt)?.autoActivatedAt;
+  // The programme the live templates carry when v2 is on ("v2.4", written by
+  // the owner-data scripts): switching to v1 replaces THAT, so the confirm
+  // names it. Undefined when the templates disagree or carry none.
+  const liveVersion = useMemo(() => {
+    if (version !== 'v2') return undefined;
+    const tags = new Set(program.map((d) => templates.find((t) => t.id === d.draftOf)?.templateVersion));
+    const [only] = [...tags];
+    return tags.size === 1 && typeof only === 'string' && only !== 'v2' ? only : undefined;
+  }, [version, program, templates]);
 
   const rows = useMemo<ProgramTemplateRow[]>(() => {
     const musclesOf = (id: string) => catalog.find((e) => e.id === id)?.muscles;
@@ -101,5 +110,5 @@ export function useProgram() {
     [uid, templates, catalog, sessions, drafts],
   );
 
-  return { version, rows, armedTemplate, autoActivatedAt, switchTo, busy };
+  return { version, liveVersion, rows, armedTemplate, autoActivatedAt, switchTo, busy };
 }

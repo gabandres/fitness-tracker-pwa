@@ -240,6 +240,8 @@ export interface SessionExercise {
   restClusterSec?: number;
   /** See {@link TemplateExercise.minClusterRestSec}. */
   minClusterRestSec?: number;
+  /** See {@link TemplateExercise.sideSwitchSec}. */
+  sideSwitchSec?: number;
   /** Per-side calls on an L/R lift — each side is its own progression track
    *  (`side-tracks.ts`). `recommendation` is absent on such a row. */
   sideRecommendations?: Partial<Record<Side, RecommendationSnapshot>>;
@@ -643,6 +645,14 @@ export interface TemplateExercise {
    *  and the transitions took less, the round rest grows by the difference
    *  (`roundRestWithFloor` in `superset.ts`). */
   minClusterRestSec?: number;
+  /**
+   * An L/R lift inside a superset runs BOTH sides in the same round, back to
+   * back, with this rest between them, seconds (Program v2.4, 2026-11-06: calf
+   * L → R and one-arm overhead extension L → R; the other side rests while one
+   * works). Absent → each side is its own round, as before. A straight row is
+   * unaffected; its sides already run back to back. See `supersetFlow`.
+   */
+  sideSwitchSec?: number;
   /**
    * The lift's cluster count changed (Program v2: the lateral raise 1 → 2).
    * While set, the engine judges only the first `from` clusters — the ones

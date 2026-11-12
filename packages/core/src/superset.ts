@@ -316,21 +316,56 @@ export function exerciseUnits(sets: readonly { kind: SetKind }[]): number[][] {
 /** One stop in the workout: one unit of one exercise. */
 export interface FlowStep {
   exerciseIndex: number;
-  /** Which unit of the exercise (0-based) — the round, inside a superset. */
+  /** Which unit of the exercise (0-based). */
   unit: number;
+  /** Which round of its superset (0-based); `unit` again outside one, and
+   *  inside one unless the row runs both sides in a round
+   *  (`sideSwitchSec`), where an L and an R unit share a round. */
+  round: number;
   setIndices: number[];
   /** "A1" inside a superset. */
   label?: string;
   group?: string;
 }
 
-type FlowRow = SupersetFields & { sets: readonly { kind: SetKind }[] };
+type FlowRow = SupersetFields & { sets: readonly { kind: SetKind; label?: string }[]; sideSwitchSec?: number };
+
+const SIDE_LABELS: ReadonlySet<string> = new Set(['L', 'R']);
+/** The side a unit is for: the label on its first effort set, if L or R. */
+function unitSide(row: FlowRow, unit: readonly number[]): string | undefined {
+  const first = unit.find((i) => !NON_EFFORT_KINDS.has(row.sets[i]?.kind));
+  const label = first != null ? row.sets[first]?.label?.trim() : undefined;
+  return label && SIDE_LABELS.has(label) ? label : undefined;
+}
+
+/**
+ * A superset member's units grouped into ROUNDS. One unit per round, except
+ * on a row with `sideSwitchSec` (Program v2.4): an L unit and the R unit right
+ * after it (or R then L) share a round, so the round runs both sides back to
+ * back — "Incline → Calf L → Calf R" — instead of one side per round.
+ */
+function memberRounds(row: FlowRow): number[][] {
+  const units = exerciseUnits(row.sets);
+  if (row.sideSwitchSec == null) return units.map((_, u) => [u]);
+  const rounds: number[][] = [];
+  for (let u = 0; u < units.length; u++) {
+    const side = unitSide(row, units[u]);
+    const next = u + 1 < units.length ? unitSide(row, units[u + 1]) : undefined;
+    if (side && next && next !== side) {
+      rounds.push([u, u + 1]);
+      u++;
+    } else rounds.push([u]);
+  }
+  return rounds;
+}
 
 /**
  * The order the session is performed in. Straight exercises run unit after
  * unit; a superset runs A1 unit 1 → A2 unit 1 → A1 unit 2 → A2 unit 2 …, and
  * when the members have different unit counts the leftover units run alone,
- * in alternation order. A group is emitted where its first member sits.
+ * in alternation order. A group is emitted where its first member sits. A
+ * member with `sideSwitchSec` does both sides of an L/R pair in one round
+ * ({@link memberRounds}).
  */
 export function supersetFlow(rows: readonly FlowRow[]): FlowStep[] {
   const groups = supersetGroups(rows);
@@ -339,19 +374,20 @@ export function supersetFlow(rows: readonly FlowRow[]): FlowStep[] {
   rows.forEach((row, exerciseIndex) => {
     const members = row.supersetGroup ? groups.get(row.supersetGroup) : undefined;
     if (!members) {
-      exerciseUnits(row.sets).forEach((setIndices, unit) => steps.push({ exerciseIndex, unit, setIndices }));
+      exerciseUnits(row.sets).forEach((setIndices, unit) => steps.push({ exerciseIndex, unit, round: unit, setIndices }));
       return;
     }
     if (emitted.has(row.supersetGroup!)) return;
     emitted.add(row.supersetGroup!);
     const unitsOf = members.map((m) => exerciseUnits(rows[m.index].sets));
-    const rounds = Math.max(...unitsOf.map((u) => u.length));
+    const roundsOf = members.map((m) => memberRounds(rows[m.index]));
+    const rounds = Math.max(...roundsOf.map((r) => r.length));
     for (let r = 0; r < rounds; r++) {
       members.forEach((m, k) => {
-        const u = unitsOf[k][r];
-        if (!u) return;
         const label = supersetLabel({ supersetGroup: row.supersetGroup, pairPosition: (k + 1) as PairPosition });
-        steps.push({ exerciseIndex: m.index, unit: r, setIndices: u, group: row.supersetGroup, ...(label ? { label } : {}) });
+        for (const unit of roundsOf[k][r] ?? []) {
+          steps.push({ exerciseIndex: m.index, unit, round: r, setIndices: unitsOf[k][unit], group: row.supersetGroup, ...(label ? { label } : {}) });
+        }
       });
     }
   });
@@ -450,7 +486,7 @@ export function restAfterSetInFlow(
 
   const { transitionRestSec, roundRestSec } = groupRest(rows, step.group);
   const groupSteps = flow.filter((s) => s.group === step.group);
-  const total = Math.max(...groupSteps.map((s) => s.unit)) + 1;
+  const total = Math.max(...groupSteps.map((s) => s.round)) + 1;
   // A partner unit of THIS round that the lifter STARTED and left open sits
   // BEHIND this step in the flow, so a forward search never offers it: the
   // lifter who did A1 1a and then jumped to A2 is sent back to A1 1b on the
@@ -470,7 +506,7 @@ export function restAfterSetInFlow(
   const movedOn = (s: FlowStep) =>
     groupSteps.some((g) => g.exerciseIndex === s.exerciseIndex && g.unit > s.unit && g.setIndices.some((i) => isDone!(g.exerciseIndex, i)));
   const behind = isDone
-    ? flow.slice(0, at).find((s) => s.group === step.group && s.exerciseIndex !== exerciseIndex && s.unit === step.unit && resumeAt(s) != null && !movedOn(s))
+    ? flow.slice(0, at).find((s) => s.group === step.group && s.exerciseIndex !== exerciseIndex && s.round === step.round && resumeAt(s) != null && !movedOn(s))
     : undefined;
   if (behind) {
     return {
@@ -480,20 +516,25 @@ export function restAfterSetInFlow(
     };
   }
   if (nextStep?.group === step.group) {
+    if (nextStep.exerciseIndex === exerciseIndex && nextStep.round === step.round) {
+      // The other side of an L/R pair in the same round (`sideSwitchSec`):
+      // straight on to it, the other side rested while this one worked.
+      return { seconds: row.sideSwitchSec ?? own.cluster, kind: 'transition', ...(next ? { next } : {}) };
+    }
     if (nextStep.exerciseIndex === exerciseIndex) {
       // The next open unit is this exercise's own: an ordinary between-cluster
       // rest, as for a straight lift. It is a leftover round — "its partner is
       // done · Round 2/3" — only when the partner has nothing open in that
       // round; otherwise the partner is still to come and saying so is false.
-      const partnerOpen = groupSteps.some((s) => s.unit === nextStep.unit && s.exerciseIndex !== exerciseIndex && open(s));
+      const partnerOpen = groupSteps.some((s) => s.round === nextStep.round && s.exerciseIndex !== exerciseIndex && open(s));
       return {
         seconds: own.cluster,
         kind: 'cluster',
-        ...(partnerOpen ? {} : { round: { n: nextStep.unit + 1, total } }),
+        ...(partnerOpen ? {} : { round: { n: nextStep.round + 1, total } }),
         ...(next ? { next } : {}),
       };
     }
-    if (nextStep.unit === step.unit) return { seconds: transitionRestSec, kind: 'transition', ...(next ? { next } : {}) };
+    if (nextStep.round === step.round) return { seconds: transitionRestSec, kind: 'transition', ...(next ? { next } : {}) };
     // Into the next round — every member with a cluster left in it, in member
     // order — on the group's round rest, also when that round has ONE member
     // (Push v2 Superset C, 2026-10-15: C3 Skull Crusher → C2 lateral raise
@@ -503,7 +544,7 @@ export function restAfterSetInFlow(
     // members' clusters, this round rest — and a member that needs a minimum
     // between its own clusters says so (`minClusterRestSec`, applied to every
     // `round` rest by `roundRestWithFloor`).
-    return { seconds: roundRestSec, kind: 'round', round: { n: nextStep.unit + 1, total }, ...(next ? { next } : {}) };
+    return { seconds: roundRestSec, kind: 'round', round: { n: nextStep.round + 1, total }, ...(next ? { next } : {}) };
   }
   return { seconds: own.afterExercise ?? own.cluster, kind: 'after-exercise', ...(next ? { next } : {}) };
 }

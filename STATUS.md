@@ -115,9 +115,19 @@ or delete the draft and re-upload to whichever version ships
   simulator or phone. The owner's 11/4 Travel D is `paused` (6 steps left),
   resumable until 23:59 La Paz on 11/4; after that the first screen to see it
   closes it as partial.
-- **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,
-  RIR 2); maintenance "Rebuilding n/14" until 14 complete days home. Then
-  decide whether `FEATURES.travelMode` goes to everyone and whether the travel
+- **Rest block + return (owner, 2026-11-11):** no training 11/12 → 11/19
+  (one optional short session Mon 11/16, template
+  `travel-short-2026-11-16`); trip END stays 11/18 (11/19 is home, its weigh-in
+  counts). **Home v2.4 is applied, effective 2026-11-20** (`templateVersion`
+  `v2.4`, baselines `since 2026-11-20`); v2.3 retired 11/19. The first Leg (Fri
+  11/20) / Pull / Push = post-travel re-entry (−10 %, RIR 2); v2.4 weekly
+  targets from the week of 11/23. Maintenance "Rebuilding n/14" until 14
+  complete days home. **App gaps against the owner's re-entry spec (not
+  built):** the drop set stays in a re-entry session; re-entry takes −10 % of
+  the engine's call, not of the last working load (Leg Extensions 90 not 80,
+  floor crunch 20 not 15); the Trends travel check still marks muscles short
+  during the rest block (11/12–11/18); banner wording differs. Then decide
+  whether `FEATURES.travelMode` goes to everyone and whether the travel
   templates are archived.
 
 ### 1.2.11 — daily steps in the background (built 2026-11-06)
@@ -143,36 +153,6 @@ or delete the draft and re-upload to whichever version ships
   cap (897 min) and the pre-kg sets. Repaired by
   `scripts/owner-data-2026-11-06-haven.mts`. Fix: drop the local copy when the
   server says `completed`.
-
-### Travel mode — the owner's Bolivia trip (2026-10-31 → 2026-11-18)
-
-- **Live** (OTA, all runtimes, 2026-10-26); trip + Travel A/B templates on the
-  owner's account. **Owed before 10/31:** open the app once on the phone (the
-  OTA applies on the launch after the download) and check Settings → Travel
-  shows Bolivia. The iOS simulator (Release, QA account) has run the Today
-  travel card, the eyeball sheet, Trends "held" and a re-entry session; no
-  real phone has yet. The Settings editor is admin-only, so only the owner's
-  phone can show it.
-- **During the trip:** maintenance shows "Held for travel": **2,262 ± 60**, frozen as of
-  10/30 (read 2026-11-02; 10/30 closed at 1,766 kcal).
-- **Haven Gym plan (2026-11-02):** templates Travel C / D (`travel-gym-v3`), 14
-  `haven-*` lifts and the trip's plan are on the owner's account. The app code
-  that reads them (kg rows, Haven-only progression, "raise load now" on clusters,
-  Today "This week") is OTA'd to all twelve runtimes: the 1.2.10 runtimes from
-  `1fc2a550`, now in `main`, the older ten from `ota/perf-2026-10-21` @ `88c880d0`.
-  Not run on a simulator or phone yet; a session logged on the older bundle has no
-  gym tag, so it would feed the home engine until tagged. ADR-0048 amendment.
-- **Pause / resume (2026-11-04, core `session-pause.ts`):** OTA'd to all
-  twelve runtimes (1.2.10 from `main` @ `e645bb17`, the older ten from
-  `ota/perf-2026-10-21` @ `c37d10b3`), with the maintenance 7-day range and the
-  walk-during-session fix that were waiting. Rules deployed first. Not run on a
-  simulator or phone. The owner's 11/4 Travel D is `paused` (6 steps left),
-  resumable until 23:59 La Paz on 11/4; after that the first screen to see it
-  closes it as partial.
-- **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,
-  RIR 2); maintenance "Rebuilding n/14" until 14 complete days home. Then
-  decide whether `FEATURES.travelMode` goes to everyone and whether the travel
-  templates are archived.
 
 ### 1.2.10 — Sentry RN 8.31 + the native library fixes (built 2026-10-22)
 

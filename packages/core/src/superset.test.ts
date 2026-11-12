@@ -657,3 +657,68 @@ describe('guardrails — consecutive into the next block', () => {
     expect(supersetWarnings([row('curl', myo(1)), ...C], (id) => muscles[id] ?? [])[0].neighbours).toBeUndefined();
   });
 });
+
+describe('both sides of an L/R lift in one round (`sideSwitchSec`, Program v2.4)', () => {
+  // One cluster per side label, each its own group: L, R, L, R …
+  const sides = (labels: ('L' | 'R')[]) => labels.flatMap((label, i) => [
+    { kind: 'activation' as K, group: i + 1, label }, { kind: 'mini' as K, group: i + 1, label }, { kind: 'mini' as K, group: i + 1, label },
+  ]);
+  const tag = (rows: Parameters<typeof supersetFlow>[0]) => supersetFlow(rows).map((s) => {
+    const side = rows[s.exerciseIndex].sets[s.setIndices[0]].label;
+    return `${s.label ?? s.exerciseIndex}${side ?? ''}:${s.round + 1}`;
+  });
+
+  // Push B: Incline ×2 ↔ calf L R L R.
+  const pushB = (sideSwitchSec?: number) => [
+    row('incline', myo(2), { supersetGroup: 'B', pairPosition: 1, transitionRestSec: 30, roundRestSec: 30 }),
+    { ...row('calf', sides(['L', 'R', 'L', 'R']), { supersetGroup: 'B', pairPosition: 2 }), ...(sideSwitchSec != null ? { sideSwitchSec } : {}) },
+    row('press', myo(1)),
+  ];
+
+  it('without it, each side is its own round (unchanged)', () => {
+    expect(tag(pushB())).toEqual(['B1:1', 'B2L:1', 'B1:2', 'B2R:2', 'B2L:3', 'B2R:4', '2:1']);
+  });
+
+  it('with it, a round runs Incline → Calf L → Calf R', () => {
+    expect(tag(pushB(10))).toEqual(['B1:1', 'B2L:1', 'B2R:1', 'B1:2', 'B2L:2', 'B2R:2', '2:1']);
+  });
+
+  it('L → R is the side-switch rest; R → the next round is the round rest; the round count is per round', () => {
+    const rows = pushB(10);
+    expect(restAfterSetInFlow(rows, 0, 2, restFor)).toMatchObject({ kind: 'transition', seconds: 30, next: { exerciseIndex: 1, setIndex: 0 } });
+    expect(restAfterSetInFlow(rows, 1, 2, restFor)).toMatchObject({ kind: 'transition', seconds: 10, next: { exerciseIndex: 1, setIndex: 3, unit: 1 } });
+    expect(restAfterSetInFlow(rows, 1, 5, restFor)).toMatchObject({ kind: 'round', seconds: 30, round: { n: 2, total: 2 }, next: { exerciseIndex: 0, setIndex: 3 } });
+    expect(restAfterSetInFlow(rows, 1, 8, restFor)).toMatchObject({ kind: 'transition', seconds: 10, next: { exerciseIndex: 1, setIndex: 9 } });
+    expect(restAfterSetInFlow(rows, 1, 11, restFor)).toMatchObject({ kind: 'after-exercise', seconds: 60, next: { exerciseIndex: 2 } });
+  });
+
+  it('a 0 s switch is allowed ("no rest", the one-arm overhead extension)', () => {
+    // Push C: one-arm OH L R ↔ lateral ×2 + drop ↔ skull ×1.
+    const rows = [
+      { ...row('oh', sides(['L', 'R']), { supersetGroup: 'C', pairPosition: 1, transitionRestSec: 30, roundRestSec: 30 }), sideSwitchSec: 0 },
+      row('lateral', myo(2, ['drop']), { supersetGroup: 'C', pairPosition: 2 }),
+      row('skull', myo(1), { supersetGroup: 'C', pairPosition: 3 }),
+    ];
+    expect(tag(rows)).toEqual(['C1L:1', 'C1R:1', 'C2:1', 'C3:1', 'C2:2']);
+    expect(restAfterSetInFlow(rows, 0, 2, restFor)).toMatchObject({ kind: 'transition', seconds: 0, next: { exerciseIndex: 0, setIndex: 3 } });
+    expect(restAfterSetInFlow(rows, 0, 5, restFor)).toMatchObject({ kind: 'transition', seconds: 30, next: { exerciseIndex: 1 } });
+    // Skull → lateral cluster 2: round 2 of 2, alone.
+    expect(restAfterSetInFlow(rows, 2, 2, restFor)).toMatchObject({ kind: 'round', round: { n: 2, total: 2 }, next: { exerciseIndex: 1, setIndex: 3 } });
+  });
+
+  it('Leg D: ext ×2 → curl ×2 → calf L R puts both sides in round 1', () => {
+    const rows = [
+      row('ext', myo(2), { supersetGroup: 'D', pairPosition: 1, transitionRestSec: 30, roundRestSec: 30 }),
+      row('curl', myo(2), { supersetGroup: 'D', pairPosition: 2 }),
+      { ...row('calf', sides(['L', 'R']), { supersetGroup: 'D', pairPosition: 3 }), sideSwitchSec: 10 },
+    ];
+    expect(tag(rows)).toEqual(['D1:1', 'D2:1', 'D3L:1', 'D3R:1', 'D1:2', 'D2:2']);
+    expect(restAfterSetInFlow(rows, 2, 5, restFor)).toMatchObject({ kind: 'round', round: { n: 2, total: 2 } });
+  });
+
+  it('a straight (unpaired) L/R row is unaffected', () => {
+    const rows = [{ ...row('calf', sides(['L', 'R'])), sideSwitchSec: 10 }];
+    expect(tag(rows)).toEqual(['0L:1', '0R:2']);
+    expect(restAfterSetInFlow(rows, 0, 2, restFor)).toMatchObject({ kind: 'cluster', seconds: 90 });
+  });
+});

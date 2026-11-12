@@ -154,6 +154,8 @@ export interface SessionExercise {
   /** Program v2 rests, snapshotted from the template row (core). */
   restClusterSec?: number;
   minClusterRestSec?: number;
+  /** Both sides of an L/R pair in one superset round — core `TemplateExercise.sideSwitchSec`. */
+  sideSwitchSec?: number;
   /** An L/R lift: each side's call, frozen at start (core `side-tracks.ts`). */
   sideRecommendations?: Partial<Record<Side, RecommendationSnapshot>>;
   /** Snapshotted from the template row — core `TemplateExercise.loadUnit`. */
@@ -247,6 +249,8 @@ export interface TemplateExercise {
    *  these; core's carried fields keep them across an editor save. */
   restClusterSec?: number;
   minClusterRestSec?: number;
+  /** Both sides of an L/R pair in one superset round — core `TemplateExercise.sideSwitchSec`. */
+  sideSwitchSec?: number;
   clusterCountChange?: { from: number; to: number; since: string };
   sideLoads?: Partial<Record<Side, number>>;
   /** Core `TemplateExercise.loadUnit` / `awayGym` / `linkedHome`. */
@@ -339,6 +343,7 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
       ...supersets[i],
       ...(ex.restClusterSec != null ? { restClusterSec: ex.restClusterSec } : {}),
       ...(ex.minClusterRestSec != null ? { minClusterRestSec: ex.minClusterRestSec } : {}),
+      ...(ex.sideSwitchSec != null ? { sideSwitchSec: ex.sideSwitchSec } : {}),
       ...(ex.loadUnit ? { loadUnit: ex.loadUnit } : {}),
       ...(ex.awayGym ? { awayGym: ex.awayGym } : {}),
       ...(ex.linkedHome ? { linkedHome: true } : {}),
