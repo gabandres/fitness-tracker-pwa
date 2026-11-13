@@ -115,7 +115,7 @@ in the number, or a faster laptop reads as a regression.
 two hosts now run the SAME Node: Windows is Node **24.12.0** / npm **11.6.2**,
 and since the 2026-09-10 rebuild `ignia-mac` is also **24.12.0** / 11.6.2 (the
 bootstrap installs `.nvmrc`'s version via fnm; it was 22.23.2 on the shared
-install). Root `engines` still accepts both majors (`^22.13.0 || ^24.12.0`);
+install). Root `engines` still accepts both majors (`^22.13.0 || ^24.12.0 || ^26.0.0`, Node 26 added 2026-11-12);
 narrowing it is harmless now but not needed.
 
 Pinning `engines` to 24 alone was tried first and is wrong: `eas build --local`
