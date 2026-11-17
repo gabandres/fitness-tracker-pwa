@@ -265,6 +265,11 @@ export const ExerciseCard = memo(function ExerciseCard({
     [ex.awayGym, ex.exerciseId, ex.name, style, recentSessions],
   );
   const rowUnit: LoadUnit = unitSystem === 'metric' ? 'kg' : 'lb';
+  // Stack positions (core `WorkoutSet.plate`, 2026-11-16): on a row that
+  // allows them, the load field takes a plate number instead of a mass. Starts
+  // in plate mode when a set already holds one, so a remount keeps the mode.
+  const [plateMode, setPlateMode] = useState(() => ex.sets.some((s) => s.plate != null));
+  const plateOn = ex.stackPositions === true && style === 'weight-reps' && plateMode;
   // When core withheld a recommendation because the last activation was
   // unreadable, SAY so. Silence and "no bump today" look identical otherwise,
   // and the second one is a claim about the training rather than about the data.
@@ -585,6 +590,19 @@ export const ExerciseCard = memo(function ExerciseCard({
                   <Text style={[styles.unitSwitchText, rowUnit === 'lb' && styles.unitSwitchOn]}>lb</Text>
                 </Touchable>
               ) : null}
+              {ex.stackPositions ? (
+                <Touchable
+                  style={styles.unitSwitch}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => setPlateMode((m) => !m)}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: plateOn }}
+                  accessibilityLabel={t('train.plateSwitchA11y')}
+                  testID={`plate-switch-${exerciseIndex}`}
+                >
+                  <Text style={[styles.unitSwitchText, plateOn && styles.unitSwitchOn]}>{t('train.plateSwitch')}</Text>
+                </Touchable>
+              ) : null}
             </View>
           ) : null}
 
@@ -604,7 +622,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             )}
             {/* The column header IS the unit, so it stops being a fixed string. */}
             {style === 'weight-reps' ? (
-              <Text style={[styles.setHeadCell, styles.setInputCell]} maxFontSizeMultiplier={1.6}>{loadUnit(unitSystem)}</Text>
+              <Text style={[styles.setHeadCell, styles.setInputCell]} maxFontSizeMultiplier={1.6}>{plateOn ? t('train.plateHead') : loadUnit(unitSystem)}</Text>
             ) : null}
             <Text style={[styles.setHeadCell, styles.setInputCell]} maxFontSizeMultiplier={1.6}>
               {style === 'time' ? t('train.sec') : t('train.reps')}
@@ -621,6 +639,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             <SetRow
               key={setIdx}
               loadUnit={ex.loadUnit}
+              plateMode={plateOn}
               exerciseIndex={exerciseIndex}
               setIndex={setIdx}
               set={set}

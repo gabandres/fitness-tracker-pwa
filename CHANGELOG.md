@@ -4,6 +4,20 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-17 — one-off templates, stack positions, "Gym busy" on by template, volume waiver (OTA on iOS build 75, Android vc 53)
+
+For the owner's 11/17 Santa Cruz Airbnb session on a home multi-gym with unmarked stacks. **One-off
+templates** (`WorkoutTemplate.oneOff.archiveOn`): never in a rotation or "next up" unless a trip plan names
+them, the session starts not comparable (out of e1RM and PRs), and the app archives the template once a session
+is completed or on `archiveOn`, whichever is first (core `oneOffsToArchive`, reconciled in `useTrain`).
+**Stack positions** (`WorkoutSet.plate`, row flag `stackPositions`): a "plate #" switch on the card; a plate
+set stores no weight and no unit, so nothing that reads mass reads it; history shows "#7×10", export
+`unit: 'plate'`. **`gymBusy: true`** on a template starts the any-order list on. **`volumeOk`** on a trip-plan
+note waives that span's under-target warnings on Train's weekly audit and Trends' travel check. Rules
+(`gymBusy`, `oneOff` on templates) deployed first. Owner data (`scripts/owner-data-2026-11-17-airbnb.mts`,
+applied): template `travel-airbnb-2026-11-17` (11 rows, 18 new `airbnb-*` lifts), plan 11/17, week of 11/16
+waived 11/16 → 11/22.
+
 ## 2026-11-10 — the workout timer stops itself; "Gym busy" (`81dd9488`; OTA on iOS build 75, Android vc 52 + 53)
 
 Two forgotten Finishes in a week (11/4 saved 897 min, 11/10 saved 178 — under the old 180-min check). Every set

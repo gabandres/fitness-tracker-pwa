@@ -1,4 +1,4 @@
-import type { WorkoutSession } from './workout';
+import type { OneOff, WorkoutSession } from './workout';
 
 /** How recently a template must have been performed to count as part of the
  *  rotation when no Program v2 names one: four weeks, the longest gap a
@@ -22,13 +22,14 @@ export const ROTATION_ACTIVE_DAYS = 28;
  * rotation, whichever branch picks it: archiving is how a lifter says "I am
  * not running this any more" without deleting the history behind it. Pure.
  */
-export function rotationTemplates<T extends { id?: string; archivedAt?: Date | null }>(
+export function rotationTemplates<T extends { id?: string; archivedAt?: Date | null; oneOff?: OneOff }>(
   all: readonly T[],
   programTemplateIds: ReadonlySet<string>,
   sessions: readonly Pick<WorkoutSession, 'status' | 'date' | 'templateId'>[],
   nowMs: number,
 ): T[] {
-  const templates = all.filter((tp) => !isArchivedTemplate(tp));
+  // A one-off (`oneOff`, 2026-11-16) is not part of any rotation either.
+  const templates = all.filter((tp) => !isArchivedTemplate(tp) && !isOneOffTemplate(tp));
   if (programTemplateIds.size) return templates.filter((tp) => tp.id && programTemplateIds.has(tp.id));
   const since = nowMs - ROTATION_ACTIVE_DAYS * 86_400_000;
   const used = new Set(
@@ -45,4 +46,42 @@ export function rotationTemplates<T extends { id?: string; archivedAt?: Date | n
  *  sessions keep their `templateId`. Pure. */
 export function isArchivedTemplate(t: { archivedAt?: Date | null }): boolean {
   return t.archivedAt != null;
+}
+
+// ─── One-off templates (owner, 2026-11-16) ──────────────────────
+
+/** True for a ONE-OFF template (`WorkoutTemplate.oneOff`): a throwaway for one
+ *  day — never in a rotation, never "next up" unless a trip plan names it. */
+export function isOneOffTemplate(t: { oneOff?: OneOff | null }): boolean {
+  return t.oneOff != null;
+}
+
+/** A well-formed {@link OneOff}, else undefined — a malformed one is dropped on
+ *  read, never repaired (a guessed date would archive the wrong day). */
+export function oneOffOf(raw: unknown): OneOff | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const on = (raw as Record<string, unknown>)['archiveOn'];
+  return typeof on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(on) ? { archiveOn: on } : undefined;
+}
+
+/**
+ * The one-off templates due to be archived now: not archived yet, and either a
+ * session of it is COMPLETED (an active or paused one is not "logged"), or
+ * `today` (YYYY-MM-DD, the lifter's day) has reached `archiveOn` — whichever
+ * comes first. Archived = hidden from pickers; its sessions keep their
+ * `templateId`, so history is untouched. Pure; the app writes `archivedAt`.
+ */
+export function oneOffsToArchive<T extends { id?: string; archivedAt?: Date | null; oneOff?: OneOff }>(
+  templates: readonly T[],
+  sessions: readonly Pick<WorkoutSession, 'status' | 'templateId'>[],
+  today: string,
+): T[] {
+  const logged = new Set(sessions.filter((s) => s.status === 'completed' && s.templateId).map((s) => s.templateId as string));
+  return templates.filter((t) => t.id && t.oneOff && !isArchivedTemplate(t) && (logged.has(t.id) || today >= t.oneOff.archiveOn));
+}
+
+/** Whether a one-off is past its day and should already be out of the pickers,
+ *  before the archive write lands. */
+export function isExpiredOneOff(t: { oneOff?: OneOff }, today: string): boolean {
+  return t.oneOff != null && today >= t.oneOff.archiveOn;
 }

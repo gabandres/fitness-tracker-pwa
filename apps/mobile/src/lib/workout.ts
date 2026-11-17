@@ -46,6 +46,7 @@ export type { SetStructure } from '@macrolog/core/workout';
 export type { LoadUnit, MuscleGroup } from '@macrolog/core/workout';
 import type { LoadUnit } from '@macrolog/core/workout';
 import type { PartialClose, RowAlternative, RowCarryover, SessionSegment, TimeCap } from '@macrolog/core';
+import type { OneOff } from '@macrolog/core/workout';
 
 /** How a set counts. v1 only creates `working`; the others exist so docs
  *  written by the PWA round-trip cleanly. */
@@ -128,6 +129,8 @@ export interface WorkoutSet {
   segment?: number;
   /** The unit the load was TYPED in — core `WorkoutSet.unit`. */
   unit?: LoadUnit;
+  /** Core `WorkoutSet.plate`: the load as a stack position, no weight. */
+  plate?: number;
   /** When it was ticked done, ISO — core `WorkoutSet.loggedAt`. */
   loggedAt?: string;
 }
@@ -165,6 +168,9 @@ export interface SessionExercise {
   /** Core `row-options.ts` — snapshotted from the template row. */
   alternatives?: RowAlternative[];
   optional?: boolean;
+  /** The load may be logged as a stack position (`WorkoutSet.plate`) instead
+   *  of kg / lb: a selectorized stack with unmarked plates. */
+  stackPositions?: boolean;
   carryover?: RowCarryover;
 }
 
@@ -257,6 +263,9 @@ export interface TemplateExercise {
    *  fields keep them across an editor save. */
   alternatives?: RowAlternative[];
   optional?: boolean;
+  /** The load may be logged as a stack position (`WorkoutSet.plate`) instead
+   *  of kg / lb: a selectorized stack with unmarked plates. */
+  stackPositions?: boolean;
   carryover?: RowCarryover;
 }
 
@@ -283,6 +292,13 @@ export interface WorkoutTemplate {
   archivedAt?: Date;
   /** Core `WorkoutTemplate.timeCap` — written by owner-data scripts only. */
   timeCap?: TimeCap;
+  /** "Gym busy" starts ON for this template's sessions (a private gym: any
+   *  order). Absent = off, as before. */
+  gymBusy?: boolean;
+  /** A ONE-OFF, temporary template (owner, 2026-11-16): never in a rotation,
+   *  and archived once a session of it is logged or on `archiveOn`
+   *  (YYYY-MM-DD), whichever comes first (`oneOffsToArchive`). */
+  oneOff?: OneOff;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -345,6 +361,7 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
       ...(ex.alternatives?.length ? { alternatives: ex.alternatives } : {}),
       ...(ex.optional ? { optional: true } : {}),
       ...(ex.carryover ? { carryover: ex.carryover } : {}),
+      ...(ex.stackPositions ? { stackPositions: true } : {}),
     };
   });
 }

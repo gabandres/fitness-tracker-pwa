@@ -338,3 +338,49 @@ describe('L-N11 / H-N3 / J-N7 — the pill never sits over a tab\'s content', ()
     expect(src).toMatch(/hold=\{route\.name === 'train' && workoutActive\}/);
   });
 });
+
+describe('one-off templates (2026-11-16): stack positions and Gym busy on', () => {
+  const stackRow = (sets: object[]) => ({ ...bench(sets), stackPositions: true, loadUnit: 'kg' });
+
+  it('a plate number is stored as `plate`, with no weight and no unit', async () => {
+    mockTrain.active = live([stackRow([{ kind: 'working', done: false }])]);
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('plate-switch-0'));
+    await fireEvent.changeText(ui.getByTestId('set-weight-0-0'), '7');
+    expect(patches()).toContainEqual({ plate: 7, weight: undefined, unit: undefined });
+    expect(patches().some((p) => typeof p.weight === 'number')).toBe(false);
+  });
+
+  it('kg is still the default on such a row, and a row without the flag has no plate switch', async () => {
+    mockTrain.active = live([stackRow([{ kind: 'working', done: false }]), bench([{ kind: 'working', done: false }])]);
+    const ui = await render(<TrainScreen />);
+    await fireEvent.changeText(ui.getByTestId('set-weight-0-0'), '20');
+    expect(patches()[0]).toMatchObject({ unit: 'kg' });
+    expect(typeof patches()[0].weight).toBe('number');
+    expect(ui.queryByTestId('plate-switch-1')).toBeNull();
+  });
+
+  it('a plate tick without a plate asks for one, as a weight tick does', () => {
+    expect(needsLoad(true, '', { kind: 'working', weight: 50, reps: 8 }, true)).toBe(true);
+    expect(needsLoad(true, '', { kind: 'working', plate: 6, reps: 8 }, true)).toBe(false);
+    expect(needsLoad(true, '6', undefined, true)).toBe(false);
+  });
+
+  it('"Gym busy" starts on for a template with gymBusy, off otherwise', async () => {
+    const two = [bench([{ kind: 'working', done: false }]), { ...bench([{ kind: 'working', done: false }]), exerciseId: 'row', name: 'Row' }];
+    mockTrain.active = live(two);
+    const off = await render(<TrainScreen />);
+    expect(off.getByTestId('gym-busy-switch').props.value).toBe(false);
+    off.unmount();
+    const saved = mockTrain.templates;
+    mockTrain.templates = [{ ...pushTemplate, gymBusy: true }];
+    try {
+      const on = await render(<TrainScreen />);
+      expect(on.getByTestId('gym-busy-switch').props.value).toBe(true);
+      // The open list re-reads its rest hints every 5 s: unmount clears it.
+      on.unmount();
+    } finally {
+      mockTrain.templates = saved;
+    }
+  });
+});

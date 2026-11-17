@@ -51,10 +51,12 @@ import { type HungerWeek, zone2Summary } from '@macrolog/core';
 import {
   activeTravel,
   travelMaintenanceCheck,
+  volumeWaiver,
   travelPeriodsOf,
   withoutTravelWeights,
   type MaintenanceCheck,
   type TravelPeriod,
+  type TravelPlanEntry,
 } from '@macrolog/core';
 import type { MuscleGroup } from '@macrolog/core/workout';
 import type { CardioBlock } from '@macrolog/core/cardio';
@@ -97,7 +99,9 @@ export interface TrendsState {
   travelPeriods: TravelPeriod[];
   /** Travel mode: the "maintenance check" — this week's hard sets per muscle
    *  against a third of the pre-trip normal. Null outside a trip. */
-  travelCheck?: { period: TravelPeriod; check: MaintenanceCheck } | null;
+  /** `waiver`: a plan note that says this week's volume is OK (core
+   *  `volumeWaiver`, 2026-11-16) — the card shows no muscle as short. */
+  travelCheck?: { period: TravelPeriod; check: MaintenanceCheck; waiver?: TravelPlanEntry | null } | null;
   /** Zone 2 from Train's on-disk sessions, read once per focus; null until
    *  read or when Train has never cached any. */
   zone2?: Zone2Trends | null;
@@ -608,7 +612,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     const periods = travelPeriodsOf(profile);
     return periods.length ? activeTravel(dayKeyAt(new Date(), dayBoundaryOf(profile)), periods) : null;
   }, [profile]);
-  const [travelCheck, setTravelCheck] = useState<{ period: TravelPeriod; check: MaintenanceCheck } | null>(null);
+  const [travelCheck, setTravelCheck] = useState<{ period: TravelPeriod; check: MaintenanceCheck; waiver?: TravelPlanEntry | null } | null>(null);
   useLedgerFeed({
     uid,
     label: 'Trends/travelCheck',
@@ -634,6 +638,7 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
                             check: travelMaintenanceCheck({
                               sessions, catalog: catalog ?? [], period: trip, now: new Date(), boundary: dayBoundaryOf(profile),
                             }),
+                            waiver: volumeWaiver(travelPeriodsOf(profile), dayKeyAt(new Date(), dayBoundaryOf(profile))),
                           }
                         : null,
                     );

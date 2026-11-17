@@ -549,6 +549,20 @@ collections + a `WorkoutStore` facet back the Train tab.
   resume; there is at most **one active session** (enforced in
   `WorkoutStore.startSession`). The session's `date` is stored as the
   `timestamp` field at the seam.
+- **Stack position** (2026-11-16) — `WorkoutSet.plate`: the load as the plate
+  number on a selectorized stack whose plates are not marked (an Airbnb
+  multi-gym). Allowed only on a row with `stackPositions`; the card's "plate #"
+  switch takes it. A plate set has **no `weight` and no `unit`** — a position is
+  not a mass, so volume load, e1RM, PRs and the engine never read it, and
+  `fillMissingClusterLoads` never gives it one. Exported as `unit: 'plate'`,
+  number in `loadInUnit`.
+- **One-off template** (2026-11-16) — `WorkoutTemplate.oneOff.archiveOn`: a
+  throwaway for one day. Never in a rotation or "next up" (unless a trip plan
+  names it); its session starts **not comparable**; the app archives it once a
+  session of it is completed, or on `archiveOn`, whichever is first (core
+  `oneOffsToArchive`, `useTrain`). `gymBusy: true` on a template starts the
+  "Gym busy" list on. A trip-plan `note` with `volumeOk` waives that span's
+  under-target volume warnings (core `volumeWaiver`).
 - **Set load** — `WorkoutSet.weight`, in pounds. On a lift that carries no
   external load (a pull-up, a dip logged `weight-reps`) **`0` means "no added
   load / no assistance" and ABSENT means "unknown"** — decided 2026-09-30, when

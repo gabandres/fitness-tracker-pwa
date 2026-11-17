@@ -325,6 +325,9 @@ export function workingSetCells(
       if (s.reps != null) cells.push(`${s.reps}`);
     } else if (s.weight != null && s.reps != null) {
       cells.push(`${toDisplayLoad(s.weight, unitSystem)}×${s.reps}`);
+    } else if (s.plate != null && s.reps != null) {
+      // A stack position, not a mass (`WorkoutSet.plate`): "#7×10".
+      cells.push(`#${s.plate}×${s.reps}`);
     }
   }
   return cells;

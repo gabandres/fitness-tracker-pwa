@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { MAINTENANCE_FRACTION, type MaintenanceCheck, type TravelPeriod } from '@macrolog/core';
+import { MAINTENANCE_FRACTION, type MaintenanceCheck, type TravelPeriod, type TravelPlanEntry } from '@macrolog/core';
 import { VOLUME_MUSCLE_KEY } from '@/components/train/volume-muscle-name';
 import { useLocale, useT } from '@/i18n';
 import { formatDate, formatNumber } from '@/lib/date-format';
@@ -12,20 +12,23 @@ import { font, radius, space } from '@/theme';
  * against a third of its weekly normal before it — about what keeps muscle
  * for a few weeks. Short muscles first. Draws only during a trip, and only
  * when there was a pre-trip normal to compare with.
+ *
+ * A plan note with `volumeOk` covering today (core `volumeWaiver`, 2026-11-16:
+ * "travel + re-entry — OK") says the week is OK: no muscle is marked short.
  */
-export function TravelMaintenanceCard({ data }: { data: { period: TravelPeriod; check: MaintenanceCheck } | null | undefined }) {
+export function TravelMaintenanceCard({ data }: { data: { period: TravelPeriod; check: MaintenanceCheck; waiver?: TravelPlanEntry | null } | null | undefined }) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   if (!data || data.check.rows.length === 0) return null;
-  const { check } = data;
+  const { check, waiver } = data;
   const n = (v: number) => formatNumber(Math.round(v * 10) / 10, locale);
   return (
     <View testID="travel-maintenance-check">
       <Text style={styles.section} accessibilityRole="header">{t('trends.travelCheck.title')}</Text>
       <View style={styles.card}>
         <Text style={styles.headline} testID="travel-check-headline">
-          {t('trends.travelCheck.headline', { ok: check.okCount, of: check.rows.length })}
+          {waiver ? waiver.label : t('trends.travelCheck.headline', { ok: check.okCount, of: check.rows.length })}
         </Text>
         <Text style={styles.sub}>
           {t('trends.travelCheck.sub', {
@@ -36,7 +39,7 @@ export function TravelMaintenanceCard({ data }: { data: { period: TravelPeriod; 
         {check.rows.map((r) => (
           <View key={r.muscle} style={styles.row} testID={`travel-check-${r.muscle}`}>
             <Text style={styles.muscle}>{t(VOLUME_MUSCLE_KEY[r.muscle])}</Text>
-            <Text style={[styles.value, !r.ok && styles.short]}>
+            <Text style={[styles.value, !r.ok && !waiver && styles.short]}>
               {t('trends.travelCheck.row', { sets: n(r.thisWeek), needed: n(r.needed), normal: n(r.normalWeekly) })}
             </Text>
           </View>

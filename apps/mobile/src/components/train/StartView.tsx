@@ -9,6 +9,8 @@ import {
   formatBodyWeight,
   formatLoad,
   isArchivedTemplate,
+  isExpiredOneOff,
+  volumeWaiver,
   muscleSignals,
   nextTemplateUp,
   sessionCounts,
@@ -184,6 +186,12 @@ export function StartView({
   // fortnight (`volumeCalls`). The app says so; it never adds one itself.
   const { user, profile } = useAuth();
   const phase = profile?.trainingPhase ?? DEFAULT_TRAINING_PHASE;
+  // The lifter's day, on the same render clock as the windows above.
+  const today = useMemo(() => dayKeyAt(new Date(now), dayBoundaryOf(profile)), [now, profile]);
+  // A plan note that waives this week's volume ("travel + re-entry — OK", core
+  // `volumeWaiver`, 2026-11-16): the audit says the week is OK instead of
+  // marking muscles below range, and offers no "add a cluster".
+  const waiver = useMemo(() => volumeWaiver(travelPeriodsOf(profile), today), [profile, today]);
   const calls = useMemo(
     () => volumeCalls(audit, phase, muscleSignals(train.recentSessions, train.catalog, now)),
     [audit, phase, train.recentSessions, train.catalog, now],
@@ -247,8 +255,16 @@ export function StartView({
   );
   // Archived templates (2026-10-24) leave the list for a collapsed section of
   // their own; they are never deleted, so their sessions keep their names.
-  const activeTemplates = useMemo(() => train.templates.filter((tp) => !isArchivedTemplate(tp)), [train.templates]);
-  const archivedTemplates = useMemo(() => train.templates.filter(isArchivedTemplate), [train.templates]);
+  // A one-off past its day (core `isExpiredOneOff`) moves with them before
+  // the archive write lands (`useTrain` writes it).
+  const activeTemplates = useMemo(
+    () => train.templates.filter((tp) => !isArchivedTemplate(tp) && !isExpiredOneOff(tp, today)),
+    [train.templates, today],
+  );
+  const archivedTemplates = useMemo(
+    () => train.templates.filter((tp) => isArchivedTemplate(tp) || isExpiredOneOff(tp, today)),
+    [train.templates, today],
+  );
 
   function confirmDeleteSession(id: string, s: WorkoutSession) {
     // Long-press used to delete a logged workout outright — undiscoverable
@@ -440,11 +456,13 @@ export function StartView({
             <Text style={styles.auditTitle}>{t('train.audit.title')}</Text>
             <Text style={styles.auditLineText}>
               {'  '}
-              {t('train.audit.summary', {
-                n: audit.clusters,
-                inRange: audit.muscles.filter((m) => m.status === 'in-range').length,
-                total: audit.muscles.length,
-              })}
+              {waiver
+                ? t('train.audit.waived', { n: audit.clusters })
+                : t('train.audit.summary', {
+                    n: audit.clusters,
+                    inRange: audit.muscles.filter((m) => m.status === 'in-range').length,
+                    total: audit.muscles.length,
+                  })}
             </Text>
             <Ionicons name={auditOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.faint} />
           </Touchable>
@@ -454,12 +472,12 @@ export function StartView({
                 {audit.muscles.map((m) => (
                   <View
                     key={m.muscle}
-                    style={[styles.auditChip, m.status !== 'in-range' && styles.auditChipOff]}
+                    style={[styles.auditChip, m.status !== 'in-range' && !(waiver && m.status === 'below') && styles.auditChipOff]}
                     testID={`cluster-audit-${m.muscle}`}
                   >
                     <Text style={styles.auditMuscle}>{t(`train.muscle.${m.muscle}` as I18nKey)}</Text>
                     <Text style={styles.auditCount}>
-                      {m.clusters} · {t(m.status === 'below' ? 'train.audit.below' : m.status === 'above' ? 'train.audit.above' : 'train.audit.inRange')}
+                      {m.clusters} · {t(m.status === 'below' ? (waiver ? 'train.audit.belowWaived' : 'train.audit.below') : m.status === 'above' ? 'train.audit.above' : 'train.audit.inRange')}
                     </Text>
                   </View>
                 ))}
@@ -467,14 +485,16 @@ export function StartView({
               <Text style={styles.auditHint}>
                 {audit.unattributed.length > 0
                   ? t('train.audit.unattributed', { names: audit.unattributed.join(', ') })
-                  : t('train.audit.hint')}
+                  : waiver ? `${waiver.label}${waiver.note ? ` — ${waiver.note}` : ''}` : t('train.audit.hint')}
               </Text>
-              <VolumeCalls
-                phase={phase}
-                calls={calls}
-                gateLb={gateLb}
-                sevenDayAvgLb={sevenDayAvgLb}
-              />
+              {waiver ? null : (
+                <VolumeCalls
+                  phase={phase}
+                  calls={calls}
+                  gateLb={gateLb}
+                  sevenDayAvgLb={sevenDayAvgLb}
+                />
+              )}
             </>
           ) : null}
         </View>

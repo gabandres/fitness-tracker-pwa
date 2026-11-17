@@ -10,7 +10,8 @@ import { Touchable } from './Touchable';
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 /**
- * "Gym busy" (owner, 2026-11-10): a switch, off by default, that lists every
+ * "Gym busy" (owner, 2026-11-10): a switch, off by default (on for a template
+ * with `gymBusy`, 2026-11-16), that lists every
  * lift with sets left so the lifter can take whatever machine is free. A tap
  * scrolls to that lift's card. Each row says how long its PRIMARY muscle has
  * rested — at least 90 s before that muscle's next cluster (core
@@ -22,16 +23,20 @@ export function GymBusyPanel({
   tags,
   musclesOf,
   onJump,
+  defaultOn = false,
 }: {
   exercises: readonly SessionExercise[];
   /** The live superset tags ("B2"), as the cards show them. */
   tags: readonly (string | undefined)[];
   musclesOf: (exerciseId: string) => readonly MuscleGroup[] | undefined;
   onJump: (exerciseIndex: number) => void;
+  /** Starts ON — the template says so (`WorkoutTemplate.gymBusy`, a private
+   *  gym where any order is fine). The lifter can still switch it off. */
+  defaultOn?: boolean;
 }) {
   const t = useT();
   const { colors } = useTheme();
-  const [on, setOn] = useState(false);
+  const [on, setOn] = useState(defaultOn);
   // The rest hints count down: re-read every 5 s, only while the list shows.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

@@ -204,6 +204,16 @@ export interface WorkoutSet {
    *  stays pounds — a kg entry is full-precision pounds — and the set is shown
    *  in this unit. Absent (every set before 2026-11-05) = the row's unit. */
   unit?: LoadUnit;
+  /**
+   * The load as a STACK POSITION — the plate number on a selectorized stack
+   * whose plates are not marked in kg or lb (owner, 2026-11-16: an Airbnb
+   * multi-gym). Only on a row that allows it (`stackPositions`). A plate set
+   * carries no `weight` and no `unit`: a position is not a mass, so nothing
+   * that reads `weight` (volume load, e1RM, PRs, the engine) may read it as
+   * one. Which of the two the lifter used is therefore stored per set: this
+   * field, or `weight` + `unit`.
+   */
+  plate?: number;
   /** When the set was ticked done, ISO 8601 — stamped by the session reducer
    *  (`applySessionAction` with a clock), dropped when it is unticked. What the
    *  timer's auto-stop reads (`session-idle.ts`). Absent on every set before
@@ -256,6 +266,9 @@ export interface SessionExercise {
    *  the lift it replaced is the first entry. */
   alternatives?: RowAlternative[];
   optional?: boolean;
+  /** The load may be logged as a stack position (`WorkoutSet.plate`) instead
+   *  of kg / lb: a selectorized stack with unmarked plates. */
+  stackPositions?: boolean;
   carryover?: RowCarryover;
 }
 
@@ -677,8 +690,17 @@ export interface TemplateExercise {
   alternatives?: RowAlternative[];
   /** The session may leave this row out; leaving it out is not a skip. */
   optional?: boolean;
+  /** The load may be logged as a stack position (`WorkoutSet.plate`) instead
+   *  of kg / lb: a selectorized stack with unmarked plates. */
+  stackPositions?: boolean;
   /** Clusters carried from an earlier session that did not reach them. */
   carryover?: RowCarryover;
+}
+
+/** See {@link WorkoutTemplate.oneOff}. */
+export interface OneOff {
+  /** YYYY-MM-DD: archived on this day even if never logged. */
+  archiveOn: string;
 }
 
 export interface WorkoutTemplate {
@@ -712,6 +734,13 @@ export interface WorkoutTemplate {
   archivedAt?: Date;
   /** Past N active minutes, what to drop first (`row-options.ts`). */
   timeCap?: TimeCap;
+  /** "Gym busy" starts ON for this template's sessions (a private gym: any
+   *  order). Absent = off, as before. */
+  gymBusy?: boolean;
+  /** A ONE-OFF, temporary template (owner, 2026-11-16): never in a rotation,
+   *  and archived once a session of it is logged or on `archiveOn`
+   *  (YYYY-MM-DD), whichever comes first (`oneOffsToArchive`). */
+  oneOff?: OneOff;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -765,7 +794,8 @@ export function fillMissingClusterLoads<
     if (fill == null) return ex;
     let changed = false;
     const sets = ex.sets.map((s): S => {
-      if (isLoggedSet(s, style) && (s.weight == null || (fill > 0 && s.weight <= 0))) {
+      // A stack-position set (`plate`) has no mass on purpose: never given one.
+      if (isLoggedSet(s, style) && s.plate == null && (s.weight == null || (fill > 0 && s.weight <= 0))) {
         changed = true;
         return { ...s, weight: fill };
       }

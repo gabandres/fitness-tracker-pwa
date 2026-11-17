@@ -24,6 +24,11 @@ export interface TravelPlanEntry {
   /** The template a `session` entry runs: what marks it done. */
   templateId?: string;
   note?: string;
+  /** On a `note` spanning a week (owner, 2026-11-16: "travel + re-entry —
+   *  OK"): while today is inside `from`…`to`, no under-target volume warning
+   *  shows — Train's weekly audit and Trends' travel check say the week is OK
+   *  instead ({@link volumeWaiver}). Sessions in it still count. */
+  volumeOk?: boolean;
 }
 
 export type TravelPlanStatus = 'done' | 'due' | 'upcoming' | 'skipped' | 'rest' | 'note';
@@ -67,6 +72,7 @@ export function sanitizeTravelPlan(raw: unknown): TravelPlanEntry[] {
       label: r['label'].trim(),
       ...(typeof r['templateId'] === 'string' && r['templateId'] ? { templateId: r['templateId'] } : {}),
       ...(typeof r['note'] === 'string' && r['note'].trim() ? { note: r['note'].trim() } : {}),
+      ...(r['volumeOk'] === true && r['kind'] === 'note' ? { volumeOk: true } : {}),
     });
   }
   return out.sort(byDate).slice(0, MAX_TRAVEL_PLAN_ENTRIES);
@@ -164,4 +170,17 @@ export function calibrationRanHotOn(
     .filter((e) => e.calibration)
     .flatMap((e) => e.sets.filter((x) => x.kind === 'activation' && x.reps != null && x.rir != null));
   return reads.length > 0 && reads.every((x) => x.rir === 0) ? last.date : null;
+}
+
+/**
+ * The plan note that waives this week's volume warnings, or null: a `note`
+ * with `volumeOk` whose `from`…`to` holds `today` (YYYY-MM-DD), in any period's
+ * plan — a waiver may run past the trip's end (the re-entry days at home).
+ */
+export function volumeWaiver(
+  periods: readonly { plan?: readonly TravelPlanEntry[] }[],
+  today: string,
+): TravelPlanEntry | null {
+  for (const p of periods) for (const e of p.plan ?? []) if (e.kind === 'note' && e.volumeOk && e.from <= today && today <= e.to) return e;
+  return null;
 }

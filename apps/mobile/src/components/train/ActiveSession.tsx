@@ -1737,12 +1737,14 @@ export function ActiveSession({
             <Text style={styles.empty}>{t('train.addFirst')}</Text>
           ) : null}
           {/* "Gym busy" (2026-11-10): the remaining lifts in any order, with
-              each muscle's rest. Off by default; not while editing history. */}
+              each muscle's rest. Off by default, on for a `gymBusy` template;
+              not while editing history. */}
           {!train.editingExisting && session.exercises.length > 1 ? (
             <GymBusyPanel
               exercises={session.exercises}
               tags={sessionTags}
               musclesOf={musclesOfExercise}
+              defaultOn={train.templates.find((tp) => tp.id != null && tp.id === session.templateId)?.gymBusy === true}
               onJump={(i) => {
                 const y = cardY.current.get(i);
                 if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: !reduceMotion });

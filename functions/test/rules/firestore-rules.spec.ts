@@ -1695,6 +1695,19 @@ describe('firestore.rules', () => {
     await assertFails(addDoc(col, validTemplate({ timeCap: { minutes: 65, drop: 'leg curl' } })));
   });
 
+  it('accepts gymBusy and a one-off template, and lets the client archive one (2026-11-16)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const col = collection(db, 'users', 'alice', 'workoutTemplates');
+    const ref = await assertSucceeds(addDoc(col, validTemplate({ gymBusy: true, oneOff: { archiveOn: '2026-11-19' } })));
+    // The app's auto-archive is an update of THIS doc: the whole doc is re-validated.
+    await assertSucceeds(updateDoc(ref, { archivedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+    await assertFails(addDoc(col, validTemplate({ gymBusy: 'yes' })));
+    await assertFails(addDoc(col, validTemplate({ oneOff: { archiveOn: '19/11/2026' } })));
+    await assertFails(addDoc(col, validTemplate({ oneOff: { archiveOn: '2026-11-19', extra: 1 } })));
+    await assertFails(addDoc(col, validTemplate({ oneOff: '2026-11-19' })));
+  });
+
   it('accepts re-entry and not-comparable sessions (travel mode), enumerated', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

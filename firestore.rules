@@ -473,11 +473,20 @@ service cloud.firestore {
       // `archivedAt` (2026-10-24): an archived template leaves Start's list and
       // the rotation but is never deleted — its sessions keep pointing at it.
       // Set to a server timestamp to archive; the field is deleted to unarchive.
+      // `gymBusy` / `oneOff` (2026-11-16): "Gym busy" starts on; a one-off
+      // template archived after its session or on `archiveOn` (YYYY-MM-DD).
+      // Written by owner-data scripts; allowed so client saves (an archive
+      // included) of such a template still pass.
       return data.keys().hasOnly([
               'name', 'notes', 'restMiniSec', 'restClusterSec',
               'exercises', 'cardioBlocks', 'seedKey', 'createdAt', 'updatedAt',
-              'templateVersion', 'archivedAt', 'timeCap'
+              'templateVersion', 'archivedAt', 'timeCap', 'gymBusy', 'oneOff'
           ])
+          && (!('gymBusy' in data.keys()) || data.gymBusy is bool)
+          && (!('oneOff' in data.keys()) ||
+              (data.oneOff is map && data.oneOff.keys().hasOnly(['archiveOn'])
+               && data.oneOff.archiveOn is string
+               && data.oneOff.archiveOn.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
           // Past N active minutes, what to drop first (2026-11-05; core
           // row-options.ts `timeCapOf` drops a malformed one on read).
           && (!('timeCap' in data.keys()) ||

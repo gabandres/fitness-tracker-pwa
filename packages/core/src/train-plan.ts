@@ -42,7 +42,7 @@ import type { DayBoundary } from './day-boundary';
 import { isTravelTemplate } from './reentry';
 import { activeTravel, type TravelPeriod } from './travel';
 import { travelWeek } from './travel-plan';
-import { isArchivedTemplate } from './rotation-templates';
+import { isArchivedTemplate, isOneOffTemplate } from './rotation-templates';
 import type { UnitSystem } from './unit-system';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -116,7 +116,9 @@ export function nextTemplateUp(
     }
   }
   let best: NextUp | null = null;
-  for (const template of templates) {
+  // A one-off is next up only when a trip plan names it (above): "never
+  // performed wins" would otherwise offer it every day until it is archived.
+  for (const template of templates.filter((tp) => !isOneOffTemplate(tp))) {
     const at = template.id ? last[template.id] ?? null : null;
     const candidate: NextUp = {
       template,
@@ -225,6 +227,7 @@ export function previousCell(
   if (set.weight != null && set.reps != null) {
     return `${toDisplayLoad(set.weight, unitSystem)}×${set.reps}`;
   }
+  if (set.plate != null && set.reps != null) return `#${set.plate}×${set.reps}`;
   // A rep count with no load is still a real comparison — a machine logged
   // without its weight, or a set typed reps-first. Saying "8" beats saying
   // nothing, and it can never be mistaken for a load.

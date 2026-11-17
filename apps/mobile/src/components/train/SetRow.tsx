@@ -69,8 +69,8 @@ const NOTHING_TO_OFFER = '–';
 
 /** Ticking would log a weighted set with no load: nothing typed, and no load
  *  last time to take. Exported for the test. */
-export function needsLoad(hasWeight: boolean, typed: string, previousSet: WorkoutSet | undefined): boolean {
-  return hasWeight && numOrUndef(typed) == null && previousSet?.weight == null;
+export function needsLoad(hasWeight: boolean, typed: string, previousSet: WorkoutSet | undefined, plateMode = false): boolean {
+  return hasWeight && numOrUndef(typed) == null && (plateMode ? previousSet?.plate : previousSet?.weight) == null;
 }
 
 /** The PR badge inside the set-number cell: tighter than the standalone one. */
@@ -81,6 +81,9 @@ const SWIPE_DELETE_BODY = { alignItems: 'center', gap: 2, minWidth: 56 } as cons
 export interface SetRowProps {
   /** The row's own unit, when it is not the user's (`TemplateExercise.loadUnit`). */
   loadUnit?: LoadUnit;
+  /** The load field takes a STACK POSITION (core `WorkoutSet.plate`,
+   *  2026-11-16): a whole plate number, stored with no weight and no unit. */
+  plateMode?: boolean;
   exerciseIndex: number;
   setIndex: number;
   set: WorkoutSet;
@@ -151,6 +154,7 @@ export const SetRow = memo(function SetRow({
   onRemove,
   chain,
   loadUnit: rowUnit,
+  plateMode = false,
 }: SetRowProps) {
   // A set reads in the unit it was TYPED in (core `WorkoutSet.unit`,
   // 2026-11-05), else its row's, else the account's.
@@ -170,7 +174,9 @@ export const SetRow = memo(function SetRow({
   // The BUFFER is in the training unit and the dispatch is in POUNDS — the one
   // conversion, at the one boundary. Everything downstream (volume, e1RM,
   // progression) keeps working on a single scale (UX_AUDIT F3).
-  const [weight, setWeight] = useState(set.weight != null ? loadText(set.weight) : '');
+  const [weight, setWeight] = useState(
+    plateMode ? (set.plate != null ? String(set.plate) : '') : set.weight != null ? loadText(set.weight) : '',
+  );
   const [count, setCount] = useState(
     logStyle === 'time'
       ? set.durationSec != null ? String(set.durationSec) : ''
@@ -199,13 +205,19 @@ export const SetRow = memo(function SetRow({
     latest.current = { weight, count, loadText };
   });
   useEffect(() => {
+    // Plate mode re-seeds from the plate number instead (effect below).
+    if (plateMode) return;
     const typed = clampSetLoad(parseLoadToLb(latest.current.weight, unitSystem));
     const same =
       typed == null || set.weight == null
         ? typed == null && set.weight == null
         : toDisplayLoad(typed, unitSystem) === toDisplayLoad(set.weight, unitSystem);
     if (!same) setWeight(set.weight != null ? latest.current.loadText(set.weight) : '');
-  }, [set.weight, unitSystem]);
+  }, [set.weight, unitSystem, plateMode]);
+  useEffect(() => {
+    if (!plateMode) return;
+    if (wholeCount(latest.current.weight) !== set.plate) setWeight(set.plate != null ? String(set.plate) : '');
+  }, [set.plate, plateMode]);
   useEffect(() => {
     const stored = logStyle === 'time' ? set.durationSec : set.reps;
     if (numOrUndef(latest.current.count) !== stored) setCount(stored != null ? String(stored) : '');
@@ -283,12 +295,22 @@ export const SetRow = memo(function SetRow({
    * as long as the row does — a collapse unmounts the row and forgets it,
    * which errs toward keeping the set.
    */
-  const accepted = useRef<{ count?: number; weight?: number } | null>(null);
+  const accepted = useRef<{ count?: number; weight?: number; plate?: number } | null>(null);
 
   function writeWeight(text: string) {
     accepted.current = null;
     takeLockScreenAccepted(exerciseIndex, setIndex, set);
     setWeight(text);
+    if (plateMode) {
+      // A position is not a mass: the set keeps no weight and no unit, so
+      // nothing that reads `weight` can take a plate number for pounds.
+      const n = wholeCount(text);
+      dispatch(
+        { type: 'patchSet', exerciseIndex, setIndex, patch: { plate: n != null && n >= 0 ? n : undefined, weight: undefined, unit: undefined } },
+        { defer: true },
+      );
+      return;
+    }
     dispatch(
       {
         type: 'patchSet',
@@ -325,6 +347,11 @@ export const SetRow = memo(function SetRow({
    *  accept (last time's number), which is what the lifter is adjusting. */
   function stepWeight(dir: 1 | -1) {
     haptics.tap();
+    if (plateMode) {
+      const base = wholeCount(weight) ?? previousSet?.plate ?? 0;
+      writeWeight(String(Math.max(0, base + dir)));
+      return;
+    }
     const from = numOrUndef(weight)
       ?? (previousSet?.weight != null ? toDisplayLoad(previousSet.weight, unitSystem) : 0);
     const next = Math.max(0, Math.round((from + dir * weightStep(unitSystem)) * 100) / 100);
@@ -343,13 +370,15 @@ export const SetRow = memo(function SetRow({
   // and a screen reader reads a placeholder exactly as it reads a value, so
   // "135" sounded logged when nothing was (UX_AUDIT S20). The label says
   // "empty" outright, and the placeholder's meaning moves to the hint.
-  const weightHintValue = previousSet?.weight != null ? loadText(previousSet.weight) : null;
+  const weightHintValue = plateMode
+    ? previousSet?.plate != null ? `#${previousSet.plate}` : null
+    : previousSet?.weight != null ? loadText(previousSet.weight) : null;
   const countHintKey = fromLastTime ? 'train.lastTimeHintA11y' : 'train.targetHintA11y';
   const fieldA11y = (base: string, text: string) =>
     text.trim() === '' ? `${base}, ${t('train.fieldEmptyA11y')}` : base;
 
-  const step = formatDecimal(weightStep(unitSystem), locale);
-  const stepLabel = `${step} ${loadUnit(unitSystem)}`;
+  const step = plateMode ? '1' : formatDecimal(weightStep(unitSystem), locale);
+  const stepLabel = plateMode ? '#1' : `${step} ${loadUnit(unitSystem)}`;
 
   /** Untick: `done` off, and what the tick accepted — still unchanged —
    *  back out, in the same write. */
@@ -357,7 +386,7 @@ export const SetRow = memo(function SetRow({
     haptics.tap();
     // A Lock Screen "Done set" (S23-8) keeps its note outside the row.
     const lockScreen = takeLockScreenAccepted(exerciseIndex, setIndex, set);
-    const took = accepted.current ?? lockScreen;
+    const took: { count?: number; weight?: number; plate?: number } | null = accepted.current ?? lockScreen;
     accepted.current = null;
     const patch: Partial<WorkoutSet> = { done: false };
     const storedCount = logStyle === 'time' ? set.durationSec : set.reps;
@@ -368,6 +397,10 @@ export const SetRow = memo(function SetRow({
     }
     if (took?.weight != null && set.weight === took.weight) {
       patch.weight = undefined;
+      setWeight('');
+    }
+    if (took?.plate != null && set.plate === took.plate) {
+      patch.plate = undefined;
       setWeight('');
     }
     void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch });
@@ -449,9 +482,9 @@ export const SetRow = memo(function SetRow({
               weightInputRef.current = r;
             }}
             style={[styles.setInput, styles.setInputCell, set.done && styles.setInputDone]}
-            placeholder={previousSet?.weight != null ? loadText(previousSet.weight) : NOTHING_TO_OFFER}
+            placeholder={weightHintValue ?? NOTHING_TO_OFFER}
             placeholderTextColor={colors.faint}
-            keyboardType="numeric"
+            keyboardType={plateMode ? 'number-pad' : 'numeric'}
             value={weight}
             onChangeText={writeWeight}
             onFocus={() => setFocused('weight')}
@@ -464,10 +497,10 @@ export const SetRow = memo(function SetRow({
             submitBehavior="submit"
             onSubmitEditing={() => chain.next(weightSlot)}
             {...weightBarProps}
-            accessibilityLabel={fieldA11y(t('train.liveWeightA11y', { n: label }), weight)}
+            accessibilityLabel={fieldA11y(t(plateMode ? 'train.livePlateA11y' : 'train.liveWeightA11y', { n: label }), weight)}
             accessibilityHint={
               weightHintValue != null
-                ? t('train.lastTimeHintA11y', { value: `${weightHintValue} ${loadUnit(unitSystem)}` })
+                ? t('train.lastTimeHintA11y', { value: plateMode ? weightHintValue : `${weightHintValue} ${loadUnit(unitSystem)}` })
                 : undefined
             }
             testID={`set-weight-${exerciseIndex}-${setIndex}`}
@@ -580,7 +613,7 @@ export const SetRow = memo(function SetRow({
           // first session of a starter, and for a lift whose PREVIOUS row was
           // another kind (L-N2 / J-N4, R50). Typing 0 is still a deliberate
           // entry; bodyweight and timed lifts have no load to ask for.
-          if (nowDone && needsLoad(hasWeight, weight, previousSet)) {
+          if (nowDone && needsLoad(hasWeight, weight, previousSet, plateMode)) {
             haptics.warning();
             showToast(t('train.enterWeightFirst'), { testID: 'train-toast' });
             weightInputRef.current?.focus();
@@ -591,7 +624,7 @@ export const SetRow = memo(function SetRow({
             return;
           }
           let done: WorkoutSet = { ...set, done: nowDone };
-          const inserted: { count?: number; weight?: number } = {};
+          const inserted: { count?: number; weight?: number; plate?: number } = {};
           // Ticking a set you have not typed into ACCEPTS what was prescribed
           // — or, failing that, what you did last time. This is the one-tap
           // path Strong and Hevy use, and the reason neither number is
@@ -620,7 +653,15 @@ export const SetRow = memo(function SetRow({
           // The LOAD comes along with it. A repeated set at no weight is not a
           // record of the set that was performed, and retyping the same 135
           // every session is the friction the PREVIOUS column exists to remove.
-          if (nowDone && hasWeight && numOrUndef(weight) == null && previousSet?.weight != null) {
+          if (nowDone && plateMode && numOrUndef(weight) == null && previousSet?.plate != null) {
+            setWeight(String(previousSet.plate));
+            inserted.plate = previousSet.plate;
+            done = { ...done, plate: previousSet.plate, weight: undefined, unit: undefined };
+            dispatch(
+              { type: 'patchSet', exerciseIndex, setIndex, patch: { plate: previousSet.plate, weight: undefined, unit: undefined } },
+              { defer: true },
+            );
+          } else if (nowDone && !plateMode && hasWeight && numOrUndef(weight) == null && previousSet?.weight != null) {
             setWeight(loadText(previousSet.weight));
             inserted.weight = previousSet.weight;
             done = { ...done, weight: previousSet.weight };
@@ -629,7 +670,7 @@ export const SetRow = memo(function SetRow({
               { defer: true },
             );
           }
-          accepted.current = inserted.count != null || inserted.weight != null ? inserted : null;
+          accepted.current = inserted.count != null || inserted.weight != null || inserted.plate != null ? inserted : null;
           void dispatch({ type: 'patchSet', exerciseIndex, setIndex, patch: { done: true } });
           // The haptic is the card's call: a tick, a record, or the last set
           // of the exercise each feel different (Train review item 25).

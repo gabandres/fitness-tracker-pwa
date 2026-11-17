@@ -86,6 +86,7 @@ import {
   finishedSegments,
   pausedSession,
   resumedSession,
+  oneOffsToArchive,
 } from '@macrolog/core';
 import {
   type Exercise,
@@ -1022,7 +1023,9 @@ export function useTrain(): TrainState {
         cardio: templateToSessionCardio(template),
         ...(templateVersion ? { templateVersion } : {}),
         ...(reentry ? { reentry } : {}),
-        ...(awayGym ? { notComparable: true } : {}),
+        // A one-off (core `WorkoutTemplate.oneOff`, 2026-11-16) is a gym that
+        // will not be seen again: out of e1RM charts and PRs from the start.
+        ...(awayGym || template.oneOff ? { notComparable: true } : {}),
       });
     },
     [uid, begin, recentSessions, engineCatalog, deload, profile, templates, withStartUnits],
@@ -1107,6 +1110,23 @@ export function useTrain(): TrainState {
     },
     [uid],
   );
+
+  // One-off templates (core `oneOffsToArchive`, 2026-11-16): archived once a
+  // session of one is logged, or on its `archiveOn` day — whichever comes
+  // first. Reconciled from what the hook already holds, so a finish that lands
+  // offline, or a day passing with the app closed, archives on the next read.
+  // One attempt per template per mount; a failed write tries again next mount.
+  const archivingOneOffs = useRef(new Set<string>());
+  useEffect(() => {
+    if (!uid) return;
+    const today = dayKeyAt(new Date(), dayBoundaryOf(profile));
+    for (const t of oneOffsToArchive(templates, recentSessions, today)) {
+      const id = t.id;
+      if (!id || archivingOneOffs.current.has(id)) continue;
+      archivingOneOffs.current.add(id);
+      archiveTemplateDoc(uid, id).catch(() => archivingOneOffs.current.delete(id));
+    }
+  }, [uid, templates, recentSessions, profile]);
 
   // ── Superset drafts (2026-10-11, core `superset-context.ts`) ──
   // The plan is pure and is what the confirm sheet shows; the write commits the

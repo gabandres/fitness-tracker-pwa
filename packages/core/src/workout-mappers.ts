@@ -18,6 +18,7 @@ import type { CardioBlock, PlannedCardioBlock } from './cardio';
 import { toDate } from './firestore-mappers';
 import { unitByGymOf } from './gym-units';
 import { timeCapOf, type TimeCap } from './row-options';
+import { oneOffOf } from './rotation-templates';
 import type { Exercise, SessionExercise, TemplateExercise, WorkoutSession, WorkoutTemplate } from './workout';
 
 /**
@@ -74,6 +75,8 @@ export function toWorkoutTemplate(id: string, data: Record<string, unknown>): Wo
     cardioBlocks: data['cardioBlocks'] as PlannedCardioBlock[] | undefined,
     seedKey: data['seedKey'] as string | undefined,
     ...(timeCapOf(data['timeCap']) ? { timeCap: timeCapOf(data['timeCap']) as TimeCap } : {}),
+    ...(data['gymBusy'] === true ? { gymBusy: true } : {}),
+    ...(oneOffOf(data['oneOff']) ? { oneOff: oneOffOf(data['oneOff']) } : {}),
     // Absent stays absent: `toDate(undefined)` would invent "now" and archive
     // every template. A pending serverTimestamp reads as null in a local
     // snapshot — still archived, so it falls back to "now" until the server

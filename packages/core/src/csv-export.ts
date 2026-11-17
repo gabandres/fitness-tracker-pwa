@@ -139,6 +139,8 @@ const COLS = [
   // `unit`: the unit the set was typed in ('workout_set'), else its row's,
   // else the account's; on 'template' rows the row's unit.
   'setWeightKg', 'loadKg', 'unit',
+  // A set logged as a stack position (2026-11-16, `WorkoutSet.plate`): no
+  // setWeight; `loadUnit` and `unit` say 'plate', `loadInUnit` is the number.
   // ── Daily steps (2026-11-06, `steps.ts`), appended for the same reason ──
   // One 'steps' row per day with a count: `steps` is the day's de-duplicated
   // total from the source (HealthKit's cumulativeSum over the local day, so a
@@ -444,6 +446,9 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
           ...unitCols(ex.loadUnit, set.weight),
           setWeightKg: set.weight != null ? kgOf(set.weight) : undefined,
           unit: ex.logStyle === 'time' ? undefined : setUnit(set, ex.loadUnit, data.unitSystem),
+          // A stack position (`WorkoutSet.plate`, 2026-11-16): no weight, the
+          // plate number in `loadInUnit`, and 'plate' says which was used.
+          ...(set.plate != null && set.weight == null ? { loadUnit: 'plate', loadInUnit: set.plate, unit: 'plate' } : {}),
           sessionStatus: status,
           segmentIndex: set.segment ?? 1,
         }));
