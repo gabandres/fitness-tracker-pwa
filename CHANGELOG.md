@@ -4,7 +4,7 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
-## 2026-11-17 — one-off templates, stack positions, "Gym busy" on by template, volume waiver (OTA on iOS build 75, Android vc 53)
+## 2026-11-17 — one-off templates, stack positions, "Gym busy" on by template, volume waiver (`bde62272`; OTA on iOS build 75, Android vc 53)
 
 For the owner's 11/17 Santa Cruz Airbnb session on a home multi-gym with unmarked stacks. **One-off
 templates** (`WorkoutTemplate.oneOff.archiveOn`): never in a rotation or "next up" unless a trip plan names
