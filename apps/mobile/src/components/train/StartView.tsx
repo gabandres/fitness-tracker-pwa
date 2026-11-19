@@ -4,8 +4,10 @@ import { FlatList, Pressable, ScrollView, Text, View, useWindowDimensions } from
 import { TRAIN_RIPPLE, Touchable } from './Touchable';
 import Animated from 'react-native-reanimated';
 import {
+  archivedByTag,
   dayBoundaryOf,
   dayKeyAt,
+  estimateTemplateDuration,
   formatBodyWeight,
   formatLoad,
   isArchivedTemplate,
@@ -586,7 +588,7 @@ export function StartView({
             ) : null}
           </View>
           <View style={styles.list}>
-            {train.catalog.slice(0, CATALOG_INLINE).map((e) => (
+            {train.catalog.filter((e) => !e.pickerHidden).slice(0, CATALOG_INLINE).map((e) => (
               <Pressable
                 key={e.id}
                 style={[styles.exLibRow, rippleClip(styles.exLibRow)]}
@@ -756,7 +758,13 @@ const TemplateCard = memo(function TemplateCard({
   // "3 exercises · 12 sets · last Tue". The counts alone could not tell you
   // which of four templates you are due for, which is the question the list
   // is actually being scanned for.
-  const sub = `${templateSummary(tpl, t)} · ${
+  // "≈ 60 min" (2026-11-18): the template's stated length when it has one
+  // (`expectedMin` — warm-up and set-up included), else the app's estimate.
+  const minutes = useMemo(
+    () => tpl.expectedMin ?? estimateTemplateDuration(tpl, (id) => train.catalog.find((e) => e.id === id)?.muscles).minutes,
+    [tpl, train.catalog],
+  );
+  const sub = `${templateSummary(tpl, t)} · ${minutes > 0 ? `${t('train.tplMinutes', { n: minutes })} · ` : ''}${
     last ? t('train.tplLast', { day: formatDate(last, locale, { month: 'short', day: 'numeric' }) }) : t('train.nextNever')
   }`;
   const start = () => {
@@ -978,6 +986,18 @@ function ArchivedTemplates({
         captureError(e, { where: 'train.unarchiveTemplate' });
       });
   }
+  // Every archived template sharing a tag, back in one tap (2026-11-18: the
+  // "travel kit" for the next trip).
+  function unarchiveTag(ids: string[]) {
+    Promise.all(ids.map((id) => train.unarchiveTemplate(id)))
+      .then(() => showToast(t('train.templateUnarchived'), { testID: 'train-toast' }))
+      .catch((e) => {
+        haptics.warning();
+        showToast(t('train.templateArchiveErr'), { testID: 'train-toast' });
+        captureError(e, { where: 'train.unarchiveTag' });
+      });
+  }
+  const tagGroups = archivedByTag(templates);
   return (
     <View testID="archived-templates">
       <Touchable
@@ -993,6 +1013,18 @@ function ArchivedTemplates({
       {open ? (
         <View style={styles.list}>
           <Text style={styles.histSub}>{t('train.archivedHint')}</Text>
+          {tagGroups.map((g) => (
+            <Touchable
+              key={g.tag}
+              style={styles.textAction}
+              onPress={() => unarchiveTag(g.templates.map((x) => x.id as string))}
+              accessibilityRole="button"
+              testID={`unarchive-tag-${g.tag}`}
+            >
+              <Ionicons name="pricetag-outline" size={16} color={colors.muted} />
+              <Text style={styles.sectionAction}>{t('train.unarchiveTag', { tag: g.tag, n: g.templates.length })}</Text>
+            </Touchable>
+          ))}
           {templates.map((tpl) => {
             const at = tpl.id ? last[tpl.id] : undefined;
             return (
@@ -1000,6 +1032,7 @@ function ArchivedTemplates({
                 <View style={styles.tplCardTop}>
                   <View style={styles.tplMain}>
                     <Text style={styles.histDate}>{tpl.name}</Text>
+                    {tpl.tags?.length ? <Text style={styles.histSub}>{tpl.tags.join(' · ')}</Text> : null}
                     <Text style={styles.histSub}>
                       {at ? t('train.tplLast', { day: formatDate(at, locale, { month: 'short', day: 'numeric' }) }) : t('train.nextNever')}
                     </Text>

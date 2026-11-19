@@ -1695,6 +1695,36 @@ describe('firestore.rules', () => {
     await assertFails(addDoc(col, validTemplate({ timeCap: { minutes: 65, drop: 'leg curl' } })));
   });
 
+  it('accepts template tags + expectedMin, a session reentryRule, catalog pickerHidden/context and a homePlan (2026-11-18)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const tpls = collection(db, 'users', 'alice', 'workoutTemplates');
+    const ref = await assertSucceeds(addDoc(tpls, validTemplate({ tags: ['travel kit'], expectedMin: 60 })));
+    // Unarchive / archive by the app re-validates the whole doc.
+    await assertSucceeds(updateDoc(ref, { archivedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+    await assertFails(addDoc(tpls, validTemplate({ tags: 'travel kit' })));
+    await assertFails(addDoc(tpls, validTemplate({ tags: Array(11).fill('x') })));
+    await assertFails(addDoc(tpls, validTemplate({ expectedMin: 0 })));
+    await assertFails(addDoc(tpls, validTemplate({ expectedMin: '60' })));
+
+    const ses = collection(db, 'users', 'alice', 'workoutSessions');
+    await assertSucceeds(addDoc(ses, validSession({ reentry: 'post-travel', reentryRule: { loadPct: 10, rir: 2, label: 'Re-entry — legs: −10%, RIR 2' } })));
+    await assertSucceeds(addDoc(ses, validSession({ reentry: 'post-travel', reentryRule: { loadPct: 5, round: 'nearest' } })));
+    await assertFails(addDoc(ses, validSession({ reentryRule: { loadPct: 60 } })));
+    await assertFails(addDoc(ses, validSession({ reentryRule: { loadPct: 5, rir: 1.5 } })));
+    await assertFails(addDoc(ses, validSession({ reentryRule: { loadPct: 5, round: 'up' } })));
+    await assertFails(addDoc(ses, validSession({ reentryRule: { loadPct: 5, extra: true } })));
+
+    const exs = collection(db, 'users', 'alice', 'exercises');
+    const ex = { name: 'Seated Leg Curl', muscles: ['hamstrings'], defaultCues: [], createdAt: Timestamp.now() };
+    await assertSucceeds(addDoc(exs, { ...ex, pickerHidden: true, context: 'Haven' }));
+    await assertFails(addDoc(exs, { ...ex, pickerHidden: 'yes' }));
+    await assertFails(addDoc(exs, { ...ex, context: 'x'.repeat(41) }));
+
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), homePlan: { label: 'Home v2.4', trainingDays: [1, 3, 5] } }));
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), homePlan: 'v2.4' }));
+  });
+
   it('accepts gymBusy and a one-off template, and lets the client archive one (2026-11-16)', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());

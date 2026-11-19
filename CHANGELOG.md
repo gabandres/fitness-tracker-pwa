@@ -4,6 +4,34 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-19 — Home v2.4 locked in after the trip; per-template re-entry, home plan, travel kit (`scripts/owner-data-2026-11-19-v2-4-lock.mts`)
+
+App: **re-entry rules per template** on the trip (`TravelPeriod.reentryRules`, frozen as
+`WorkoutSession.reentryRule`: load %, RIR or normal effort, banner, `round: 'nearest'`); **home plan**
+(`profile.homePlan`: Mon/Wed/Fri hint, dated notes, v2.4 review card after 2 normal rotations, deload at 3 lifts
+down ≥ 1 rep twice running, no weight-outlier alert before 11/26, 11/26 tape check-in card on Body + 7 AM
+notification, lunch logged as an estimate 11/28 → 12/06 from Today); **template tags** + "Restore all ‘travel
+kit’" in Archived; `expectedMin` ("≈ 60 min") on Start's cards; **picker-hidden** Haven/Airbnb lifts; the parked
+11/06 **both sides in one round** (`sideSwitchSec`: calf L → R, one-arm OH ext L → R) and the switch-to-v1 confirm
+naming v2.4, from `wip/mac-uncommitted-2026-11-12`. Rules: template `tags`/`expectedMin`, exercise
+`pickerHidden`/`context`, profile `homePlan`, session `reentryRule`.
+
+Owner data: every travel template archived and tagged (A/B/C/D "travel kit"); trip sessions not comparable;
+Pull E + calf 1/leg, Push B calf 2 → 1/leg (calves 3/leg/week), Leg Extensions 100 → 90 (last home load),
+pull-up +5 lb rule; Leg 1 → Leg −10 % RIR 2, Pull/Push −5 % normal effort; the trip plan ends 11/18.
+
+## 2026-11-17 — the logged Airbnb session corrected (owner data, `scripts/owner-data-2026-11-17-airbnb-fix.mts`)
+
+Session `0G7LWF9xKKQN1B5OzctJ`: the "One-arm Cable Overhead Triceps Extension" sets moved to "Cable Pushdown
+(Airbnb)" (2 clusters, both arms, so the overhead extension has no history); the home "DB hammer curl" (8 typed
+into an lb row) and "Deficit Push-up" rows moved to Airbnb lifts (8 kg/hand; bodyweight), so home history is
+untouched; the captain's chair 54 kg became bodyweight; the chest press cluster 2 RIR became 0. Split squat, leg
+extension and dips are rows with no sets and the new **`SessionExercise.skipped`** reason (status stays
+`completed`, not `partial`; the reasons go into the export's notes). Stack loads are estimates (≈5 kg/plate):
+those sets keep the kg and **`plate`** together. Week of 11/16: back 4 · chest 3 · side delts 2 · hamstrings 2 ·
+biceps 2 · triceps 2 · abs 1. The template was already archived by the app (15:54Z), so the two scheduled
+`--close` fallback runs were deleted.
+
 ## 2026-11-17 — one-off templates, stack positions, "Gym busy" on by template, volume waiver (`bde62272`; OTA on iOS build 75, Android vc 53)
 
 For the owner's 11/17 Santa Cruz Airbnb session on a home multi-gym with unmarked stacks. **One-off

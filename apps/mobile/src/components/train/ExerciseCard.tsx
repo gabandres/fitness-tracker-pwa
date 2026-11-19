@@ -27,7 +27,7 @@ import {
   suggestProgression,
   toDisplayLoad,
   targetRirOf,
-  REENTRY_RIR,
+  type ReentryRule,
 } from '@macrolog/core';
 import {
   DEFAULT_LOG_STYLE,
@@ -44,6 +44,7 @@ import { RecommendationNote } from '@/components/train/RecommendationNote';
 import { useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
 import { formatDecimal } from '@/lib/entry-input';
+import { reentryNote, reentryTargetRir } from '@/lib/reentry-note';
 import * as haptics from '@/lib/haptics';
 import { smoothLayout } from '@/lib/motion';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
@@ -94,6 +95,8 @@ export interface ExerciseCardProps {
   /** A re-entry session (travel mode, core `reentry.ts`): like a deload, no
    *  engine call and no bump — loads −10 % at RIR 2 — and a line that says so. */
   reentry?: 'travel' | 'post-travel';
+  /** The session's frozen re-entry rule (core `reentry-rule.ts`). */
+  reentryRule?: ReentryRule;
   platesOpen: boolean;
   largeText: boolean;
   dispatch: TrainState['dispatch'];
@@ -141,6 +144,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   restMiniSec,
   deload = false,
   reentry,
+  reentryRule,
   platesOpen,
   largeText,
   dispatch,
@@ -242,7 +246,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   const rirColumn = rirRequiredAt != null || liftUsesRir(ex.sets, prevSets, templateRow?.setStructure ?? catalogEx?.setStructure);
   // The RIR-compliance hint's target (Program v2.2): none in a deload week,
   // where every lift is taken to RIR 3 on purpose.
-  const targetRir = deload ? 0 : reentry ? REENTRY_RIR : targetRirOf(catalogEx?.effortStandard);
+  const targetRir = deload ? 0 : reentry ? reentryTargetRir(reentryRule, targetRirOf(catalogEx?.effortStandard)) : targetRirOf(catalogEx?.effortStandard);
   // Same reps on every set, no RIR, two sessions running (S-v2, 2026-10-24;
   // core `flatRepsWarning`): asked at the top of the card, with the lift's own
   // target. Gone once today's sets carry an RIR — the question was answered —
@@ -481,7 +485,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             <View style={styles.blockedRow} testID={`reentry-note-${exerciseIndex}`}>
               <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
               <Text style={styles.blockedText}>
-                {t(reentry === 'travel' ? 'train.reentry.travelNote' : 'train.reentry.postTravelNote', { rir: REENTRY_RIR })}
+                {reentryNote(t, reentry, reentryRule)}
               </Text>
             </View>
           ) : sideRecs ? (

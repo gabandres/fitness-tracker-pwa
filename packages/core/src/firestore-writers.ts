@@ -58,6 +58,7 @@ import type {
   TemplateExercise,
 } from './workout';
 import { sanitizeSessionExercises } from './set-load-bounds';
+import { sanitizeReentryRule, type ReentryRule } from './reentry-rule';
 import { isStorableWeight } from './weight-bounds';
 
 /**
@@ -643,6 +644,8 @@ export interface SessionDraftInput {
   deload?: boolean;
   /** A re-entry session (`reentry.ts`) — set at start, never changed. */
   reentry?: 'travel' | 'post-travel';
+  /** The re-entry session's rule (`reentry-rule.ts`) — set at start. */
+  reentryRule?: ReentryRule;
   /** Another gym's equipment (travel mode) — the lifter can switch it. */
   notComparable?: boolean;
   exercises?: SessionExercise[];
@@ -720,6 +723,7 @@ export function toSessionDoc<TS>(
     ...(draft.templateVersion !== undefined ? { templateVersion: draft.templateVersion } : {}),
     ...(draft.deload === true ? { deload: true } : {}),
     ...(draft.reentry === 'travel' || draft.reentry === 'post-travel' ? { reentry: draft.reentry } : {}),
+    ...(draft.reentry && draft.reentryRule && sanitizeReentryRule(draft.reentryRule) ? { reentryRule: sanitizeReentryRule(draft.reentryRule)! } : {}),
     ...(draft.notComparable === true ? { notComparable: true } : {}),
     // Absent stays absent — a strength-only session must not gain an empty
     // array it never had, which would rewrite every session doc on next save.

@@ -15,6 +15,7 @@ import {
   isMaintaining,
   parseYmd,
   activeTravel,
+  homePlanOf,
   travelPeriodsOf,
   type DayBoundary,
 } from '@macrolog/core';
@@ -173,15 +174,20 @@ export function useReminderSync(): void {
       const maintaining = isMaintaining(profileRef.current);
       const tape = { allowed: tapeAllowedRef.current, female: profileRef.current?.sex === 'female' };
       const mealsLoggedToday = mealsLoggedOn(logs, boundary, now);
+      // The home plan's check-in (core `home-plan.ts`): 7 AM on its day — a
+      // fasted weigh-in and tape.
+      const ci = homePlanOf(profileRef.current as { homePlan?: unknown } | null)?.checkIn;
+      const hour = 7;
+      const checkIn = ci ? { date: ci.date, title: ci.title, body: ci.note ?? t('homePlan.checkInToday'), hour } : null;
 
       // The calendar date is in the signature because the meal windows are
       // one-shots counted from today: the first open of a new day re-arms
       // them even when nothing else moved.
-      const sig = `${calendarDateKey(now)}|${loggedToday}|${mealsLoggedToday.join(',')}|${streak}|${sinceWeigh}|${sinceLog}|${maintaining}|${tape.allowed}|${tape.female}`;
+      const sig = `${calendarDateKey(now)}|${loggedToday}|${mealsLoggedToday.join(',')}|${streak}|${sinceWeigh}|${sinceLog}|${maintaining}|${tape.allowed}|${tape.female}|${checkIn ? `${checkIn.date}@${hour}` : ''}`;
       if (sig === lastSig.current) return;
       lastSig.current = sig;
       void syncReminders(
-        { loggedToday, mealsLoggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog, maintaining, tape },
+        { loggedToday, mealsLoggedToday, streak, daysSinceWeighIn: sinceWeigh, daysSinceLastLog: sinceLog, maintaining, tape, checkIn },
         t,
       );
     };

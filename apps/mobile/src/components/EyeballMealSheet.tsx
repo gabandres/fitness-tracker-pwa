@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import type { LogEntry } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -45,15 +45,22 @@ export function EyeballMealSheet({
   visible,
   onClose,
   onSave,
+  initialName = '',
 }: {
   visible: boolean;
   onClose: () => void;
   onSave: (entry: LogEntry) => Promise<unknown>;
+  /** The name the field opens with ("Lunch (estimated)", the home plan's
+   *  estimated-meal days, 2026-11-18). */
+  initialName?: string;
 }) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName);
+  useEffect(() => {
+    if (visible) setName(initialName);
+  }, [visible, initialName]);
   const [size, setSize] = useState<EyeballSize>('M');
   const [kcal, setKcal] = useState(String(EYEBALL_SIZES.M.kcal));
   const [protein, setProtein] = useState(String(EYEBALL_SIZES.M.protein));

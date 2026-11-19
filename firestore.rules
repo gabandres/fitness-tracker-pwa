@@ -373,7 +373,8 @@ service cloud.firestore {
                                   'availableLoads', 'assisted', 'effortStandard',
                                   'targetRepBand', 'setStructure', 'category',
                                   'repRange', 'smithBarEffectiveLb', 'loadable',
-                                  'microplates', 'unitByGym', 'createdAt'])
+                                  'microplates', 'unitByGym', 'pickerHidden', 'context',
+                                  'createdAt'])
           && data.keys().hasAll(['name', 'createdAt'])
           && data.name is string && data.name.size() > 0 && data.name.size() <= 100
           && data.createdAt is timestamp
@@ -425,7 +426,11 @@ service cloud.firestore {
           // The unit this lift was last used in, per gym (2026-11-05; core
           // gym-units.ts): a small map; `unitByGymOf` drops anything not kg/lb.
           && (!('unitByGym' in data.keys()) ||
-              (data.unitByGym is map && data.unitByGym.size() <= 20));
+              (data.unitByGym is map && data.unitByGym.size() <= 20))
+          // Out of the default picker; where it is done (2026-11-18).
+          && (!('pickerHidden' in data.keys()) || data.pickerHidden is bool)
+          && (!('context' in data.keys()) ||
+              (data.context is string && data.context.size() <= 40));
     }
 
     // `cardioBlocks` is the PRESCRIPTION half of ADR-0025 — cardio a template
@@ -480,8 +485,12 @@ service cloud.firestore {
       return data.keys().hasOnly([
               'name', 'notes', 'restMiniSec', 'restClusterSec',
               'exercises', 'cardioBlocks', 'seedKey', 'createdAt', 'updatedAt',
-              'templateVersion', 'archivedAt', 'timeCap', 'gymBusy', 'oneOff'
+              'templateVersion', 'archivedAt', 'timeCap', 'gymBusy', 'oneOff',
+              // Free labels (2026-11-18: "travel kit"; core templateTagsOf).
+              'tags', 'expectedMin'
           ])
+          && (!('expectedMin' in data.keys()) || (data.expectedMin is number && data.expectedMin > 0 && data.expectedMin <= 600))
+          && (!('tags' in data.keys()) || (data.tags is list && data.tags.size() <= 10))
           && (!('gymBusy' in data.keys()) || data.gymBusy is bool)
           && (!('oneOff' in data.keys()) ||
               (data.oneOff is map && data.oneOff.keys().hasOnly(['archiveOn'])
@@ -648,6 +657,9 @@ service cloud.firestore {
               // (−10 %, RIR 2) and another gym's equipment. Neither is read
               // by the engine; a not-comparable one is out of e1RM/PRs too.
               'reentry', 'notComparable',
+              // Its rule (2026-11-18; core reentry-rule.ts): the load cut and the
+              // RIR (absent = the lift's normal effort), and the banner.
+              'reentryRule',
               // Pause / resume (2026-11-04; core session-pause.ts): the active
               // parts, and a session closed early (still `completed`).
               'segments', 'partial',
@@ -693,6 +705,14 @@ service cloud.firestore {
           && (!('deload' in data.keys()) || data.deload is bool)
           && (!('reentry' in data.keys()) || data.reentry in ['travel', 'post-travel'])
           && (!('notComparable' in data.keys()) || data.notComparable is bool)
+          && (!('reentryRule' in data.keys()) ||
+              (data.reentryRule is map
+               && data.reentryRule.keys().hasOnly(['loadPct', 'rir', 'label', 'round'])
+               && (!('round' in data.reentryRule.keys()) || data.reentryRule.round in ['down', 'nearest'])
+               && data.reentryRule.loadPct is number
+               && data.reentryRule.loadPct >= 0 && data.reentryRule.loadPct <= 50
+               && (!('rir' in data.reentryRule.keys()) || (data.reentryRule.rir is int && data.reentryRule.rir >= 0 && data.reentryRule.rir <= 5))
+               && (!('label' in data.reentryRule.keys()) || (data.reentryRule.label is string && data.reentryRule.label.size() <= 80))))
           && (!('nextNotes' in data.keys()) ||
               (data.nextNotes is string && data.nextNotes.size() <= 2000));
     }
@@ -807,6 +827,11 @@ service cloud.firestore {
               // a past trip's days stay out of the maintenance fit. Settings
               // writes it, a completed-profile screen only.
               'travelPeriods',
+              // The home plan (2026-11-18; core home-plan.ts): dated notes, the
+              // default week, a review checkpoint, a tape check-in. Written by an
+              // owner-data script; the app writes only review.dismissedAt.
+              // `homePlanOf` drops anything malformed on read.
+              'homePlan',
               // A one-time "kg or lb?" question for a gym (2026-11-05; core
               // gym-units.ts `UnitAsk`). Written by an owner-data script; the
               // app deletes it once answered.
@@ -947,6 +972,7 @@ service cloud.firestore {
           // drops any entry that is not a well-formed {start, end} on read.
           && (!('travelPeriods' in keys) ||
               (data.travelPeriods is list && data.travelPeriods.size() <= 24))
+          && (!('homePlan' in keys) || (data.homePlan is map && data.homePlan.size() <= 12))
           && (!('unitAsk' in keys) ||
               (data.unitAsk is map
                && data.unitAsk.keys().hasOnly(['gym', 'question', 'exerciseIds', 'relabelSessionId'])

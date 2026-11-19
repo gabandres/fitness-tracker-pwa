@@ -83,3 +83,26 @@ describe('volumeOk plan notes (2026-11-16)', () => {
     expect(volumeWaiver([], '2026-11-17')).toBeNull();
   });
 });
+
+describe('skipped rows and plate estimates (2026-11-17)', () => {
+  const at = new Date('2026-11-17T15:00:00Z');
+  const s: WorkoutSession = {
+    status: 'completed', templateId: 'airbnb', templateName: 'Airbnb', date: at, createdAt: at, updatedAt: at,
+    exercises: [
+      { exerciseId: 'bss', name: 'Bulgarian Split Squat (DB)', cues: [], sets: [], skipped: 'no stable bench' },
+      { exerciseId: 'row', name: 'Row', cues: [], logStyle: 'weight-reps', sets: [{ kind: 'activation', group: 1, weight: 121.25, unit: 'kg', plate: 11, reps: 12, rir: 0, done: true }] },
+    ],
+  };
+  it('a skipped row is named in the workout notes; an estimate set exports its kg, not "plate"', async () => {
+    const { buildCsv } = await import('./csv-export');
+    const csv = buildCsv({ logs: [], measurements: [], dailyWeights: {}, dailyWater: {}, dailySleep: {}, workoutSessions: [s] });
+    const [head, ...lines] = csv.split('\r\n');
+    const cols = head.split(',');
+    const rows = lines.map((l) => Object.fromEntries(l.split(',').map((v, i) => [cols[i], v])));
+    expect(rows.find((r) => r.type === 'workout')!.notes).toContain('skipped: Bulgarian Split Squat (DB) (no stable bench)');
+    const set = rows.find((r) => r.type === 'workout_set')!;
+    expect(set.unit).toBe('kg');
+    expect(rows.filter((r) => r.type === 'workout_set')).toHaveLength(1);
+    expect(workingSetCells(s.exercises[1], 'weight-reps', 'metric')).toEqual(['55×12']);
+  });
+});

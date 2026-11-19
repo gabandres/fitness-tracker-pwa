@@ -499,6 +499,18 @@ These three windows look similar and are NOT interchangeable. See
   'post-travel'`): loads −10 %, RIR 2, never read by the engine (ADR-0048).
   Not a deload (that halves volume); "not comparable" is a separate switch
   for another gym's equipment.
+- **Re-entry rule** (2026-11-18) — how hard a template's first post-travel
+  session backs off: `TravelPeriod.reentryRules` (`{ templateIds, loadPct,
+  rir?, label?, round? }`, core `reentry-rule.ts`), frozen on the session as
+  `reentryRule`. `rir` absent = the lift's normal effort; `round: 'nearest'`
+  keeps a load when no step lies within the cut. No rule → −10 %, RIR 2.
+- **Home plan** (2026-11-18) — `profile.homePlan` (core `home-plan.ts`): a
+  trip plan's counterpart for the weeks at home — dated notes, the default
+  training week (a suggestion, never a warning), the program review card after
+  N normal rotations, the deload trigger (lifts, reps down), a quiet window for
+  weight alerts, a dated tape check-in vs a baseline, and days a meal may be
+  logged as an estimate (the eyeballed-meal sheet, off-trip). Owner-data
+  written; the app only reads it.
 - **Day fully logged?** — The Today row that answers whether a day is a
   **Complete day** (see Targets + derivations); stored per day in
   `dailyLogged`. Unlike Evening hunger it is NOT display-only: it is an input
@@ -556,6 +568,14 @@ collections + a `WorkoutStore` facet back the Train tab.
   not a mass, so volume load, e1RM, PRs and the engine never read it, and
   `fillMissingClusterLoads` never gives it one. Exported as `unit: 'plate'`,
   number in `loadInUnit`.
+- **Template tags** (2026-11-18) — `WorkoutTemplate.tags`: free labels
+  ("travel kit"); Train's Archived list restores every archived template
+  sharing one in one tap (core `archivedByTag`). `expectedMin` is the stated
+  session length shown on Start's card instead of the app's work + rest
+  estimate.
+- **Picker-hidden exercise** (2026-11-18) — `Exercise.pickerHidden` (+
+  `context`: "Haven", "Airbnb"): out of the default exercise picker, still
+  found by a name search; history untouched.
 - **One-off template** (2026-11-16) — `WorkoutTemplate.oneOff.archiveOn`: a
   throwaway for one day. Never in a rotation or "next up" (unless a trip plan
   names it); its session starts **not comparable**; the app archives it once a

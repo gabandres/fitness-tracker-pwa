@@ -384,12 +384,14 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
         ? `paused: left ${remainingSteps(s).map(remainingStepText).join('; ')}`
         : undefined;
     const parts = s.segments && s.segments.length > 1 ? `${s.segments.length} parts` : undefined;
+    const skips = s.exercises.filter((ex) => ex.skipped).map((ex) => `${ex.name} (${ex.skipped})`);
+    const skipNote = skips.length ? `skipped: ${skips.join('; ')}` : undefined;
     if (lifting) rows.push(row({
       type: 'workout',
       date,
       timestamp,
       sessionStatus: status,
-      notes: [statusNote, parts, s.durationNote, s.sessionNote].filter(Boolean).join(' · ') || undefined,
+      notes: [statusNote, parts, skipNote, s.durationNote, s.sessionNote].filter(Boolean).join(' · ') || undefined,
       template: s.templateName,
       weight: s.bodyweight,
       durationMin: s.durationMin,
@@ -397,6 +399,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
       templateVersion: s.templateVersion,
       sessionFlags: [
         s.reentry ? `reentry:${s.reentry}` : '',
+        s.reentry && s.reentryRule ? `reentry:-${s.reentryRule.loadPct}%:${s.reentryRule.rir != null ? `rir${s.reentryRule.rir}` : 'normal'}` : '',
         s.notComparable ? 'notComparable' : '',
         s.exercises.some((ex) => ex.calibration && ex.linkedHome) ? 'travel-re-entry' : '',
       ].filter(Boolean).join(';'),
@@ -620,6 +623,7 @@ function templateRows(data: ExportData): string[] {
         ...(ex.baseline ? [`baseline since ${ex.baseline.since}: ${ex.baseline.reason}`] : []),
         ...(ex.excludedReads ?? []).map((x) => `${x.date} not read: ${x.reason}`),
         ...(ex.alternatives ?? []).map((a) => `alt: ${a.name}${a.note ? ` (${a.note})` : ''}`),
+        ...(ex.sideSwitchSec != null && ex.supersetGroup ? [`L+R in one round, ${ex.sideSwitchSec} s between sides`] : []),
         ...(ex.optional ? ['optional'] : []),
         ...(ex.carryover ? [`carryover from ${ex.carryover.from}: ${ex.carryover.clusters}`] : []),
         ...(ccc ? [`cluster count changed ${ccc.from}→${ccc.to}${ccc.since ? ` on ${ccc.since}` : ''}; baseline`] : []),

@@ -29,6 +29,7 @@ import { MeasurementTrends } from '@/components/body/MeasurementTrends';
 import { ROW_PREVIEW_WIDTH, RowPreview, rowPreviewHeight } from '@/components/body/RowPreview';
 import { WeightChart } from '@/components/body/WeightChart';
 import { WeightSheet } from '@/components/body/WeightSheet';
+import { HomeCheckInCard } from '@/components/HomePlanCards';
 import { GoalMilestonePrompt } from '@/components/GoalMilestonePrompt';
 import { MaintenanceSwitchCard } from '@/components/MaintenanceSwitchCard';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
@@ -40,7 +41,7 @@ import { useAuth } from '@/lib/auth';
 import { FEATURES, isFeatureOn } from '@/lib/features';
 import { recordMilestone, switchToMaintenance } from '@/lib/ledger';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
-import { isMaintaining } from '@macrolog/core';
+import { checkInToday, dayBoundaryOf, homePlanOf, isMaintaining } from '@macrolog/core';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { isAnySheetActive, onSheetsIdle } from '@/lib/sheet-portal';
@@ -200,6 +201,9 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   const loadAllHistory = body.loadAllHistory ?? NO_OP;
 
   const { user, profile, isAdmin } = useAuth();
+  // The home plan's tape check-in (core `home-plan.ts`, 2026-11-18): due on
+  // its day, shown for a week, against the plan's baseline.
+  const checkIn = useMemo(() => checkInToday(homePlanOf(profile as { homePlan?: unknown } | null), todayKey), [profile, todayKey]);
   // ADR-0043: the measured body-fat field ships with composition maintenance.
   const showBodyFat = isFeatureOn(FEATURES.compositionMaintenance, { isAdmin });
   // Flag off → the card is what it was before ADR-0043: the Navy estimate
@@ -836,6 +840,16 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
               <Text style={styles.logBtnText}>{todayWeight != null ? t('body.updateWeight') : t('body.logWeight')}</Text>
             </Touchable>
           </Animated.View>
+
+          {checkIn ? (
+            <HomeCheckInCard
+              checkIn={checkIn}
+              todayKey={todayKey}
+              weights={weights}
+              measurements={measurements}
+              boundary={dayBoundaryOf(profile)}
+            />
+          ) : null}
 
           <BodyFatCard shown={bodyFatShown} navyPct={bodyFat} gap={bodyFatGap} missing={bodyFatMissing ?? []} />
 

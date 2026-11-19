@@ -85,3 +85,33 @@ export function oneOffsToArchive<T extends { id?: string; archivedAt?: Date | nu
 export function isExpiredOneOff(t: { oneOff?: OneOff }, today: string): boolean {
   return t.oneOff != null && today >= t.oneOff.archiveOn;
 }
+
+// ─── Template tags (owner, 2026-11-18) ──────────────────────────
+
+/** Well-formed tags (trimmed, ≤ 40 chars, ≤ 10, no duplicates); anything else
+ *  is dropped on read. */
+export function templateTagsOf(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== 'string') continue;
+    const tag = x.trim().slice(0, 40);
+    if (tag && !out.includes(tag)) out.push(tag);
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+/** The archived templates grouped by tag — the Archived list's "Restore all
+ *  ‘travel kit’" rows — tags in first-seen order, only tags with ≥ 1 archived
+ *  template. Pure. */
+export function archivedByTag<T extends { id?: string; archivedAt?: Date | null; tags?: readonly string[] }>(
+  templates: readonly T[],
+): { tag: string; templates: T[] }[] {
+  const groups = new Map<string, T[]>();
+  for (const t of templates) {
+    if (!t.id || !isArchivedTemplate(t)) continue;
+    for (const tag of t.tags ?? []) groups.set(tag, [...(groups.get(tag) ?? []), t]);
+  }
+  return [...groups].map(([tag, ts]) => ({ tag, templates: ts }));
+}

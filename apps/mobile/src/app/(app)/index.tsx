@@ -12,7 +12,8 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
-import { activeTravel, addDays, calendarDateKey, dayBoundaryOf, fastLengthHours, maintenanceView, parseYmd, travelPeriodsOf, usualSteps, USUAL_STEPS_WINDOW_DAYS } from '@macrolog/core';
+import { activeTravel, addDays, calendarDateKey, checkInToday, dayBoundaryOf, estimatedMealToday, fastLengthHours, homePlanOf, maintenanceView, parseYmd, travelPeriodsOf, usualSteps, USUAL_STEPS_WINDOW_DAYS } from '@macrolog/core';
+import { HomePlanTodayCard } from '@/components/HomePlanCards';
 import { useActivityRange } from '@/hooks/useActivityRange';
 import { refreshStepsSoon } from '@/lib/steps-background';
 import { confirmNative } from '@/components/ConfirmSheet';
@@ -348,6 +349,11 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     }, []),
   );
   const [eyeballOpen, setEyeballOpen] = useState(false);
+  // The home plan (core `home-plan.ts`, 2026-11-18): a due check-in, and days
+  // a meal may be logged as an estimate (the eyeballed-meal sheet, off-trip).
+  const homePlan = useMemo(() => homePlanOf(todayProfile as { homePlan?: unknown } | null), [todayProfile]);
+  const estimatedMeal = estimatedMealToday(homePlan, todayKey);
+  const [eyeballName, setEyeballName] = useState('');
   const [fastSheetOpen, setFastSheetOpen] = useState(false);
   /**
    * **Always subscribed, reversing the gating this shipped with.**
@@ -1026,9 +1032,21 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               kcal={summary.totalCalories}
               kcalTarget={targets.calorieTarget || 0}
               steps={activity?.steps}
-              onEyeballMeal={() => setEyeballOpen(true)}
+              onEyeballMeal={() => {
+                setEyeballName('');
+                setEyeballOpen(true);
+              }}
             />
-          ) : null}
+          ) : (
+            <HomePlanTodayCard
+              checkIn={checkInToday(homePlan, todayKey)}
+              estimatedMeal={estimatedMeal}
+              onEstimatedMeal={() => {
+                setEyeballName(t('homePlan.estimatedName', { slot: estimatedMeal?.slot ?? '' }));
+                setEyeballOpen(true);
+              }}
+            />
+          )}
           {/* A workout paused partway (core `session-pause.ts`): resumed on
               Train, in the same record. */}
           {recentSessions.filter((s) => s.status === 'paused').map((s) => (
@@ -1185,7 +1203,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
       )}
 
       {trip ? (
-        <EyeballMealSheet visible={eyeballOpen} onClose={() => setEyeballOpen(false)} onSave={diary.onSave} />
+        <EyeballMealSheet visible={eyeballOpen} onClose={() => setEyeballOpen(false)} onSave={diary.onSave} initialName={eyeballName} />
       ) : null}
       <EntrySheet
         visible={diary.sheetOpen}

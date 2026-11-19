@@ -47,6 +47,7 @@ export type { LoadUnit, MuscleGroup } from '@macrolog/core/workout';
 import type { LoadUnit } from '@macrolog/core/workout';
 import type { PartialClose, RowAlternative, RowCarryover, SessionSegment, TimeCap } from '@macrolog/core';
 import type { OneOff } from '@macrolog/core/workout';
+import type { ReentryRule } from '@macrolog/core';
 
 /** How a set counts. v1 only creates `working`; the others exist so docs
  *  written by the PWA round-trip cleanly. */
@@ -98,6 +99,9 @@ export interface Exercise {
   microplates?: boolean;
   /** Core `Exercise.unitByGym`: the last unit used, per gym. */
   unitByGym?: Partial<Record<string, LoadUnit>>;
+  /** Core `Exercise.pickerHidden` / `context`: out of the default picker. */
+  pickerHidden?: boolean;
+  context?: string;
   createdAt: Date;
 }
 
@@ -157,6 +161,8 @@ export interface SessionExercise {
   /** Program v2 rests, snapshotted from the template row (core). */
   restClusterSec?: number;
   minClusterRestSec?: number;
+  /** Both sides of an L/R pair in one superset round — core `TemplateExercise.sideSwitchSec`. */
+  sideSwitchSec?: number;
   /** An L/R lift: each side's call, frozen at start (core `side-tracks.ts`). */
   sideRecommendations?: Partial<Record<Side, RecommendationSnapshot>>;
   /** Snapshotted from the template row — core `TemplateExercise.loadUnit`. */
@@ -172,6 +178,8 @@ export interface SessionExercise {
    *  of kg / lb: a selectorized stack with unmarked plates. */
   stackPositions?: boolean;
   carryover?: RowCarryover;
+  /** Why the row was skipped on purpose — core `SessionExercise.skipped`. */
+  skipped?: string;
 }
 
 // ─── Templates ──────────────────────────────────────────────────
@@ -253,6 +261,8 @@ export interface TemplateExercise {
    *  these; core's carried fields keep them across an editor save. */
   restClusterSec?: number;
   minClusterRestSec?: number;
+  /** Both sides of an L/R pair in one superset round — core `TemplateExercise.sideSwitchSec`. */
+  sideSwitchSec?: number;
   clusterCountChange?: { from: number; to: number; since: string };
   sideLoads?: Partial<Record<Side, number>>;
   /** Core `TemplateExercise.loadUnit` / `awayGym` / `linkedHome`. */
@@ -299,6 +309,10 @@ export interface WorkoutTemplate {
    *  and archived once a session of it is logged or on `archiveOn`
    *  (YYYY-MM-DD), whichever comes first (`oneOffsToArchive`). */
   oneOff?: OneOff;
+  /** Core `WorkoutTemplate.tags` — restore-by-tag in the Archived list. */
+  tags?: string[];
+  /** Core `WorkoutTemplate.expectedMin` — the stated session length. */
+  expectedMin?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -355,6 +369,7 @@ export function templateToSessionExercises(template: WorkoutTemplate): SessionEx
       ...supersets[i],
       ...(ex.restClusterSec != null ? { restClusterSec: ex.restClusterSec } : {}),
       ...(ex.minClusterRestSec != null ? { minClusterRestSec: ex.minClusterRestSec } : {}),
+      ...(ex.sideSwitchSec != null ? { sideSwitchSec: ex.sideSwitchSec } : {}),
       ...(ex.loadUnit ? { loadUnit: ex.loadUnit } : {}),
       ...(ex.awayGym ? { awayGym: ex.awayGym } : {}),
       ...(ex.linkedHome ? { linkedHome: true } : {}),
@@ -411,6 +426,8 @@ export interface WorkoutSession {
   /** A re-entry session after time away (travel mode, core `reentry.ts`):
    *  loads −10 %, RIR 2, never read by the engine. Set at start. */
   reentry?: 'travel' | 'post-travel';
+  /** Core `WorkoutSession.reentryRule`: the load cut and RIR of this re-entry. */
+  reentryRule?: ReentryRule;
   /** "Different equipment — not comparable" (travel mode): out of the
    *  engine's reads and out of e1RM / PRs. The lifter can switch it. */
   notComparable?: boolean;

@@ -71,6 +71,12 @@ export function deloadSignal(input: {
   templates: readonly Pick<WorkoutTemplate, 'exercises'>[];
   sessions: readonly WorkoutSession[];
   since?: Date;
+  /** Lifts down together before the prompt (owner's home plan, 2026-11-18:
+   *  3). Absent → {@link DELOAD_TRIGGER_LIFTS}. */
+  triggerLifts?: number;
+  /** Reps an activation must drop by, twice running (home plan: 1 — "below
+   *  the previous activation reps"). Absent → {@link DELOAD_REPS_DOWN}. */
+  repsDown?: number;
 }): DeloadSignal {
   const sinceKey = input.since ? calendarDateKey(input.since) : undefined;
   const pool = input.sessions
@@ -82,14 +88,14 @@ export function deloadSignal(input: {
     for (const row of t.exercises) {
       if (seen.has(row.exerciseId)) continue;
       seen.add(row.exerciseId);
-      const down = liftDown(row, pool);
+      const down = liftDown(row, pool, input.repsDown ?? DELOAD_REPS_DOWN);
       if (down) lifts.push(down);
     }
   }
-  return { triggered: lifts.length >= DELOAD_TRIGGER_LIFTS, lifts };
+  return { triggered: lifts.length >= (input.triggerLifts ?? DELOAD_TRIGGER_LIFTS), lifts };
 }
 
-function liftDown(row: TemplateExercise, newestFirst: readonly WorkoutSession[]): DeloadLift | undefined {
+function liftDown(row: TemplateExercise, newestFirst: readonly WorkoutSession[], repsDown: number): DeloadLift | undefined {
   // The three newest sessions the engine would compare, CONSECUTIVE: an
   // unreadable one (mixed loads, no reps) breaks the run rather than being
   // stepped over — "two sessions running" means the two that happened.
@@ -106,7 +112,7 @@ function liftDown(row: TemplateExercise, newestFirst: readonly WorkoutSession[])
     if (reads.some((r) => r == null)) continue;
     const [now, then, ref] = reads as { load: number; reps: number }[];
     if (now.load !== ref.load || then.load !== ref.load) continue;
-    if (then.reps > ref.reps - DELOAD_REPS_DOWN || now.reps > ref.reps - DELOAD_REPS_DOWN) continue;
+    if (then.reps > ref.reps - repsDown || now.reps > ref.reps - repsDown) continue;
     return { exerciseId: row.exerciseId, name: side ? `${row.name} (${side})` : row.name, load: ref.load, reps: [ref.reps, then.reps, now.reps] };
   }
   return undefined;

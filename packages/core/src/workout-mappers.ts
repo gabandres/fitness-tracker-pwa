@@ -18,7 +18,8 @@ import type { CardioBlock, PlannedCardioBlock } from './cardio';
 import { toDate } from './firestore-mappers';
 import { unitByGymOf } from './gym-units';
 import { timeCapOf, type TimeCap } from './row-options';
-import { oneOffOf } from './rotation-templates';
+import { oneOffOf, templateTagsOf } from './rotation-templates';
+import { sanitizeReentryRule } from './reentry-rule';
 import type { Exercise, SessionExercise, TemplateExercise, WorkoutSession, WorkoutTemplate } from './workout';
 
 /**
@@ -55,6 +56,8 @@ export function toWorkoutExercise(id: string, data: Record<string, unknown>): Ex
     smithBarEffectiveLb: data['smithBarEffectiveLb'] as number | undefined,
     loadable: data['loadable'] as boolean | undefined,
     microplates: data['microplates'] as boolean | undefined,
+    ...(data['pickerHidden'] === true ? { pickerHidden: true } : {}),
+    ...(typeof data['context'] === 'string' && data['context'].trim() ? { context: data['context'].trim().slice(0, 40) } : {}),
     ...(Object.keys(unitByGymOf(data['unitByGym'])).length ? { unitByGym: unitByGymOf(data['unitByGym']) } : {}),
     createdAt: toDate(data['createdAt']),
   };
@@ -76,6 +79,8 @@ export function toWorkoutTemplate(id: string, data: Record<string, unknown>): Wo
     seedKey: data['seedKey'] as string | undefined,
     ...(timeCapOf(data['timeCap']) ? { timeCap: timeCapOf(data['timeCap']) as TimeCap } : {}),
     ...(data['gymBusy'] === true ? { gymBusy: true } : {}),
+    ...(typeof data['expectedMin'] === 'number' && data['expectedMin'] > 0 && data['expectedMin'] <= 600 ? { expectedMin: Math.round(data['expectedMin']) } : {}),
+    ...(templateTagsOf(data['tags']).length ? { tags: templateTagsOf(data['tags']) } : {}),
     ...(oneOffOf(data['oneOff']) ? { oneOff: oneOffOf(data['oneOff']) } : {}),
     // Absent stays absent: `toDate(undefined)` would invent "now" and archive
     // every template. A pending serverTimestamp reads as null in a local
@@ -102,6 +107,7 @@ export function toWorkoutSession(id: string, data: Record<string, unknown>): Wor
     ...(data['deload'] === true ? { deload: true } : {}),
     ...(data['reentry'] === 'travel' || data['reentry'] === 'post-travel' ? { reentry: data['reentry'] } : {}),
     ...(data['notComparable'] === true ? { notComparable: true } : {}),
+    ...(sanitizeReentryRule(data['reentryRule']) ? { reentryRule: sanitizeReentryRule(data['reentryRule'])! } : {}),
     ...(Array.isArray(data['dismissedSourceIds'])
       ? { dismissedSourceIds: (data['dismissedSourceIds'] as unknown[]).filter((x): x is string => typeof x === 'string') }
       : {}),

@@ -219,6 +219,8 @@ const CARRIED_ROW_FIELDS = [
   'linkedHome',
   // Row options (2026-11-05, `row-options.ts`): swaps, optional, carryover.
   'alternatives', 'optional', 'carryover',
+  // Program v2.4 (2026-11-06): both sides in one superset round.
+  'sideSwitchSec',
 ] as const;
 
 /** The fields that make a row's PRESCRIPTION — what a change stamp is about. */

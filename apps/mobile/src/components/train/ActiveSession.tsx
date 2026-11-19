@@ -39,7 +39,6 @@ import {
   sessionVolume,
   setRowLabels,
   structureOf,
-  REENTRY_RIR,
   type RestKind,
 } from '@macrolog/core';
 import type { TrainState } from '@/hooks/useTrain';
@@ -60,6 +59,7 @@ import { noteFocusTrigger, useReturnFocusOnClose } from '@/lib/return-focus';
 import { tabBarOverlap } from '@/lib/glass';
 import { useColumnGutter } from '@/lib/content-width';
 import { nowMs } from '@/lib/clock';
+import { reentryNote } from '@/lib/reentry-note';
 import { RevealAboveKeyboardContext, useRevealAboveKeyboard } from './reveal-above-keyboard';
 import { publishRestEndsAt } from '@/lib/active-workout-signal';
 import { useIsOffline } from '@/lib/connectivity';
@@ -628,14 +628,26 @@ export function ActiveSession({
     // Only for a CLUSTERED lift: a straight-set member's units are its sets,
     // and "(cluster 2)" would name set 2 wrongly.
     const clusteredNext = nextEx?.sets.some((s) => s.kind === 'activation') === true;
+    // An L/R lift counts its clusters per side: the R side's first cluster is
+    // "R (cluster 1)", not the lift's second unit (Program v2.4, both sides
+    // in one round — `sideSwitchSec`).
+    const nextSide = flow.next ? nextEx?.sets[flow.next.setIndex]?.label?.trim() : undefined;
+    const sideN = (side: string) => (nextEx?.sets ?? [])
+      .filter((x, i) => x.kind === 'activation' && x.label?.trim() === side && i <= flow.next!.setIndex).length;
     const named = (name: string) => nextTag != null && flow.next?.unit != null && clusteredNext
-      ? t('train.superset.nextCluster', { name, n: flow.next.unit + 1 })
+      ? (nextSide === 'L' || nextSide === 'R'
+        ? t('train.superset.nextSide', { name, side: nextSide, n: Math.max(1, sideN(nextSide)) })
+        : t('train.superset.nextCluster', { name, n: flow.next.unit + 1 }))
       : name;
+    // The other side of the same lift, in the same round.
+    const sideSwitch = flow.kind === 'transition' && flow.next?.exerciseIndex === exerciseIndex && nextTag != null;
     const nextLabel = alone && nextEx
       ? t('train.superset.nextAlone', { next: `${nextTag} · ${named(nextEx.name)}` })
-      : into && (tagsNow[exerciseIndex] != null || nextTag != null)
-        ? (nextTag ? `${nextTag} · ${named(into.name)}` : into.name)
-        : null;
+      : sideSwitch && nextEx
+        ? `${nextTag} · ${named(nextEx.name)}`
+        : into && (tagsNow[exerciseIndex] != null || nextTag != null)
+          ? (nextTag ? `${nextTag} · ${named(into.name)}` : into.name)
+          : null;
     const heading = flow.kind === 'transition' && nextTag
       ? t('train.superset.switchTo')
       : (flow.kind === 'round' || alone) && flow.round
@@ -1713,7 +1725,7 @@ export function ActiveSession({
             <View style={styles.syncRow} testID="session-reentry">
               <Ionicons name="airplane-outline" size={16} color={colors.muted} />
               <Text style={[styles.sheetHint, { flex: 1 }]}>
-                {t(session.reentry === 'travel' ? 'train.reentry.travelNote' : 'train.reentry.postTravelNote', { rir: REENTRY_RIR })}
+                {reentryNote(t, session.reentry, session.reentryRule)}
               </Text>
             </View>
           ) : null}
@@ -1779,6 +1791,7 @@ export function ActiveSession({
               exercise={ex}
               deload={session.deload === true}
               reentry={session.reentry}
+              reentryRule={session.reentryRule}
               supersetTag={sessionTags[exIdx]}
               supersetPartners={group ? (supersetGroups(session.exercises).get(group) ?? []).filter((m) => m.index !== exIdx).map((m) => session.exercises[m.index].name).join(', ') : undefined}
               upNext={rest.endsAt != null && restTarget === exIdx}

@@ -37,6 +37,10 @@ export interface ReminderState {
 /** Live signals the smart planner needs, gathered by `useReminderSync`. */
 export interface ReminderLiveState {
   loggedToday: boolean;
+  /** The home plan's dated check-in (core `home-plan.ts`, 2026-11-18): one
+   *  notification at `hour` on its day. Null = none; absent (Settings'
+   *  neutral state) → the last one a live sync passed. */
+  checkIn?: { date: string; title: string; body: string; hour: number } | null;
   /** Meal windows already logged on today's calendar date; their nudge is
    *  skipped today. Absent (Settings' neutral state) → the last list a live
    *  sync passed today, see {@link loggedMealsToday}. */
@@ -236,6 +240,10 @@ async function syncOnce(state: ReminderLiveState, t: TFn): Promise<void> {
   // Isolated: a failure here must never cost the user their meal reminders.
   if (state.tape) tapeGate = state.tape;
   await scheduleTapeReminder(t).catch(() => undefined);
+  // The check-in is the plan's own dated ask, not a nudge: re-armed here, like
+  // the tape reminder, whatever the master switch says.
+  if (state.checkIn !== undefined) lastCheckIn = state.checkIn;
+  await scheduleCheckIn(lastCheckIn, now).catch(() => undefined);
   if (!enabled) return;
 
   const plans = planReminders({
@@ -267,6 +275,24 @@ function scheduleOne(plan: ReminderPlan, t: TFn): Promise<string>[] {
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date },
     }),
   );
+}
+
+// ─── Home-plan check-in (2026-11-18) ────────────────────────────
+
+const CHECK_IN_NOTIFICATION_ID = 'home-check-in';
+let lastCheckIn: ReminderLiveState['checkIn'] = null;
+
+/** One notification on the check-in's day at its hour, unless that is past. */
+async function scheduleCheckIn(c: ReminderLiveState['checkIn'], now: Date): Promise<void> {
+  if (!c) return;
+  const [y, m, d] = c.date.split('-').map(Number);
+  const at = new Date(y, m - 1, d, c.hour, 0, 0);
+  if (!(at.getTime() > now.getTime())) return;
+  await Notifications.scheduleNotificationAsync({
+    identifier: CHECK_IN_NOTIFICATION_ID,
+    content: { title: c.title, body: c.body },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
+  });
 }
 
 // ─── Weekly tape reminder (ADR-0043) ────────────────────────────

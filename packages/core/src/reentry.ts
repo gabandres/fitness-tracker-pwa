@@ -28,6 +28,9 @@ import { addDays, calendarDateKey, parseYmd } from './date';
 import { dayKeyAt, type DayBoundary } from './day-boundary';
 import { activeTravel, lastEndedTravel, type TravelPeriod } from './travel';
 import type { SessionExercise, WorkoutSession, WorkoutSet } from './workout';
+import { DEFAULT_REENTRY_RULE, type ReentryRule } from './reentry-rule';
+
+export { DEFAULT_REENTRY_RULE, sanitizeReentryRule, sanitizeReentryRules, type ReentryRule, type ReentryRuleEntry } from './reentry-rule';
 
 export type ReentryKind = 'travel' | 'post-travel';
 
@@ -101,6 +104,21 @@ export function reentryFor(args: {
   return !doneSince && hadBefore ? 'post-travel' : null;
 }
 
+/** The rule for a `post-travel` session of `templateId` after `period`; a
+ *  `travel` re-entry (during a trip) always takes the default. */
+export function reentryRuleFor(kind: ReentryKind, templateId: string | undefined, period: TravelPeriod | null): ReentryRule {
+  if (kind !== 'post-travel' || !templateId || !period?.reentryRules) return DEFAULT_REENTRY_RULE;
+  const hit = period.reentryRules.find((r) => r.templateIds.includes(templateId));
+  if (!hit) return DEFAULT_REENTRY_RULE;
+  const { templateIds: _ids, ...rule } = hit;
+  return rule;
+}
+
+/** The trip a `post-travel` session today follows (the last one that ended). */
+export function reentryPeriod(today: string, periods: readonly TravelPeriod[]): TravelPeriod | null {
+  return lastEndedTravel(today, periods);
+}
+
 /** How one lift's loads move: what the equipment offers, as the engine sees
  *  it (`EngineConfig`). */
 export interface ReentryStep {
@@ -116,16 +134,32 @@ export interface ReentryStep {
  * (a 5-lb lift stays 5), never above the original. Assisted: +10 % assistance,
  * rounded UP to a step — more help is the easier direction.
  */
-export function reentryLoad(load: number, step: ReentryStep): number {
-  if (!(load > 0)) return load;
+export function reentryLoad(
+  load: number,
+  step: ReentryStep,
+  factor: number = REENTRY_LOAD_FACTOR,
+  round: 'down' | 'nearest' = 'down',
+): number {
+  if (!(load > 0) || factor >= 1) return load;
+  if (round === 'nearest' && !step.assisted) {
+    // The closest load the equipment has to the cut target, never above the
+    // original: the step under AND the step over the target are candidates.
+    const target = load * factor;
+    const down = reentryLoad(load, step, factor, 'down');
+    const grid = step.loadGrid ?? step.stepLb;
+    const entered = [...new Set((step.loadSteps ?? []).filter((x) => Number.isFinite(x) && x > 0))].sort((a, b) => a - b);
+    const up = entered.length ? entered.find((x) => x >= target) : grid > 0 ? +(Math.ceil(target / grid - 1e-9) * grid).toFixed(2) : undefined;
+    if (up == null || up > load) return down;
+    return up - target < target - down ? up : down;
+  }
   const steps = [...new Set((step.loadSteps ?? []).filter((x) => Number.isFinite(x) && x >= 0))].sort((a, b) => a - b);
   if (step.assisted) {
-    const target = load / REENTRY_LOAD_FACTOR;
+    const target = load / factor;
     if (steps.length) return steps.find((x) => x >= target) ?? steps[steps.length - 1];
     const g = step.loadGrid ?? step.stepLb;
     return +(Math.ceil(target / g - 1e-9) * g).toFixed(2);
   }
-  const target = load * REENTRY_LOAD_FACTOR;
+  const target = load * factor;
   if (steps.length) {
     const under = steps.filter((x) => x <= target && x > 0);
     return under.length ? under[under.length - 1] : Math.min(load, steps.find((x) => x > 0) ?? load);
@@ -144,10 +178,12 @@ export function reentryLoad(load: number, step: ReentryStep): number {
 export function reentrySessionExercises(
   exercises: readonly SessionExercise[],
   stepFor: (exerciseId: string) => ReentryStep,
+  rule: ReentryRule = DEFAULT_REENTRY_RULE,
 ): SessionExercise[] {
+  const factor = 1 - rule.loadPct / 100;
   return exercises.map((ex) => {
     const step = stepFor(ex.exerciseId);
-    const sets: WorkoutSet[] = ex.sets.map((s) => (s.weight != null && s.weight > 0 ? { ...s, weight: reentryLoad(s.weight, step) } : s));
+    const sets: WorkoutSet[] = ex.sets.map((s) => (s.weight != null && s.weight > 0 ? { ...s, weight: reentryLoad(s.weight, step, factor, rule.round) } : s));
     const { recommendation: _r, sideRecommendations: _s, ...rest } = ex;
     return { ...rest, sets };
   });

@@ -73,6 +73,8 @@ import {
   activeTravel,
   dayKeyAt,
   reentryFor,
+  reentryPeriod,
+  reentryRuleFor,
   reentrySessionExercises,
   travelPeriodsOf,
   isTravelTemplate,
@@ -1007,6 +1009,9 @@ export function useTrain(): TrainState {
         templateId: template.id, today, sessions: completed, periods, travelTemplateIds: travelIds,
         templateCreatedAt: template.createdAt, boundary,
       });
+      // The trip's per-template rule (2026-11-18: legs −10 % RIR 2, upper −5 %
+      // normal effort); a travel re-entry or a trip without rules → −10 %, RIR 2.
+      const reentryRule = reentry ? reentryRuleFor(reentry, template.id, reentryPeriod(today, periods)) : undefined;
       const awayGym = !isTravelTemplate(template) && activeTravel(today, periods) != null;
       const stepFor = (exerciseId: string) => {
         const row = template.exercises.find((e) => e.exerciseId === exerciseId) ?? null;
@@ -1019,10 +1024,10 @@ export function useTrain(): TrainState {
         date: new Date(),
         templateId: template.id,
         templateName: template.name,
-        exercises: withStartUnits(reentry ? reentrySessionExercises(exercises, stepFor) : exercises, activeTravel(today, periods) != null),
+        exercises: withStartUnits(reentry ? reentrySessionExercises(exercises, stepFor, reentryRule) : exercises, activeTravel(today, periods) != null),
         cardio: templateToSessionCardio(template),
         ...(templateVersion ? { templateVersion } : {}),
-        ...(reentry ? { reentry } : {}),
+        ...(reentry ? { reentry, reentryRule } : {}),
         // A one-off (core `WorkoutTemplate.oneOff`, 2026-11-16) is a gym that
         // will not be seen again: out of e1RM charts and PRs from the start.
         ...(awayGym || template.oneOff ? { notComparable: true } : {}),

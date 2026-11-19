@@ -34,6 +34,7 @@ import type { DailyLog } from './types';
 import { addDays, calendarDateKey, parseYmd, type DateKey } from './date';
 import { dayKeyAt, type DayBoundary } from './day-boundary';
 import { sanitizeTravelPlan, type TravelPlanEntry } from './travel-plan';
+import { sanitizeReentryRules, type ReentryRuleEntry } from './reentry-rule';
 
 /** A high-altitude leg of a trip: shown on Today for its first few days. */
 export interface TravelAltitude {
@@ -57,6 +58,9 @@ export interface TravelPeriod {
   altitude?: TravelAltitude;
   /** The planned sessions of the trip (`travel-plan.ts`). */
   plan?: TravelPlanEntry[];
+  /** How each template's first session after the trip backs off
+   *  (`reentry-rule.ts`, 2026-11-18). Absent → −10 %, RIR 2 for every one. */
+  reentryRules?: ReentryRuleEntry[];
 }
 
 /** Post-travel complete days before the maintenance fit runs again — the
@@ -105,6 +109,8 @@ export function travelPeriodsOf(profile: { travelPeriods?: unknown } | null | un
     }
     const plan = sanitizeTravelPlan(r['plan']);
     if (plan.length) period.plan = plan;
+    const rules = sanitizeReentryRules(r['reentryRules']);
+    if (rules.length) period.reentryRules = rules;
     out.push(period);
   }
   return out.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0)).slice(0, MAX_TRAVEL_PERIODS);

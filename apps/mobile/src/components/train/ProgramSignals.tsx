@@ -13,10 +13,22 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { deloadSignal, formatLoad, overdueLoads, type DeloadSignal } from '@macrolog/core';
+import {
+  activeHomeNotes,
+  dayBoundaryOf,
+  dayKeyAt,
+  deloadSignal,
+  formatLoad,
+  homePlanOf,
+  overdueLoads,
+  reviewDue,
+  reviewRotations,
+  type DeloadSignal,
+} from '@macrolog/core';
+import { formatDate } from '@/lib/date-format';
 import type { TrainState } from '@/hooks/useTrain';
 import type { WorkoutTemplate } from '@/lib/workout';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { captureError } from '@/lib/sentry';
 import * as haptics from '@/lib/haptics';
@@ -32,6 +44,12 @@ function signalKey(signal: DeloadSignal): string {
   return signal.lifts.map((l) => `${l.exerciseId}:${l.load}:${l.reps.join('/')}`).join('|');
 }
 const dismissKey = (uid: string) => `ignia.deloadDismissed.${uid}`;
+const reviewKey = (uid: string) => `ignia.reviewDismissed.${uid}`;
+
+/** "Mon / Wed / Fri" in the user's locale (ISO weekdays; 2024-01-01 is a Monday). */
+function weekdays(days: readonly number[], locale: Parameters<typeof formatDate>[1]): string {
+  return days.map((d) => formatDate(new Date(2024, 0, d), locale, { weekday: 'short' })).join(' / ');
+}
 
 export function ProgramSignals({
   train,
@@ -51,9 +69,36 @@ export function ProgramSignals({
   const startedAt = profile?.deloadStartedAt ?? undefined;
   const deload = train.deload;
 
+  const locale = useLocale();
+  // The home plan (core `home-plan.ts`, 2026-11-18): the deload trigger, the
+  // review checkpoint, the default week and dated notes. Absent → as before.
+  const plan = useMemo(() => homePlanOf(profile as { homePlan?: unknown } | null), [profile]);
+  const boundary = dayBoundaryOf(profile);
+  const today = dayKeyAt(new Date(now), boundary);
+  const notes = activeHomeNotes(plan, today);
+  const review = useMemo(() => reviewDue(plan, train.recentSessions, boundary), [plan, train.recentSessions, boundary]);
+  const reviewId = review ? `${review.since}:${review.title}` : null;
+  const [reviewDismissed, setReviewDismissed] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!uid) return;
+    let cancelled = false;
+    void AsyncStorage.getItem(reviewKey(uid)).then((v) => {
+      if (!cancelled) setReviewDismissed(v ?? null);
+    }).catch(() => {
+      if (!cancelled) setReviewDismissed(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [uid]);
+  const showReview = review != null && reviewDismissed !== undefined && reviewDismissed !== reviewId;
+
   const signal = useMemo(
-    () => deloadSignal({ templates: plannedTemplates, sessions: train.recentSessions, since: startedAt }),
-    [plannedTemplates, train.recentSessions, startedAt],
+    () => deloadSignal({
+      templates: plannedTemplates, sessions: train.recentSessions, since: startedAt,
+      triggerLifts: plan?.deloadTriggerLifts, repsDown: plan?.deloadRepsDown,
+    }),
+    [plannedTemplates, train.recentSessions, startedAt, plan],
   );
   // `undefined` until storage answers, so a dismissed card never flashes.
   const [dismissed, setDismissed] = useState<string | null | undefined>(undefined);
@@ -97,6 +142,47 @@ export function ProgramSignals({
 
   return (
     <>
+      {plan?.trainingDays?.length || notes.length ? (
+        <View style={[styles.nextCard, { gap: space.xs }]} testID="home-plan">
+          {plan?.label ? <Text style={styles.nextCaption} accessibilityRole="header">{plan.label}</Text> : null}
+          {plan?.trainingDays?.length ? (
+            <Text style={styles.volumeLine} testID="home-plan-week">
+              {t('train.homePlan.week', { days: weekdays(plan.trainingDays, locale) })}
+            </Text>
+          ) : null}
+          {notes.map((n) => (
+            <Text key={`${n.from}-${n.label}`} style={styles.volumeNote} testID={`home-plan-note-${n.from}`}>
+              {n.note ? `${n.label} — ${n.note}` : n.label}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
+      {showReview && review ? (
+        <View style={styles.nextCard} testID="program-review">
+          <Text style={styles.nextCaption} accessibilityRole="header">{review.title}</Text>
+          <Text style={styles.volumeLine}>{review.body}</Text>
+          <Text style={styles.volumeNote}>
+            {t('train.homePlan.reviewWhy', { n: reviewRotations(review, train.recentSessions, boundary) })}
+          </Text>
+          <View style={styles.secondaryRow}>
+            <Touchable
+              style={styles.secondaryBtn}
+              onPress={() => {
+                if (!uid || !reviewId) return;
+                haptics.tap();
+                setReviewDismissed(reviewId);
+                void AsyncStorage.setItem(reviewKey(uid), reviewId).catch(() => undefined);
+              }}
+              accessibilityRole="button"
+              testID="program-review-dismiss"
+            >
+              <Text style={styles.secondaryLink}>{t('train.homePlan.reviewDone')}</Text>
+            </Touchable>
+          </View>
+        </View>
+      ) : null}
+
       {deload?.active ? (
         <View style={styles.nextCard} testID="deload-active">
           <Text style={styles.nextCaption} accessibilityRole="header">{t('train.deload.activeTitle')}</Text>

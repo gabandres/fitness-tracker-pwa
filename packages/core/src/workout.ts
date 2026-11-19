@@ -10,6 +10,7 @@
 import type { RowAlternative, RowCarryover, TimeCap } from './row-options';
 import type { CardioBlock, PlannedCardioBlock } from './cardio';
 import type { PartialClose, SessionSegment } from './session-pause';
+import type { ReentryRule } from './reentry-rule';
 
 /** How a set counts. `working` is the default straight set; `activation`
  *  + `mini` model cluster training; `warmup` is excluded from PR/progression
@@ -211,7 +212,10 @@ export interface WorkoutSet {
    * carries no `weight` and no `unit`: a position is not a mass, so nothing
    * that reads `weight` (volume load, e1RM, PRs, the engine) may read it as
    * one. Which of the two the lifter used is therefore stored per set: this
-   * field, or `weight` + `unit`.
+   * field, or `weight` + `unit`. A set with BOTH is a kg ESTIMATE of the
+   * plate count (owner, 2026-11-17: ≈5 kg/plate on an unmarked stack,
+   * written by an owner-data script): `weight` is read as usual and `plate`
+   * is kept for the record; the row's cues say it is an estimate.
    */
   plate?: number;
   /** When the set was ticked done, ISO 8601 — stamped by the session reducer
@@ -250,6 +254,8 @@ export interface SessionExercise {
   restClusterSec?: number;
   /** See {@link TemplateExercise.minClusterRestSec}. */
   minClusterRestSec?: number;
+  /** See {@link TemplateExercise.sideSwitchSec}. */
+  sideSwitchSec?: number;
   /** Per-side calls on an L/R lift — each side is its own progression track
    *  (`side-tracks.ts`). `recommendation` is absent on such a row. */
   sideRecommendations?: Partial<Record<Side, RecommendationSnapshot>>;
@@ -270,6 +276,11 @@ export interface SessionExercise {
    *  of kg / lb: a selectorized stack with unmarked plates. */
   stackPositions?: boolean;
   carryover?: RowCarryover;
+  /** Why this row was SKIPPED on purpose ("machine unstable", 2026-11-17).
+   *  Such a row has no sets, so it counts for nothing; it is not missed work
+   *  and the session stays `completed` (not `partial`). Exported in the
+   *  'workout' row's notes. Written by owner-data scripts. */
+  skipped?: string;
 }
 
 /** The unit a row is trained in. Stored loads are ALWAYS pounds; this only says
@@ -357,6 +368,10 @@ export interface WorkoutSession {
    *  it reads the pre-trip history and a lower day is never a regression. Set
    *  at start, never changed. */
   reentry?: 'travel' | 'post-travel';
+  /** How this re-entry session backs off (`reentry-rule.ts`, 2026-11-18): the
+   *  load cut and the RIR, or the lift's normal effort when `rir` is absent.
+   *  Absent on a re-entry session → −10 %, RIR 2. Set at start. */
+  reentryRule?: ReentryRule;
   /** "Different equipment — not comparable" (travel mode, 2026-10-26): a gym
    *  away from home. Out of the engine's reads AND out of e1RM charts and PRs
    *  (`exerciseHistory`, `bestE1RMByExercise`). The lifter can switch it. */
@@ -591,6 +606,13 @@ export interface Exercise {
   /** The unit this lift was last used in, per gym (`gym-units.ts`; key = the
    *  gym name, or `home`). Written when the lifter switches a row's unit. */
   unitByGym?: Partial<Record<string, LoadUnit>>;
+  /** Out of the default exercise picker (owner, 2026-11-18): a lift kept only
+   *  for its history — another gym's machine. A search by name still finds it;
+   *  its sessions and history are untouched. */
+  pickerHidden?: boolean;
+  /** Where this lift is done when it is not the home gym ("Haven", "Airbnb").
+   *  A label for the picker and the export; absent = home. */
+  context?: string;
   createdAt: Date;
 }
 
@@ -656,6 +678,14 @@ export interface TemplateExercise {
    *  and the transitions took less, the round rest grows by the difference
    *  (`roundRestWithFloor` in `superset.ts`). */
   minClusterRestSec?: number;
+  /**
+   * An L/R lift inside a superset runs BOTH sides in the same round, back to
+   * back, with this rest between them, seconds (Program v2.4, 2026-11-06: calf
+   * L → R and one-arm overhead extension L → R; the other side rests while one
+   * works). Absent → each side is its own round, as before. A straight row is
+   * unaffected; its sides already run back to back. See `supersetFlow`.
+   */
+  sideSwitchSec?: number;
   /**
    * The lift's cluster count changed (Program v2: the lateral raise 1 → 2).
    * While set, the engine judges only the first `from` clusters — the ones
@@ -741,6 +771,13 @@ export interface WorkoutTemplate {
    *  and archived once a session of it is logged or on `archiveOn`
    *  (YYYY-MM-DD), whichever comes first (`oneOffsToArchive`). */
   oneOff?: OneOff;
+  /** Free labels (owner, 2026-11-18: `travel kit`): the Archived list can
+   *  restore every template sharing one in one tap (`archivedByTag`). */
+  tags?: string[];
+  /** The session length the lifter states, minutes, warm-up and set-up
+   *  included (owner, 2026-11-18: Leg ≈ 60). Shown on Start's card instead of
+   *  the app's estimate (`estimateTemplateDuration`), which counts work and rest. */
+  expectedMin?: number;
   createdAt: Date;
   updatedAt: Date;
 }

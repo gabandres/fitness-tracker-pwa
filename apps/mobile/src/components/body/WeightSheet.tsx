@@ -18,6 +18,8 @@ import { confirm } from '@/components/ConfirmSheet';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { type Locale, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
+import { useAuth } from '@/lib/auth';
+import { homePlanOf, weightAlertsQuiet } from '@macrolog/core';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -167,7 +169,11 @@ export function WeightSheet({
   const outOfRange = value.trim() !== '' && !valid;
   const unchanged = valid && existing != null && sameDisplayedWeight(n, existing, unitSystem);
   const delta = valid && prev ? checkWeightEntry(n, prev.weightLb) : null;
-  const outlier = !unchanged && delta?.ok === false && delta.reason === 'large-delta' ? delta : null;
+  // The home plan's quiet window (core `home-plan.ts`, 2026-11-18: no weight
+  // alerts before 11/26, the first full week home) silences the outlier check.
+  const { profile } = useAuth();
+  const quiet = weightAlertsQuiet(homePlanOf(profile as { homePlan?: unknown } | null), todayKey);
+  const outlier = !quiet && !unchanged && delta?.ok === false && delta.reason === 'large-delta' ? delta : null;
   const dirty = value !== prefill;
 
   const fmt = (lb: number) => formatNumber(toDisplayWeight(lb, unitSystem), locale);

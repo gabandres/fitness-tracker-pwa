@@ -73,6 +73,7 @@ export * from './travel';
 export * from './travel-plan';
 export * from './travel-volume';
 export * from './reentry';
+export * from './home-plan';
 export * from './meal-slots';
 export * from './meal-draft';
 export * from './meal-preset';

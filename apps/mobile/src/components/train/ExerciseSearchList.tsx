@@ -115,7 +115,9 @@ export function ExerciseSearchList({
   const [stylesOpen, setStylesOpen] = useState(false);
 
   const q = query.trim().toLowerCase();
-  const mine = (q ? catalog.filter((e) => e.name.toLowerCase().includes(q)) : catalog)
+  // A lift kept only for its history (another gym's, `Exercise.pickerHidden`,
+  // 2026-11-18) is out of the browse list; typing its name still finds it.
+  const mine = (q ? catalog.filter((e) => e.name.toLowerCase().includes(q)) : catalog.filter((e) => !e.pickerHidden))
     .slice(0, catalogLimit);
   // Every seed key the user already owns, so the library half never offers a
   // movement that is one row above it in the catalog half.
