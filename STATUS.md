@@ -1,6 +1,6 @@
 # STATUS — what is true right now
 
-**Updated:** 2026-11-12 · **Owns:** current state only. Not history
+**Updated:** 2026-11-19 · **Owns:** current state only. Not history
 (`CHANGELOG.md`), not rationale (`docs/adr/`), not vocabulary (`CONTEXT.md`),
 not commands (`docs/COMMANDS.md`), not build tooling
 (`docs/build-infrastructure.md`), not fingerprints or publish rules
@@ -13,8 +13,9 @@ read as a status doc.
 
 **This file is a status doc, not a changelog. Budget: ~200 lines AND ~35 KB
 (`wc -l STATUS.md; wc -c STATUS.md`).** When something ships, its entry is
-*deleted* and the outcome goes to `CHANGELOG.md`. It hit 941 lines (2026-08-15),
-293 (2026-08-26), 249 (2026-09-17) and 282 (2026-10-16, trimmed the same day).
+*deleted* and the outcome goes to `CHANGELOG.md`. It hit 941 lines (2026-08-15)
+and 328 (2026-11-19, with the Travel section pasted in twice and a §1 row
+carrying a month of OTA history); rewritten that day.
 
 ---
 
@@ -22,267 +23,176 @@ read as a status doc.
 
 Numbers below are read from the APIs, never edited from memory. Re-read them the
 same way before trusting them — `docs/COMMANDS.md` has every command;
-`node scripts/app-version-sync.mjs --check` reads both stores in one call.
+`node scripts/app-version-sync.mjs --check` reads both stores in one call (last
+run 2026-11-19).
 
 | Surface | State |
 |---|---|
-| **App Store (iOS)** | **1.2.11 / build 75 LIVE** since 2026-11-06 21:49Z (iTunes lookup + `app-version-sync --check`, read 2026-11-07; §3: steps in the background). 175 of 175 territories since 2026-08-28. This Mac reads ASC (`ASC_ISSUER_ID` + `ASC_KEY_PATH` in `.env.local`) |
-| **TestFlight** | **Not re-read since 2026-09-08** (build 64 was the external build then). Read the group's builds AND each build's `externalBuildState` (`asc-testflight-external.mjs`) — `VALID` + in the group ≠ installable; a build of an already-released version never reaches an external tester |
-| **Play** | **Production: vc 52 / 1.2.8 is the newest COMPLETED release** (tracks API, 2026-10-16). **The tracks API cannot tell "in review" from "live"** — the store page or the Console row is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
-| **Web `ignia.fit`** | **Shell + `/admin`** — the web logging app was retired 2026-08-30 (ADR-0036). 113 prerendered pages, EN + es-PR, both store badges. `/app` and the old tabs render "moved to the apps"; SEO pages and `/u/**` KEPT, owner-ratified. Grep `public/` as well as `src/` before claiming copy is gone |
-| **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last deployed 2026-11-04 evening (`unitByGym`, `timeCap`, `unitAsk`, `durationNote`; before that the same day: pause / resume) |
+| **App Store (iOS)** | **1.2.11 / build 75 LIVE** since 2026-11-06 21:49Z, runtime `e6d2973e…`. 175 of 175 territories. A **1.2.12 *Prepare for Submission* draft** holds the new screenshots (§3) |
+| **TestFlight** | **Not re-read since 2026-09-08.** Read the group's builds AND each build's `externalBuildState` (`asc-testflight-external.mjs`) — `VALID` + in the group ≠ installable |
+| **Play** | **Production: vc 52 / 1.2.8. Alpha: vc 53 / 1.2.10.** Promoting vc 53 is the owner's call (§3). The tracks API cannot tell "in review" from "live" — the store page or the Console row is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
+| **Web `ignia.fit`** | **Shell + `/admin`** (ADR-0036). 113 prerendered pages, EN + es-PR, both store badges. Grep `public/` as well as `src/` before claiming copy is gone |
+| **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last changed with the 2026-11-19 Train OTA (`CHANGELOG.md`) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
-| **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only. `docs/research/off-branded-ingest.md` scopes branded text results |
-| **OTA (EAS Update)** | **Update-required minimum SET 2026-11-07 (owner, `/admin`): iOS `1.2.11`, Android vc `52`** — read back from `app-version.json`. Every older runtime now shows the full-screen update screen, so **an OTA goes to iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`, pinned) and vc 53 (`e989353d…`, alpha, pinned) — three publishes, nothing older.** **Every branch but `main` was deleted 2026-11-07 (owner); unmerged tips survive as `archive/*` tags.** vc 52 cannot take `main`'s JS (it lacks `0c30979d`), so a vc 52 OTA means a worktree from tag `archive/ota/perf-2026-10-21` + a cherry-pick — or, better, promote vc 53 to production and raise the Android minimum to 53, after which every OTA comes from `main`. The "twelve runtimes" below is history. **Newest, 2026-11-10, on the same three runtimes: the workout timer stops itself (per-set times, idle prompt + auto-end at last set + 5, 2-h ask, 150-min cap) and "Gym busy"** (`main` @ `81dd9488`; vc 52 from tag `archive/ota/vc52-2026-11-10` = `archive/ota/perf-2026-10-21` + cherry-pick, `25a93848`). Before that, 2026-11-07, on the three runtimes that sign up new users — iOS build 75 (live), Android vc 52 (production) and vc 53 (alpha): IGNIA-MOBILE-13, a verification email whose response was lost to iOS suspending the app is retried once instead of reported as a failed send** (`main` @ `a8916bdd`; vc 52 from `ota/perf-2026-10-21` @ `5e3ab4d2`). Before that, 2026-11-06, on all twelve runtimes: daily steps — Today vs the usual (28-day median), Trends 7-day average, a trip's steps day by day (Settings → Travel), export `steps` rows, distance + source / zone / updatedAt on `dailyActivity`, a steps-only import when Today appears and from the step observer, iOS Health scope 4 (distance: connected users see the reconnect prompt)** — `main` @ `d3546811` (build 74, vc 53 pinned) and `ota/perf-2026-10-21` @ `d3c6e0b8` (the ten; without the `app.json` change). Rules deployed first. Background delivery itself is build 75 only. Before that, 2026-11-04 evening, on all twelve runtimes: kg next to lb (derived), the unit a set was typed in, kg \| lb per lift per gym, away-gym load hint, one-tap alternatives, optional / carryover rows, time cap, "use the range" nudge, one-time kg-or-lb question** — `main` @ `06e6244e` (build 74, vc 53 pinned) and `ota/perf-2026-10-21` @ `2e9affac` (the ten Sentry-7.11 runtimes). Not run on a device yet. **Every runtime in use — twelve — has travel mode (2026-10-26, ADR-0048)** on top of S-v2: maintenance held for trips, eyeballed meals, travel weigh-ins out of the trend, re-entry / not-comparable sessions, the no-equipment ladder, the Trends maintenance check (Settings editor admin-only), plus the same-day fix that switching "not comparable" off no longer breaks the workout's saves. The ten Sentry-7.11 runtimes from `ota/perf-2026-10-21` @ `f9a501b3` (iOS builds 73 / 72 / 71 / 70 / 68, Android vc 52 / 51 / 50 / 48-49 / 47 — = `main` minus `0c30979d`), and the 1.2.10 runtimes from `main` @ `0039d960` (build 74 `a55af49c…`, vc 53 `e989353d…` pinned). Rules (`travelPeriods`, eyeballed-meal fields, weigh-in `note`, session `reentry`/`notComparable`) deployed first. Groups and rollbacks in the ledger, which is the record and wins. "Published" ≠ "delivered": a device applies it on the launch AFTER the download, and on foreground only after 30+ min in the background |
-| **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` (Play tracks API; Apple's public lookup) and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
+| **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
+| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`, production) and vc 53 (`e989353d…`, alpha), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`), so nothing older runs. **Newest: 2026-11-19 (`81a744ef`) and 2026-11-17 (`bde62272`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`). vc 52 cannot take `main`'s JS (it lacks `0c30979d`), so every vc 52 OTA is a worktree from that tag + a cherry-pick, and the gap to `main` grows with each skipped publish. **The way out needs no build:** promote vc 53 to production and raise the Android minimum to 53 — then every OTA comes from `main`. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
+| **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
-**Fingerprints and publishing:** current artifact values are the two-row table
-in `apps/mobile/AGENTS.md`; the publish procedure (one runtime per command,
-Android PINNED to the artifact value and reverted, assert `git rev-parse HEAD`
-before publishing) is the `build-android` skill. **OTAs publish from the Windows
-PC (`winbox`, checkout `Z:\fitness-tracker-pwa`) since 2026-11-12** — it computes
-the Mac's fingerprints (iOS build 75 `e6d2973e…`) and exports the Mac's
-bundles, measured that day (AGENTS.md). No OTA has gone out from it yet; the
-first one is the end-to-end proof — read it back with `eas update:list`.
+**Publishing:** OTAs for both platforms go out from the Windows PC (`winbox`,
+checkout `Z:\fitness-tracker-pwa`); the first two (2026-11-17, 2026-11-19) were
+read back with `eas update:list`. Procedure: the `build-android` skill (one
+runtime per command, Android pinned to the artifact value and reverted, assert
+`git rev-parse HEAD` first). Current artifact fingerprints: the table in
+`apps/mobile/AGENTS.md`.
 
-**`ignia-mac` is sold on 2026-11-13. There is no iOS build host until another Mac
-is set up**, and the Android build path on the Windows PC is not re-verified
-since vc 45 — so a change that moves either fingerprint is blocked on a build
-machine. The Mac's git-ignored local files were copied into the PC's checkout on
-2026-11-12: `.env.local` (ASC key path rewritten), the ASC `.p8`, Android
-signing (`apps/mobile/credentials*`), the Train-UX captures and review notes,
-regression shots and raw store assets; build 75's `.ipa` is in the PC's
-`C:\Users\gabri\build-artifacts`.
+**There is no build machine.** `ignia-mac` was sold 2026-11-13, so **no iOS
+binary can be built** until another Mac is set up. Android: the Windows
+raw-Gradle path is unverified since vc 45 and `winbox` has no Android SDK
+installed (checked 2026-11-19). **Anything that moves a fingerprint — a new
+native library, a permission, an `app.json` change — is blocked. All work ships
+as JS over OTA.** The Mac's git-ignored local files (`.env.local`, the ASC
+`.p8`, Android signing, Train-UX captures, build 75's `.ipa` in
+`C:\Users\gabri\build-artifacts`) were copied to the PC on 2026-11-12.
 
-## 2. Merged, on `main`, and not delivered anywhere
+## 2. Merged, on `main`, and not delivered everywhere
 
-**`0c30979d` — Sentry RN 8.31, Expo patch bumps, sampled tracing, the metro trim** — in the 1.2.10 binaries only
-(iOS build 74, TestFlight; Android vc 53, alpha; §3), in no store release and never OTA-able to older runtimes.
-Everything else on `main` is in an OTA on every runtime (2026-10-23, §1), including `ae03c475` (the equal-segment fast
-path), which build 74 lacks natively and receives by OTA.
-The native halves of 1.2.7/1.2.8 (lock-screen Done set, Android Live Update,
-widget/watch day rollover, QuickAdd queue cap) reach users only with 1.2.8.
-Re-derive rather than trust this: `git log --oneline` against the newest ledger
-row.
+- **Android production (vc 52) is behind `main`** by everything since
+  2026-11-10: the 2026-11-17 and 2026-11-19 Train changes (owner-facing:
+  one-off templates, stack positions, home plan, per-template re-entry) and
+  `0c30979d` (Sentry RN 8.31, Expo patches — native, in vc 53 and iOS build 75
+  only). Re-derive: `git log --oneline` against the newest ledger row per
+  runtime.
+- iOS build 75 and Android vc 53 carry everything on `main`.
 
-**iOS regression suite: 21 of 21** (2026-09-22, `ignia-mac`, simulator
-`Ignia-QA-26`; the 09-23 sweep ran on iOS 27 `Ignia-QA`). It predates every
-Train change since. **Never compose a suite number from individual flow runs**
-— the suite is order-dependent; setup and traps in
-`.maestro/regression/README.md`.
+**iOS regression suite: 21 of 21** (2026-09-22, simulator). It predates every
+Train change since and **cannot be re-run without a Mac**. Never compose a
+suite number from individual flow runs — the suite is order-dependent
+(`.maestro/regression/README.md`).
 
 ## 3. Open work, and what each is blocked on
 
 **Only genuinely open work belongs here.** A row whose work has shipped gets
 deleted and its outcome goes to `CHANGELOG.md`.
 
-### New App Store screenshots — waiting on a 1.2.12 binary (2026-11-08)
+### UX + competitive audit, 2026-11-19 — the next work, all OTA
 
-Ten new frames (en-US 5, es-MX 5: dark theme, framed phone, Body as frame 5)
-are uploaded to a **1.2.12 *Prepare for Submission* draft** in ASC (id
-`30305a82…`). ASC can't edit a live version's screenshots, so they go live
-with the next iOS binary. That binary must be **1.2.12**: bump `app.json` to it,
-or delete the draft and re-upload to whichever version ships
-(`asc-upload-screenshots.mjs --locale <en|es> --replace`). The draft copied
-1.2.11's description and keywords, but What's New is empty and must be written before submitting. Details:
-`docs/app-store-metadata.md`, *Screenshots on file*.
+Seven reviewers (five per surface, two on the market). Verdict: **the feature
+set is at or past parity; what is missing is activation and legibility.**
+Then scored against standards re-read that day (`docs/research/app-ux-standards.md`,
+92 rules): **≈ 77 code-only, whole app** — Train 81.2, History lowest at 69.5.
+Findings, the score table and the OTA batches: `UX_AUDIT.md` §S24; the market refresh:
+`docs/research/competitive-feature-scan.md` (2026-11-19 addendum). Nothing is
+built yet. Three owner calls gate the first batch: the email-verification wall,
+promoting vc 53 (so the fixes reach Android production from `main`), and
+whether trackers default to hidden.
 
-### Open since 1.2.8
+### Blocked on a Mac
 
-- **Flip `ACCEPT_LEGACY_PROMPT_SHAPE` to `false`** (`functions/src/ai-prompt-input.ts`
+- **New App Store screenshots** — ten frames (en-US 5, es-MX 5) sit in the
+  1.2.12 draft in ASC (id `30305a82…`). ASC cannot edit a live version's
+  screenshots, so they go live with the next iOS binary, which must be 1.2.12
+  (or delete the draft and re-upload: `asc-upload-screenshots.mjs --locale
+  <en|es> --replace`). What's New is empty and must be written first
+  (`docs/app-store-metadata.md`, *Screenshots on file*).
+- **Background steps** — the HealthKit plugin's AppDelegate hook does not match
+  Expo 57's multi-line `didFinishLaunching`, so observers register from
+  `index.js` → `steps-background.ts` a second or two into each launch. If
+  deliveries stop, the fix is a config plugin (native).
+- **S23-8** lock-screen Done set / Android promoted Live Update, Apple Watch
+  logging, a share extension, exercise video (`expo-video` is not in the
+  binary).
+
+### Device QA owed (owner's phone; no simulator exists now)
+
+- **1.2.11:** steps update with Ignia closed for an hour or more (Settings →
+  Connected apps says "update in the background").
+- **1.2.10 changes, live in 1.2.11 / vc 53:** Sentry init and tracing,
+  Reanimated sheets, keyboard handling; a real iPhone Duo in the partly-folded
+  pose.
+- **Train, simulator/jest only so far:** progression rules (ADR-0044),
+  supersets + Program v2/v2.1, pause / resume, the kg / unit work, the workout
+  timer, everything in the 2026-11-17 and 2026-11-19 OTAs; lock-screen Done set
+  on an iPhone and the OnePlus 8T; the VoiceOver / TalkBack pass (S23-9).
+- **`ExerciseLibrarySheet` needs one real finger on an iPhone** — rows were
+  dead inside the JS sheet's `Modal` (2026-09-17), revived as a native sheet
+  2026-10-04, proven only by a Maestro tap. Fallback: the home screen's inline
+  rows.
+- **Hosts:** the OnePlus 8T on adb over Tailscale (`apps/mobile/scripts/phone.sh`)
+  holds an adb-installed vc 48 signed with the upload key, so Play's update
+  FAILS on it (OTAs do land). The Maestro suite WRITES — run it on
+  `qa-test@ignia.fit`, then `node scripts/qa-regression-verify.mjs cleanup
+  --email qa-test@ignia.fit`.
+
+### Bugs known and not fixed
+
+- **Saving a template in the editor drops "plate #" from its lifts**
+  (`stackPositions` is not carried across the editor's full-overwrite save;
+  read in code 2026-11-19, not run — `UX_AUDIT.md` §S24-20).
+- **A session held open in the phone's memory beats the server copy**
+  (`useTrain`: "a session started, resumed or edited in THIS runtime wins"), so
+  a session closed by a script was finished again on the phone at the 24 h cap
+  (2026-11-06; repaired by `scripts/owner-data-2026-11-06-haven.mts`). Fix:
+  drop the local copy when the server says `completed`.
+- **Predictive back is OFF on Android** despite `predictiveBackGestureEnabled:
+  true` in `app.json` (`patch-android-release.mjs` step 4e; with it on, back
+  from History backgrounded the app). Leave `app.json` alone until the next
+  binary of BOTH platforms.
+- Open JS items from the Train audit: `UX_AUDIT.md` §S23.
+
+### Owner calls
+
+- **Promote vc 53 to Play production** and raise the Android minimum to 53 (§1).
+- **After the trip (ended 2026-11-18):** home v2.4 is locked in and the travel
+  templates are archived and tagged (`CHANGELOG.md` 2026-11-19). First Push /
+  Pull / Leg session each is a re-entry; maintenance shows "Rebuilding n/14"
+  until 14 complete days home. Then decide whether `FEATURES.travelMode` goes to
+  everyone.
+- **`FEATURES.maintenanceDisplay`** (7-day mean + 95% range on the hero) is
+  `'admin'`; rollout waits on the owner, because the range can read wide (one
+  account: 1,775..3,242).
+- **Program v2.1 (2026-10-15):** Seated DB Shoulder Press 70 → 80 per the spec
+  (the engine had called 72.5); Leg Curls at 100 while the saved stack is
+  70/80/90; the three v2 drafts still hold pre-v2.1 copies.
+- **Coach on `GEMINI_MODEL` (flash-lite)** since 2026-10-15 — confirm quality.
+  Check `emailRateLimits/pw_ip_*` differ per caller.
+- **S23-13:** red on status surfaces ("WORKOUT IN PROGRESS"); "Next up" picks
+  never-done templates first.
+
+### Small and open
+
+- Flip `ACCEPT_LEGACY_PROMPT_SHAPE` to `false` (`functions/src/ai-prompt-input.ts`
   + spec) once `legacyPromptShape` stops appearing in the functions logs.
-- **Owner:** coach on `GEMINI_MODEL` (flash-lite) since 2026-10-15 — confirm
-  quality. Check `emailRateLimits/pw_ip_*` differ per caller.
 - Health nutrition samples exported before 2026-10-15 carry no Ignia id;
   undo/edit of those older entries cannot reach Health.
-
-### Travel mode — the owner's Bolivia trip (2026-10-31 → 2026-11-18)
-
-- **Live** (OTA, all runtimes, 2026-10-26); trip + Travel A/B templates on the
-  owner's account. **Owed before 10/31:** open the app once on the phone (the
-  OTA applies on the launch after the download) and check Settings → Travel
-  shows Bolivia. The iOS simulator (Release, QA account) has run the Today
-  travel card, the eyeball sheet, Trends "held" and a re-entry session; no
-  real phone has yet. The Settings editor is admin-only, so only the owner's
-  phone can show it.
-- **During the trip:** maintenance shows "Held for travel": **2,262 ± 60**, frozen as of
-  10/30 (read 2026-11-02; 10/30 closed at 1,766 kcal).
-- **Haven Gym plan (2026-11-02):** templates Travel C / D (`travel-gym-v3`), 14
-  `haven-*` lifts and the trip's plan are on the owner's account. The app code
-  that reads them (kg rows, Haven-only progression, "raise load now" on clusters,
-  Today "This week") is OTA'd to all twelve runtimes: the 1.2.10 runtimes from
-  `1fc2a550`, now in `main`, the older ten from `ota/perf-2026-10-21` @ `88c880d0`.
-  Not run on a simulator or phone yet; a session logged on the older bundle has no
-  gym tag, so it would feed the home engine until tagged. ADR-0048 amendment.
-- **Pause / resume (2026-11-04, core `session-pause.ts`):** OTA'd to all
-  twelve runtimes (1.2.10 from `main` @ `e645bb17`, the older ten from
-  `ota/perf-2026-10-21` @ `c37d10b3`), with the maintenance 7-day range and the
-  walk-during-session fix that were waiting. Rules deployed first. Not run on a
-  simulator or phone. The owner's 11/4 Travel D is `paused` (6 steps left),
-  resumable until 23:59 La Paz on 11/4; after that the first screen to see it
-  closes it as partial.
-- **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,
-  RIR 2); maintenance "Rebuilding n/14" until 14 complete days home. Then
-  decide whether `FEATURES.travelMode` goes to everyone and whether the travel
-  templates are archived.
-
-### 1.2.11 — daily steps in the background (built 2026-11-06)
-
-- **iOS** build 75 / 1.2.11 at `d3546811`, runtime `e6d2973e…` (artifact; the
-  verifier passed, `healthkit.background-delivery` entitlement present) —
-  submitted 2026-11-06, **LIVE on the App Store 2026-11-06 21:49Z**. The only
-  native change: the HealthKit plugin's `background: true` (+ the version).
-  Android has no 1.2.11 binary and needs none (Health Connect reads no steps).
-- **Known gap:** the plugin's AppDelegate hook regex does not match Expo 57's
-  multi-line `didFinishLaunching`, so `setupBackgroundObservers()` is NOT
-  called natively; `index.js` → `steps-background.ts` registers the observers
-  and background delivery a second or two into every launch instead. **Owed:**
-  device QA on the owner's phone — steps update with Ignia closed for an hour
-  or more (Settings → Connected apps says "update in the background").
-  If deliveries stop, add a config plugin with a multi-line-safe insert.
-- **Owed on 1.2.10 (live):** device QA (Sentry init and tracing, Reanimated
-  sheets, keyboard handling); Play production for vc 53 is the owner's call.
-- **Bug found 2026-11-06, not fixed:** a session held open in the phone's
-  memory beats the server copy (`useTrain` "a session started, resumed or
-  edited in THIS runtime wins"), so the owner's 11/4 Travel D — closed by a
-  script on 11/5 — was finished AGAIN on 11/6 with the empty part 2 at the 24 h
-  cap (897 min) and the pre-kg sets. Repaired by
-  `scripts/owner-data-2026-11-06-haven.mts`. Fix: drop the local copy when the
-  server says `completed`.
-
-### Travel mode — the owner's Bolivia trip (2026-10-31 → 2026-11-18)
-
-- **Live** (OTA, all runtimes, 2026-10-26); trip + Travel A/B templates on the
-  owner's account. **Owed before 10/31:** open the app once on the phone (the
-  OTA applies on the launch after the download) and check Settings → Travel
-  shows Bolivia. The iOS simulator (Release, QA account) has run the Today
-  travel card, the eyeball sheet, Trends "held" and a re-entry session; no
-  real phone has yet. The Settings editor is admin-only, so only the owner's
-  phone can show it.
-- **During the trip:** maintenance shows "Held for travel": **2,262 ± 60**, frozen as of
-  10/30 (read 2026-11-02; 10/30 closed at 1,766 kcal).
-- **Haven Gym plan (2026-11-02):** templates Travel C / D (`travel-gym-v3`), 14
-  `haven-*` lifts and the trip's plan are on the owner's account. The app code
-  that reads them (kg rows, Haven-only progression, "raise load now" on clusters,
-  Today "This week") is OTA'd to all twelve runtimes: the 1.2.10 runtimes from
-  `1fc2a550`, now in `main`, the older ten from `ota/perf-2026-10-21` @ `88c880d0`.
-  Not run on a simulator or phone yet; a session logged on the older bundle has no
-  gym tag, so it would feed the home engine until tagged. ADR-0048 amendment.
-- **Pause / resume (2026-11-04, core `session-pause.ts`):** OTA'd to all
-  twelve runtimes (1.2.10 from `main` @ `e645bb17`, the older ten from
-  `ota/perf-2026-10-21` @ `c37d10b3`), with the maintenance 7-day range and the
-  walk-during-session fix that were waiting. Rules deployed first. Not run on a
-  simulator or phone. The owner's 11/4 Travel D is `paused` (6 steps left),
-  resumable until 23:59 La Paz on 11/4; after that the first screen to see it
-  closes it as partial.
-- **After 11/19:** first Push / Pull / Leg session each = re-entry (−10 %,
-  RIR 2); maintenance "Rebuilding n/14" until 14 complete days home. Then
-  decide whether `FEATURES.travelMode` goes to everyone and whether the travel
-  templates are archived.
-
-### 1.2.10 — Sentry RN 8.31 + the native library fixes (built 2026-10-22)
-
-- **iOS** build 74 / 1.2.10 at `07cff821`, Xcode 27.1 `27A9275`, runtime
-  `a55af49c…` (artifact) — `VALID` in ASC 2026-10-22, internal TestFlight only.
-  **Android** vc 53 / 1.2.10 at `ae03c475` (raw Gradle + patch script),
-  runtime `e989353d…` (artifact) — Play **alpha**, committed and sent for
-  review. **iOS submitted 2026-10-22: 1.2.10 `WAITING_FOR_REVIEW`**
-  (AFTER_APPROVAL; What's New in `docs/app-store-metadata.md`). Play
-  production for vc 53 not yet promoted (owner's call).
-- Contains `0c30979d` (Sentry RN 7.11 → 8.31 with sampled tracing,
-  reanimated 4.5.5, worklets 0.10.4, keyboard-controller 1.22.8, Expo 57
-  patches) and everything on `main`. Built on the 27.1 SDK, so it carries
-  1.2.9's iPhone Duo fix too: **1.2.9 / build 73 will not be submitted** — 1.2.10 supersedes it.
-- **Owed:** device QA on both (Sentry init and tracing, Reanimated sheets,
-  keyboard handling); the equal-segment fast path (`ae03c475`) still needs
-  an OTA to reach build 74 and the older runtimes.
-
-### 1.2.9 — superseded by 1.2.10 (never submitted)
-
-- Build 73 (`d7aad40d…`, the iPhone Duo SDK fix) stays a TestFlight-only
-  runtime that OTAs still reach; 1.2.10 / build 74 carries the same fix.
-  **Still owed, now on 1.2.10:** device QA on a real Duo (the simulator covered
-  closed / open landscape / open portrait, Release; the partly-folded "book"
-  pose was not tried).
-
-### Train — owner calls and device checks owed
-
-- **Program v2.1 owner calls (2026-10-15):** Seated DB Shoulder Press set
-  70 → 80 per the spec (the engine had called 72.5); Leg Curls at 100 while the
-  saved stack is 70/80/90 (not snapped; next step assumed 110); the three v2
-  drafts still hold pre-v2.1 copies, so "back to v1" and forward would undo
-  v2.1.
-- **Not device-QA'd** — simulator/emulator and jest only: progression rules
-  (ADR-0044), supersets + Program v2, the Train UX passes (open list
-  `UX_AUDIT.md` §S23), Program v2.1 (deload card, dumbbell toggle, Zone 2 on
-  Trends). The Android guarded-sheet fix touches every guarded sheet in the app.
-- **1.2.7 features in 1.2.8, submitted without device QA:** the script in
-  `FIX-N2.md` (on the Windows PC since 2026-11-12, `apps/mobile/.maestro/capture/train-ux/reviews/`)
-  — lock-screen Done set on an iPhone and on the OnePlus 8T; the Android 16
-  promoted chip on the `pixel_api36` emulator. Plus the owner's
-  VoiceOver/TalkBack pass (`DEVICE-A11Y-CHECKLIST.md`, same folder). Also
-  simulator-only: the glass tab bar, the fit-sheet underlap, `UISegmentedControl`.
-- **`ExerciseLibrarySheet` needs one real finger on an iPhone.** Rows were dead
-  inside the JS sheet's RN `Modal` (2026-09-17, cause never found); revived
-  2026-10-04 as a native `UISheetPresentationController` sheet, and a Maestro
-  tap opened a row on 2026-10-11 — but the original failure was proven with a
-  real click. Fallback if it fails: the home screen's 5 inline rows.
-- **Predictive back is OFF on Android** despite `predictiveBackGestureEnabled:
-  true` in `app.json` — `patch-android-release.mjs` step 4e rewrites the
-  manifest (with it on, back from History backgrounded the app, OnePlus 8T
-  2026-10-05). Leave `app.json` alone until the next binary of BOTH platforms.
-- **Device QA hosts:** the OnePlus 8T on adb over Tailscale
-  (`apps/mobile/scripts/phone.sh`) — it holds an adb-installed vc 48 signed with
-  the upload key, so Play's update FAILS on it (reinstall from Play to prove a
-  Play update); OTAs do land. The LG VS988 (Android 9) too; neither is the
-  API 26 floor. **The Maestro suite WRITES** — run it on `qa-test@ignia.fit`,
-  then `node scripts/qa-regression-verify.mjs cleanup --email qa-test@ignia.fit`.
 
 ### Retention — the standing focus (owner's call, 2026-09-02)
 
 **Activation and the daily habit are the problem, not late churn.**
 `config/retention` re-read 2026-09-16 (120-day window, `insufficientSample:
 true`): 43 signups → **14 activated (33%)**; **0.34 logs per activated user
-per day**; `timeToFirstLog` median **34 m 43 s** (17.6% inside five minutes);
-`secsPerLog` **56.2 s**. Lever 1 worked — time-to-first-log more than halved,
-logs/activated/day up 2.3×.
-
-**Two things are the job.** **Reminders opt-in is a REAL zero** (0 of 43;
-instrument verified 2026-09-16), so every notification-shaped lever reaches
-nobody — lever 10 is the live move. And `secsPerLog` is past the 30 s cliff:
-**search 23.8 s vs photo 79.8 s**; nobody has looked at where photo's 80 s goes.
+per day**; `timeToFirstLog` median **34 m 43 s**; `secsPerLog` **56.2 s**
+(search 23.8 s vs photo 79.8 s — a mean capped at 300 s per log, so read the
+median before acting on it). **Reminders opt-in is a REAL zero** (0 of 43).
 **Re-read `config/retention` before claiming anything moved** — at ~40 signups
-per 120 days no A/B is readable. The denominator is signups IN WINDOW: 8 April
-accounts that still log daily (the owner's among them) sit outside it.
+per 120 days no A/B is readable, and the denominator is signups IN WINDOW.
 
 | # | Lever | State |
 |---|---|---|
-| 5 | **Verify the zero-friction triggers** (a widget logs in under 10 s) | Android widget VERIFIED 2026-09-08 (row below); watch/Siri open, owner with an iPhone |
-| 6 | **Guest mode (`UX_AUDIT.md` N5)** if lever 1 does not move D1 alone | Deferred until 1 is measured |
-| 10 | **Ask for reminders AFTER the first log lands**, not during onboarding | **Open.** Nothing else notification-shaped is worth building first |
+| 5 | **Verify the zero-friction triggers** | Android widget VERIFIED 2026-09-08; watch/Siri open, owner with an iPhone |
+| 6 | **Guest mode (`UX_AUDIT.md` N5)** | Deferred; §S24-1 (the verification wall) is the cheaper first move |
+| 10 | **Ask for reminders AFTER the first log lands** | **Open, not built** — the ask is still an onboarding step (`UX_AUDIT.md` §S24-3) |
 
-Levers 1–4, 7, 8, 9 shipped (2026-09-02 → 09-16, `CHANGELOG.md`). Not taken,
-deliberately: bounding the OS-repeating meal-window dailies — a separate call.
+Levers 1–4, 7, 8, 9 shipped (2026-09-02 → 09-16, `CHANGELOG.md`).
 
 | Work | Blocked on |
 |---|---|
-| **Photo scan — `measured` never seen on a device** | **Owner, with a phone and a real scale under the plate** — a composited "245 g" overlay correctly came back `measured: false`. Repeat detection FIRED on a device 2026-09-08. **Seams:** `spendCeiling` counts IMAGES (solvency), `dailyQuota` counts SCANS (fairness); `measured` drops if `clampGrams` altered the number. **Owner call:** should a matched repeat land on an editable draft instead of logging straight to Today? |
+| **Photo scan — `measured` never seen on a device** | **Owner, with a phone and a real scale under the plate.** Seams: `spendCeiling` counts IMAGES (solvency), `dailyQuota` counts SCANS (fairness); `measured` drops if `clampGrams` altered the number. **Owner call:** should a matched repeat land on an editable draft instead of logging straight to Today? |
 | **Photo-scan validation gate** | 30–50 real photos, judging the **item list and portions**, never the macros — `scripts/validate-photo-itemiser.mjs` (ADR-0015 §2) |
-| **Oura — a cardio record via Oura never observed** | The ring's owner recording a walk/run/cycle (the two synced records were `strengthTraining`, deliberately declined — issue 102). **Seam:** an imported `kcal` never reaches a target (ADR-0024 decision 4, `cardio-energy-independence.test.ts`) |
-| **Android widget — two checks left** | Verified on the OnePlus 2026-09-08 (numbers move on log/delete, tap opens add, sign-out blanks). Open: midnight blanking (ColorOS refuses a clock change from adb) and the es-PR wording. Flows: `.maestro/capture/widget-*.yaml` |
-| **Watch complication + Siri quick-add** | **UNVERIFIED on hardware.** A WidgetKit complication cannot be woken (FB12926788, ADR-0023) — what ships is an hourly pull. Read *Settings → Apple Watch* on a device before writing more code; a simulator cannot test the refresh budget |
-| **Website indexing** | **Wait and re-measure** (`node scripts/gsc.mjs inspect`): 6 of 7 sampled URLs indexed since 2026-09-03, the sitemap still never fetched. Router/SSR migration DEFERRED. Tables: `docs/seo-status.md` |
-| **MenuStat permission — sent 2026-08-24, no reply** | **Owner, awaiting NYC DOHMH.** Licence risk: menustat.org (through 2022) was all-rights-reserved and is gone; the CC0 Dataverse copy stops at 2018 and loses The Cheesecake Factory. Replies land in the `bermudezpr.com` M365 tenant. Follow-ups: Pollo Tropical; the mobile provenance chip |
-
-**The maintenance display is OTA'd to all twelve runtimes (2026-11-04, with pause / resume), rules deployed 2026-11-02 (owner, 2026-10-30).** Core
-`maintenance-display.ts`: the hero shows the 7-day mean of the raw daily values
-with the 95% range and the valid-day count; `dailyTargets` gains
-`maintenanceRaw` / `maintenanceDisplayed`; a travel hold stays raw, unsmoothed.
-`FEATURES.maintenanceDisplay: 'admin'`; rollout to everyone is still the owner's
-call, because the range can read wide (one account: **1,775..3,242**). The
-Health import fix shipped in the same OTA: a Watch walk imported during an
-active session now waits and merges into the hand-logged Zone 2 instead of
-becoming its own session.
+| **Oura — a cardio record via Oura never observed** | The ring's owner recording a walk/run/cycle. **Seam:** an imported `kcal` never reaches a target (ADR-0024 decision 4) |
+| **Android widget — two checks left** | Midnight blanking (ColorOS refuses a clock change from adb) and the es-PR wording. Flows: `.maestro/capture/widget-*.yaml` |
+| **Watch complication + Siri quick-add** | **UNVERIFIED on hardware.** A WidgetKit complication cannot be woken (ADR-0023) — what ships is an hourly pull. Read *Settings → Apple Watch* on a device before writing more code |
+| **Website indexing** | **Wait and re-measure** (`node scripts/gsc.mjs inspect`). Router/SSR migration DEFERRED. Tables: `docs/seo-status.md` |
+| **MenuStat permission — sent 2026-08-24, no reply** | **Owner, awaiting NYC DOHMH.** Licence risk in `docs/research/restaurant-foods-menustat.md`. Replies land in the `bermudezpr.com` M365 tenant |
 
 ## 4. Decided and deliberately not happening
 
@@ -301,23 +211,26 @@ or research note.
 - **A Strava integration** — its June 2026 API Agreement forbids AI/ML use of
   API data. (`docs/research/connected-apps-candidates.md`)
 - **A fourth connected-apps provider** — Withings only, and iOS already
-  aggregates it. The cheaper win: give Apple Health Oura's evidence surface.
+  aggregates it.
+- **Social feed / challenges / leaderboards** — needs a server and moderation,
+  and contradicts "calm". (`UX_AUDIT.md` N8; re-confirmed against Hevy's gym
+  leaderboards 2026-11-19)
+- **A paid or generative-AI program builder** — a rule-based picker is the
+  shape if one ships (`UX_AUDIT.md` §S24-13).
 - **A Google Group for the Play tester list** — reCAPTCHA on every member-add,
-  no public API. (`CLAUDE.local.md`)
+  no public API.
 - **Deleting the website** — Apple needs the privacy URL, Play the
   delete-account URL, plus the Oura redirect, `app-version.json`, `/admin`. (ADR-0036)
 - **A web logging surface** — retired on ADR-0022's own measurement (2.9% of
   active days). (ADR-0036)
 - **Transferring `bermudezsystems.com` off Northwest** — owner's call
-  2026-09-05; it renews free with the Registered Agent service. **Revisit when
-  the LLC has income.**
+  2026-09-05. **Revisit when the LLC has income.**
 
 ## 5. App Store submission — standing rules
 
-They live in `docs/app-store-metadata.md` §"Standing submission rules" (moved
-2026-09-17). Read them before every submit: demo account, review notes,
-unverified features, `supportsTablet`, frozen builds, Play's review-restart on
-listing edits.
+They live in `docs/app-store-metadata.md` §"Standing submission rules". Read
+them before every submit: demo account, review notes, unverified features,
+`supportsTablet`, frozen builds, Play's review-restart on listing edits.
 
 ## 6. What gets deleted
 

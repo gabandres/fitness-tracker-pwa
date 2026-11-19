@@ -1,19 +1,19 @@
 ---
 name: build-android
-description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. Android builds on `ignia-mac` since 2026-09-17 (`eas build --local`); iOS is the `build-ios` skill, also on the Mac. OTAs for both platforms publish from the Windows PC (`winbox`, `Z:\fitness-tracker-pwa`) since 2026-11-12, Android with `runtimeVersion` pinned to the artifact value; `ignia-mac` is sold 2026-11-13. After ANY Gradle build, restore the masked-view manifest before an iOS gate (Step 3b).
+description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. OTAs for both platforms publish from the Windows PC (`winbox`, `Z:\fitness-tracker-pwa`), Android with `runtimeVersion` pinned to the artifact value. Builds ran on `ignia-mac` (vc 46-53) until its sale on 2026-11-13; the Windows raw-Gradle path (vc 31-45) is unverified since and needs an Android SDK installed. iOS is the `build-ios` skill (BLOCKED, no Mac). After ANY Gradle build, restore the masked-view manifest before an iOS gate (Step 3b).
 ---
 
 # Ship an Android change
 
 **OTAs publish from the Windows PC since 2026-11-12** (`winbox`, checkout
-`Z:\fitness-tracker-pwa`; from the Mac, `ssh winbox "…"`, whose shell is `cmd`).
-It computes the Mac's fingerprints and exports the Mac's bundles exactly
-(`apps/mobile/AGENTS.md`), and **`ignia-mac` is sold on 2026-11-13**.
+`Z:\fitness-tracker-pwa`). It computes the Mac's fingerprints and exports the
+Mac's bundles exactly (`apps/mobile/AGENTS.md`).
 
-**Builds (Step 3 on) describe `ignia-mac`**, where both platforms were built
-locally at zero EAS quota (iOS since 2026-08-07, Android again since 2026-09-17,
-`docs/build-infrastructure.md`). Android once built on this Windows PC (vc 31–45,
-raw Gradle); that path is not re-verified since. iOS needs a Mac.
+**Builds (Step 3 on) are BLOCKED on the Mac since 2026-11-13 (`ignia-mac` sold)**
+and describe that machine, where both platforms built at zero EAS quota
+(`docs/build-infrastructure.md`). Android once built on this Windows PC (vc 31–45,
+raw Gradle); that path is not re-verified since, and `winbox` has no Android SDK
+at either documented path (checked 2026-11-19). iOS needs a Mac.
 
 `REFERENCE.md` in this directory holds the evidence behind every rule below — the
 measurement, the incident, the wrong conclusion it replaced. **Read it when a rule
@@ -64,7 +64,8 @@ Rules, all measured (`REFERENCE.md` → *The fingerprint gate*):
 ## Step 2 — OTA (no build, no queue, no review)
 
 Owns OTA publishing for **both** platforms; `build-ios` links here. It is **two
-publishes**, each from its own host.
+publishes** (one per platform), both from `winbox` — this said "each from its own
+host" until 2026-11-19.
 
 Announce it first — an OTA reaches the device with no store involvement, so the
 in-app banner is the **only** user-facing channel:
@@ -116,7 +117,7 @@ npx eas update:list --branch production --limit 3
 - Testers get it on the **next** launch. Undo with
   `eas update:roll-back-to-embedded`. `--message` is for the dashboard, not users.
 
-## Step 3 — build, on `ignia-mac`, free
+## Step 3 — build, on a Mac, free (BLOCKED: no Mac since 2026-11-13)
 
 `eas build --local` is the sanctioned path and the only one that writes the EAS
 Update channel, signs with `credentials/dev.keystore` (`credentialsSource:
@@ -148,8 +149,7 @@ npx eas build --local -p android --profile production --non-interactive \
   use `--profile preview` (APK, no increment, EAS's stray keystore; **never
   ship it**).
 - Verify exactly as below (`verify-mobile-artifact.mjs` runs on macOS as-is)
-  and read the fingerprint **from the artifact** — it is the Mac's hash from
-  now on, which is the whole point of the cutover note at the top.
+  and read the fingerprint **from the artifact**.
 - 16 GB RAM: do not run the iOS build or the emulator at the same time.
 
 ## Step 3 (raw Gradle + `patch-android-release.mjs`) — THE ROUTE THAT SHIPPED vc 46
@@ -326,10 +326,11 @@ cd apps/mobile && npx eas submit -p android --profile production \
 ```
 
 Goes to the **alpha** track, `releaseStatus: "completed"` — rolled out to the
-tester list, not a draft. No build quota. Since 2026-09-17 the Mac holds
-`credentials/play-service-account.json` too, so the same command runs there
-with `--path ~/build-artifacts/<file>.aab`; submit from whichever host built
-the artifact, never move an AAB between machines to submit it.
+tester list, not a draft. No build quota. **Over 60 MB it is 0-for-2** (Play's
+edit expires mid-upload): use `node scripts/play-upload-bundle.mjs <aab> --track
+alpha --commit` instead (`apps/mobile/AGENTS.md`, *Delivery*). Submit from the
+host that built the artifact; `credentials/play-service-account.json` is on
+`winbox` (this said "the Mac holds it too" until 2026-11-19).
 
 ## After shipping
 

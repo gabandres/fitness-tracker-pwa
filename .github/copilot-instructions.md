@@ -39,8 +39,9 @@ If my prompt includes `/grill`, obey strictly:
 
 1. **Strict Angular** — standalone components only. Never generate
    `.module.ts` files.
-2. **Strict typing** — never use `any`. Use the types in `src/app/models/`
-   (e.g. `MacroEstimate`) and the domain types in `packages/core`.
+2. **Strict typing** — never use `any`. Use the domain types in `packages/core`
+   (this also cited `src/app/models/` `MacroEstimate` until 2026-11-19; both went
+   with the web logging app, ADR-0036).
 3. **Cross-frontend domain and math logic lives in `packages/core`**, which is
    pure and dependency-free. Never reimplement it per frontend.
 4. **Never import `firebase/firestore` directly in app-bundle code** — see the

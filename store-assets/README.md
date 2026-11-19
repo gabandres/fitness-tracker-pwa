@@ -13,12 +13,14 @@ an account's real logs are not something to put in git history.
 
 ## Capture (iOS simulator, ~10 min a locale)
 
+**BLOCKED since 2026-11-13** (`ignia-mac` sold; no Mac, so no simulator) until another Mac is set up — the steps below are its runbook.
+
 The set is shot by `apps/mobile/.maestro/capture/store-shots.yaml` on an
 iPhone 16 Pro Max simulator. Its native 1320 × 2868 is the 6.9" slot exactly.
 The flow's header is the runbook:
 
 1. Seed the demo account: `node scripts/seed-demo-account.mjs --email demo@ignia.fit --reset --any-hour`.
-   Its password is in `~/demo-pass.txt` on `ignia-mac`.
+   Its password was in `~/demo-pass.txt` on `ignia-mac` until the 2026-11-13 sale; ask the owner where it lives now.
 2. Set the locale (`qa-regression-verify.mjs set-locale`) and run the flow with
    `THEME=dark`, once per locale. It signs in, sets the theme, and starts a
    workout, which it leaves open. Clear that workout before the next run.

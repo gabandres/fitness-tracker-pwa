@@ -358,7 +358,7 @@ no hardware; everything below needs a real paired watch.
 
 **iOS — fasting Live Activity (N3, ADR-0021)** — iOS-only; there is no Android
 half. Unlike everything above, **most of this is checkable in the iOS
-Simulator** on `ignia-mac` at no build quota, because Live Activities render
+Simulator** on a Mac at no build quota (blocked since `ignia-mac` was sold 2026-11-13), because Live Activities render
 there and the Dynamic Island appears on any iPhone 14 Pro or newer simulator.
 Only the starred row and the ceiling row need real time on a real device.
 

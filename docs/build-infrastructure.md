@@ -2,8 +2,8 @@
 
 Extracted from `STATUS.md` §3 on 2026-08-15. **Builds are no longer the binding
 constraint**, which is why this is reference material rather than status: both
-platforms build locally on the MacBook Air (`ignia-mac`) at zero EAS quota, and
-JS-only changes need no build at all.
+platforms built locally on the MacBook Air (`ignia-mac`) at zero EAS quota until
+its sale (this said "build" until 2026-11-19), and JS-only changes need no build at all.
 
 > **2026-11-13: `ignia-mac` (the M1 Air below) is sold.** Until another Mac is
 > set up there is **no iOS build host**, and the Android Windows path below
@@ -20,7 +20,7 @@ plus the `build-ios` and `build-android` skills. Current fingerprints: the
 table in `apps/mobile/AGENTS.md`; every build/OTA reading with its post-mortem:
 `apps/mobile/docs/fingerprint-ledger.md`.
 
-## The default path: local, free
+## The default path while a Mac existed: local, free
 
 **Every duration below was measured on the M1 Air** (`Apple M1`, 8 cores, 16 GB,
 `MacBookAir10,1`). They are not a baseline for any other Mac — re-measure with
@@ -86,37 +86,27 @@ in the number, or a faster laptop reads as a regression.
   shipped vc 10 — and it is **deliberately not the default**. If the verifier is
   ever skipped, prefer it.
 
-  **Cutover happened with vc 46 on 2026-09-28** (raw Gradle + the patch script on `ignia-mac`; `eas build --local` alone skips the patch — `build-android` Step 3). The paragraph below is history: The fingerprint follows
-  the build host (CRLF vs LF), so the Android runtime testers run today is the
-  Windows one, and an OTA for it must still be published from Windows.
-  `guard_eas_update.py` therefore keeps `OWNER["android"] = "windows"` until
-  the first Mac-built binary reaches the alpha track; flipping it, updating
-  `test_guards.py`, and deleting the Windows section of the `build-android`
-  skill are one commit, made that day. `STATUS.md` tracks it.
-- **Android's build host was the Windows workstation from 2026-08-17 to
-  2026-09-17.** `scripts/patch-android-release.mjs` supplied the channel, the
+  **Cutover happened with vc 46 on 2026-09-28** (raw Gradle + the patch script on `ignia-mac`; `eas build --local` alone skips the patch — `build-android` Step 3).
+  (A pre-cutover plan for `OWNER["android"] = "windows"` sat here until 2026-11-19;
+  the guard has allowed both hosts for both platforms since 2026-11-12.)
 - **Android's build host was the Windows workstation from 2026-08-17 to
   2026-09-17.** `scripts/patch-android-release.mjs` supplied the channel, the
   release signing and the versionCode that `eas build --local` would have, and
   `verify-mobile-artifact.mjs` was the gate. A second build of the same tree with
   the channel injected came out **10m12s**, verifier-green, at vc 31.
   Consequences that outlive the move:
-  - **The runtime fingerprint follows the build host, per platform** — publish
-    an OTA from the machine that built the binary testers are running.
   - **Bare `eas update` publishes BOTH platforms.** Every publish must be
-    `--platform`-scoped; the guard enforces it. Once both platforms build on the
-    Mac again this is belt-and-braces, and it stays.
+    `--platform`-scoped; the guard enforces it.
+  - (Its other consequence, "the fingerprint follows the build host — publish
+    from the machine that built the binary", stood until 2026-11-12, when
+    Windows/Mac parity was achieved; `apps/mobile/AGENTS.md`.)
 - **Most fixes need no build.** EAS Update ships JS/TS over the air in seconds.
   Run the fingerprint gate first (`docs/COMMANDS.md`).
-- The Mac holds `dev.keystore`, `credentials.json`, the Sentry token and an EAS
-  session — locations and disposal list in `CLAUDE.local.md`.
+- `dev.keystore`, `credentials.json`, the Sentry token and an EAS session are on
+  the Windows PC since the Mac's sale (this said "The Mac holds" until 2026-11-19).
 
-**Resolve on Windows, `npm ci` on the Mac** — that rule stands even though the
-two hosts now run the SAME Node: Windows is Node **24.12.0** / npm **11.6.2**,
-and since the 2026-09-10 rebuild `ignia-mac` is also **24.12.0** / 11.6.2 (the
-bootstrap installs `.nvmrc`'s version via fnm; it was 22.23.2 on the shared
-install). Root `engines` still accepts both majors (`^22.13.0 || ^24.12.0 || ^26.0.0`, Node 26 added 2026-11-12);
-narrowing it is harmless now but not needed.
+Root `engines` accepts `^22.13.0 || ^24.12.0 || ^26.0.0` (Node 26 added
+2026-11-12); `.nvmrc` pins 24.12.0, which the Mac bootstrap installed via fnm.
 
 Pinning `engines` to 24 alone was tried first and is wrong: `eas build --local`
 runs its own `INSTALL_DEPENDENCIES` step, so **every iOS build on the Mac printed
@@ -125,27 +115,15 @@ supposed to. Harmless (nothing sets `engine-strict`), but a warning that fires o
 the happy path is one people learn to ignore. RN 0.86 accepts `^20.19.4 ||
 ^22.13.0 || ^24.3.0`, so both hosts satisfy Expo SDK 57 as they stand.
 
-**Since 2026-10-21 the lockfile author is `ignia-mac`.** The repo lives there
-(owner, 2026-10-21), and the Windows Surface laptop on the tailnet (`winbox`,
-Node 24.19 / npm 11.17) holds no checkout. The 2026-10-21 performance pass resolved
-its dependency bumps on the Mac with npm 11.6.2. The paragraph below is the
-rule as it stood until then; its principle — exactly one machine resolves — is
-unchanged, only the machine is.
-
-What the split *does* forbid is resolving dependencies twice. **Only the Windows
-workstation may run `npm install` / `expo install` / anything that rewrites
-`package-lock.json`.** The Mac runs `npm ci` and nothing else, so npm 10 never
-gets to re-resolve a tree npm 11 wrote. Two npm majors both writing the lockfile
-is how the two clones drift for real.
-
-This is *not* justified by fingerprint parity, which was the old reason and is
-**disproven** — see `apps/mobile/AGENTS.md`. Aligning Node would not converge the
-two hashes and does not need to: each platform is fingerprinted on its own build
-host. `npm ci` on the Mac rebuilds `node_modules`, which is **not** a
-fingerprint input (disproven 2026-08-17, `apps/mobile/AGENTS.md`; this sentence
-called it one, and `npm ci` "not a free act", until 2026-09-17). Run the gate
-whenever a binary is awaiting review regardless — it is the hash, not the
-install, that decides.
+**Exactly one machine resolves dependencies: the Windows PC (`winbox`, checkout
+`Z:\fitness-tracker-pwa`) since 2026-11-13.** Only it runs `npm install` /
+`expo install` / anything that rewrites `package-lock.json`; any other machine
+runs `npm ci` (on the PC itself: `npm ci --ignore-scripts && npx patch-package &&
+npm rebuild @firebase/util`, `apps/mobile/AGENTS.md`). Two machines both writing
+the lockfile is how clones drift for real. This said "the lockfile author is
+`ignia-mac`" (2026-10-21 → 11-13) and "Windows" before that, until 2026-11-19.
+`node_modules` is **not** a fingerprint input (disproven 2026-08-17); run the gate
+before a publish regardless — it is the hash, not the install, that decides.
 
 `npx expo prebuild -p ios` does **not** work on Windows: since SDK 54 (still true
 on 57) it skips it outright and exits non-zero. There is no local way to inspect the generated Podfile or
@@ -162,9 +140,8 @@ platforms are used unevenly.
 2026-09-03 by `npm run doctor` (the August period closed at iOS 13/15,
 Android 6/15, 19/30 on the account total; every September binary so far —
 vc 41–44, builds 62–63 — was built locally, so the new period is untouched).
-(A sentence here said "no build of either platform since 2026-08-10 … the 87%
-on iOS" until 2026-09-17 — an August-period reading that contradicted the
-September one above it.) Two caveats worth keeping. **The counter moved 11 → 13 with no new builds**, so it either lags or
+`npm run doctor` audits that figure against `eas account:usage`; it is not
+re-read here (no `eas` in this audit, 2026-11-19). Two caveats worth keeping. **The counter moved 11 → 13 with no new builds**, so it either lags or
 the 08-18 reading was wrong — do not treat a rising number as evidence that
 something built. And **the two sources disagree on the split**: `build:list`
 says iOS 12 / Android 7 for this period while `account:usage` says iOS 13 /
@@ -172,11 +149,9 @@ Android 6. The totals agree at 19; only the attribution differs, and
 `account:usage` is the one that bills. Android did not move on
 2026-08-18 despite shipping vc 34, and iOS did not move for any of the six
 builds that day either — all of them were LOCAL (`expo run:ios`, raw Gradle),
-which is the whole point of the local hosts. `eas submit` costs no quota. `npm run doctor` audits this
-line against `eas account:usage` and fails on drift — so it is a claim, not a
-note. The counter is not the constraint this period, but iOS is two-thirds
-spent with two weeks to run, and iOS is the platform that cannot fall back to a
-local build when `ignia-mac` is short of disk.
+which is the whole point of the local hosts. `eas submit` costs no quota.
+**With no Mac since 2026-11-13, a cloud build is the only iOS path** — this
+fallback is the primary one until another Mac exists.
 
 ```sh
 cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
@@ -259,8 +234,8 @@ is load-bearing; removing it silently changes app identity.** Local Gradle build
 neither read nor increment the EAS remote versionCode, so it has to be set by
 hand after one, or the next cloud build re-mints a colliding number.
 
-`bundleRelease` is **permanently dead on the Windows machine**: `LongPathsEnabled=1`
-and a reboot changed nothing, because the cap is **ninja**, not the registry —
+`bundleRelease` was once **dead on a Windows machine** (contradicted since 2026-08-17:
+vc 31–45 built on Windows, above; this said "permanently dead" until 2026-11-19). The cap was **ninja**, not the registry —
 the SDK's `cmake/3.22.1/bin/ninja.exe` is not long-path-aware and the
 `react-native-keyboard-controller` object path is 348 chars. Relocating `.cxx`
 cannot save it (the CMake target-dir prefix alone is 105 chars).
@@ -313,23 +288,14 @@ committed-then-deleted `node_modules` binaries. **Editing that file is
 dangerous:** once it exists, EAS stops reading `.gitignore`, so every pattern
 must be repeated there or the directory starts uploading.
 
-### `ignia-mac` disk is the recurring constraint
+### Mac disk: an iOS build needs ~17 GB free
 
-**19.18 GiB free, measured
-2026-08-25** on `/System/Volumes/Data`, against an iOS build's ~17 GB floor —
-over the line, but a build consumes space as it runs. A second cleanup pass
-returned only 646 MiB, so there is no easy headroom left; the one remaining
-lever is the **8.1 GB watchOS simulator runtime**, and dropping it is the
-OWNER'S CALL — it ends watch-target simulator testing there. Do NOT delete
-`apps/mobile/ios/Pods` (forces a `pod install`) or
-`~/Library/Developer/CoreSimulator` (live runtimes, and it is someone else's
-laptop). **`df -h /` reads the sealed System snapshot and lies** — ask for
+**`df -h /` reads the sealed System snapshot and lies** — ask for
 `/System/Volumes/Data`, and check the number before believing a build is blocked
 on disk: this file once carried "~600 Mi free / 100% full" when the volume had
-7.7 GiB, and clearing DerivedData alone returned 10.3 GiB.
-
-(Moved here from `STATUS.md` §1 on 2026-08-27 — that file's own header says it
-does not own build tooling, and it was against its size budget.)
+7.7 GiB, and clearing DerivedData alone returned 10.3 GiB. Do NOT delete
+`apps/mobile/ios/Pods` (forces a `pod install`). (The `ignia-mac` free-space
+snapshot that sat here was dropped 2026-11-19 with the machine.)
 
 ### `autoIncrement` burns a version number per *attempt*
 
@@ -350,8 +316,9 @@ ran in between.
 ## Patched dependencies (`patches/`, since 2026-10-22)
 
 `patch-package` runs as the root `postinstall`, so `npm ci` (here, and inside
-`eas build --local`'s copy) re-applies every file in `patches/`. One patch
-today: `@firebase+firestore+<version>.patch`, a fast path in the SDK's
+`eas build --local`'s copy) re-applies every file in `patches/`. Two patches
+(this said "one" until 2026-11-19; the other is `@expo+fingerprint+0.20.14.patch`,
+`apps/mobile/AGENTS.md`). `@firebase+firestore+<version>.patch` is a fast path in the SDK's
 `__PRIVATE_compareUtf8Strings` (ADR-0016 amendment 3) that halved a tab's
 first-visit JS stall. The patch file is named for one exact version: **a
 firebase upgrade must regenerate it** (edit the new `dist/common-*.rn.js`, run

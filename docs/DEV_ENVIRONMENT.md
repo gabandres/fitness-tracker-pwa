@@ -3,8 +3,8 @@
 Two things live here: (1) the **local dev environment** (Firebase Emulator
 Suite — how to stop testing against prod), and (2) the **owner runbook** for the
 `ignia.fit` cutover + production hardening (console/DNS/CLI steps the code can't
-do). Decisions behind this: grilled 2026-07-05, see `project_ignia_prod_cutover`
-memory + ADR-0015.
+do). Decisions behind this: ADR-0015. **§3, the macOS runbook, is BLOCKED since
+2026-11-13 (`ignia-mac` sold, no Mac) — kept for the next one.**
 
 ---
 
@@ -16,33 +16,27 @@ memory + ADR-0015.
 Error: firebase-tools no longer supports Java version before 21.
 ```
 
-**Both JDKs are already installed** — `C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot`
-and `jdk-21.0.11.10-hotspot`. `java` on `PATH` resolves to **17**, so every
-emulator-backed suite (`npm run test:rules`, `npm run dev`,
-`npm run seed`) fails until 21 is put in front of it, per shell:
+On `winbox` both JDKs sit under `C:\Program Files\Microsoft\` (`jdk-17.0.21.21`,
+`jdk-21.0.13.21`) and PATH `java` is 21 (read 2026-11-19; this said 17, with
+older patch versions, until then). For a manual run on a machine where it is 17:
 
 ```sh
-export JAVA_HOME="/c/Program Files/Microsoft/jdk-21.0.11.10-hotspot"
+export JAVA_HOME="/c/Program Files/Microsoft/jdk-21.0.13.21-hotspot"
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
-**`scripts/require-java21.mjs` now runs ahead of `test:rules`
-and prints exactly that**, because this section was still missed on 2026-08-09
-and the miss produced a written claim that the rules suite "cannot run on this
-machine" plus a wrong test count. It only warns — it never picks a JDK or edits
-`PATH`, since a hardcoded install path in committed config works on one machine
-and lies on every other. **On `ignia-mac` the JDK to use is Homebrew
-`openjdk@26`** (`/opt/homebrew/opt/openjdk@26/libexec/openjdk.jdk/Contents/Home`);
-its default `java` is 11, and `firebase` is not on that machine's PATH, so
-invoke the emulator through `npx --yes firebase-tools`.
+**`scripts/require-java21.mjs` is a launcher** (`docs/COMMANDS.md`): it finds a
+JDK 21+, puts it first on PATH and runs the suite. This said "it only warns —
+it never picks a JDK" until 2026-11-19, stale since 2026-09-17. (On a Mac: Homebrew
+`openjdk@26`, and `firebase` via `npx --yes firebase-tools`.)
 
 Note the **msys path form** (`/c/…`, not `C:/…`) — a Windows-style path in
 `PATH` is silently ignored by Git Bash and `java -version` keeps reporting 17,
 which reads exactly like the export failing to apply.
 
 **Do not "fix" this by setting `JAVA_HOME` globally.** The Android release build
-(`gradlew assembleRelease` — the command lives in **`STATUS.md` §7**, not in this
-file, which has no §7) runs against the 17 toolchain; flipping the
+(raw Gradle — the commands live in the `build-android` skill; this cited a
+`STATUS.md` §7 that no longer exists until 2026-11-19) runs against the 17 toolchain; flipping the
 machine default to 21 to save two lines here trades a documented per-shell
 export for an undocumented break in the Android path. Set it in the shell that
 runs the emulator, and nowhere else.
@@ -238,37 +232,29 @@ why every iOS build so far cost a slot and a queue, and why the widget's missing
 `ExtensionStorage` pod could only be found by shipping a binary and reading a
 runtime probe. A Mac removes that whole class of blindness.
 
-Target machine: the MacBook Air M1. **Both platforms since 2026-09-17** — this
-line read "iOS only, as of 2026-08-17" until then; the Android toolchain is back
-on the Air (§3.11, `docs/build-infrastructure.md`).
+> **BLOCKED since 2026-11-13: `ignia-mac` (the MacBook Air M1 that all of §3
+> describes) was sold, and there is no Mac.** Everything Mac-only in §3 — iOS
+> builds, archiving, the iOS/watchOS simulators, Maestro on iOS, §3.15's rebuild —
+> is the runbook for the next Mac, not current state. OTAs publish from `winbox`
+> (`apps/mobile/AGENTS.md`). Where §3 says the Air "is" or "holds" something,
+> read "was". (The Air built both platforms from 2026-09-17 to the sale.)
 
-> **HISTORY — the Windows era, 2026-08-17 → 2026-09-17.** The block below reads
-> as current but is not: Android's build host moved back to the Air on
-> 2026-09-17 (§3.11). The Surface keeps its SDK and the raw-Gradle route still
-> works there, but it is no longer the intended host — it stays the Android OTA
-> host only until the first Mac-built vc ships (`STATUS.md`).
->
-> **CORRECTION (2026-08-18).** This section used to say the Mac was the *only*
-> machine that could build Android, because Windows hits the `MAX_PATH` wall on
-> RN's New Architecture C++. That was stale: Android's build host moved to
-> **Windows** on 2026-08-17 and vc 32 through 45 were built there. MAX_PATH
-> is cleared by keeping the SDK on a **short path** — `Z:\packagesndroid-sdk`,
-> not the `%LOCALAPPDATA%\Android\Sdk` default.
->
-> Two traps follow from that, and together they cost three failed starts on
-> 2026-08-18. The workstation's exported `ANDROID_HOME` still points at the
-> **non-existent** default; and `npx expo prebuild -p android --clean` deletes
-> `android/local.properties`, which is machine-local and never committed. With
-> both true, Gradle stops at `SDK location not found`, which reads exactly like
-> a missing SDK install. Recreate it:
->
-> ```sh
-> printf 'sdk.dir=Z:/packages/android-sdk
-' > apps/mobile/android/local.properties
-> ```
->
-> Forward slashes deliberately — a Java properties file eats `\p` and `` as
-> invalid escapes, so the Windows-style path has to be double-escaped or avoided.
+**The Windows Android route (vc 31–45, 2026-08-17 → 09-17)** keeps the SDK on a
+**short path** to clear MAX_PATH — `Z:\packages\android-sdk`, not the
+`%LOCALAPPDATA%\Android\Sdk` default. Neither exists on `winbox` (checked
+2026-11-19), so the route needs a fresh SDK install. This block carried a
+HISTORY note over a CORRECTION note until 2026-11-19. Two traps cost three
+failed starts on 2026-08-18: an exported `ANDROID_HOME` pointing at the
+**non-existent** default, and `npx expo prebuild -p android --clean` deleting
+the machine-local `android/local.properties`. With both, Gradle stops at
+`SDK location not found`, which reads like a missing SDK install. Recreate it:
+
+```sh
+printf 'sdk.dir=Z:/packages/android-sdk\n' > apps/mobile/android/local.properties
+```
+
+Forward slashes deliberately — a Java properties file eats `\p` and `\a` as
+invalid escapes, so the Windows-style path has to be double-escaped or avoided.
 
 **iOS QA builds on this machine: pass `DEBUG_INFORMATION_FORMAT=dwarf`.** The
 Air's data volume sat at 194 GB of 228 GB used on 2026-08-18 (most of it the
@@ -298,7 +284,7 @@ sudo xcodebuild -runFirstLaunch
 sudo gem install cocoapods             # or: brew install cocoapods
 ```
 
-Node: this repo has no `engines` pin and no `.nvmrc`; Windows runs **v24**. Match
+Node: `.nvmrc` pins 24.12.0 (this said "no `engines` pin and no `.nvmrc`" until 2026-11-19). Match
 the major version rather than guessing — a different major silently changes how
 npm resolves the workspaces.
 
@@ -323,7 +309,7 @@ email the `.p8` or the keystore):
 | `.env.local` (repo root) | every ASC script, `npm run doctor` | holds `ASC_ISSUER_ID` and `SENTRY_AUTH_TOKEN` |
 | `AuthKey_47Z9RY8MT5.p8` | ASC reads/writes, `eas build` credential validation | put it anywhere stable, e.g. `~/keys/` |
 | `CLAUDE.local.md` (repo root) | knowing where everything lives | git-ignored by design; it is the index to the rest |
-| `apps/mobile/credentials.json` + `credentials/` | **Android only** | on the Air since 2026-09-17 (mode 600, hash-verified, §3.11). This row said "skip on an iOS-only Mac" until then |
+| `apps/mobile/credentials.json` + `credentials/` | **Android only** | copy from `winbox` (mode 600, hash-verified, §3.11); this said "on the Air" until 2026-11-19 |
 
 **The trap: `scripts/asc-client.mjs` defaults `ASC_KEY_PATH` to a Windows path**
 (`C:/Users/gabri/Downloads/AuthKey_…p8`). On macOS it is not overridden by anything,
@@ -491,9 +477,8 @@ as a logged-in GUI user with an unlocked keychain. More setup; correct destinati
 which is what makes SDK 55+ possible at all, since 55 raised the Xcode floor to
 26 — Node **24.12.0** via fnm since the 2026-09-10 rebuild (`scripts/mac-bootstrap.sh`
 installs `.nvmrc`'s version; it was 22.23.2 on the shared install, left alone
-because it was someone else's laptop), and still only the Windows workstation
-may rewrite `package-lock.json` (the Air runs `npm ci` and nothing else — see
-`docs/build-infrastructure.md`). CocoaPods
+because it was someone else's laptop). Lockfile author: `docs/build-infrastructure.md`
+(`winbox` since 2026-11-13; the Mac's `npm ci`-only line was stale from 10-21). CocoaPods
 **1.17.0** on its own Homebrew Ruby 4.0.6 — the system Ruby is 2.6.10 with a broken
 `ffi`, so never use it. `LANG`/`LC_ALL` are set in `~/.zprofile` because CocoaPods
 warns and can fail without UTF-8.

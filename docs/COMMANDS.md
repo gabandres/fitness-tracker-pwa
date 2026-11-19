@@ -162,12 +162,12 @@ An update published against a changed fingerprint **succeeds and reaches
 nobody**, which is indistinguishable from a working update. Gate first, on the
 machine that will publish: **the Windows PC (`winbox`, `Z:\fitness-tracker-pwa`)
 since 2026-11-12**, which computes the Mac's hashes exactly (`apps/mobile/AGENTS.md`;
-`ignia-mac` is sold 2026-11-13). This paragraph said "on the machine that builds
+`ignia-mac` was sold 2026-11-13). This paragraph said "on the machine that builds
 that platform — `ignia-mac`" until then.
 
 ```sh
 # iOS — must equal the live binary's value (STATUS.md / AGENTS.md)
-ssh winbox "cd /d Z:\fitness-tracker-pwa\apps\mobile && npx expo-updates fingerprint:generate --platform ios"
+cd /z/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios   # on winbox (was `ssh winbox` from the Mac until 2026-11-19)
 # Android — the TREE hash is not the gate (no tree has reproduced a Mac-built .aab):
 # pin `runtimeVersion` in app.json to the artifact value (AGENTS.md table) for the publish, revert after
 unzip -p <the shipped>.aab base/assets/fingerprint
@@ -218,8 +218,9 @@ in an `.ipa`), never a locally generated hash. The current two-row table lives i
 
 ## How long a local build takes — on THIS machine
 
-Build times in `build-infrastructure.md` were all measured on the **M1 Air**, so
-on any other Mac they are not a baseline. Re-measure rather than assume, and
+**No Mac since `ignia-mac` was sold 2026-11-13** — this is the runbook for the
+next one. Build times in `build-infrastructure.md` were all measured on that
+**M1 Air**, so they are not a baseline for it. Re-measure rather than assume, and
 paste the emitted line back into that file with the machine named.
 
 ```sh
@@ -233,8 +234,8 @@ the wall-clock. A run below that threshold dies mid-CMake on `No space left on
 device`, which is how `vc 28` was lost.
 
 **A genuinely cold number is measurable once per machine.** `eas build --local`
-stages its prebuild outside `apps/mobile/{ios,android}` (neither directory exists
-on `ignia-mac`, and both platforms ship from it), so warmth lives in `~/.gradle`
+stages its prebuild outside `apps/mobile/{ios,android}` (neither directory existed
+on `ignia-mac`, which built both platforms), so warmth lives in `~/.gradle`
 and `~/Library/Caches/CocoaPods`, not in the working tree — deleting native dirs
 does not manufacture cold. On a new laptop, run this before anything else warms
 those caches. The script never runs the two platforms concurrently: they share

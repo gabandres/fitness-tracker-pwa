@@ -63,25 +63,14 @@ and a snapshot here would expire again.)
 | Pro / premium / unlimited-anything | `PRO_ENABLED = false` (`apps/mobile/src/lib/subscription.ts`, the only copy); there is no paid tier to upsell. No subscription or IAP product exists; the Stripe extension was removed 2026-08-31 |
 | Free trial, "upgrade", pricing anchors | nothing to buy |
 | Progress photos | uploading works, but it was cut from the v1 story — don't market it |
-| Android app | **Live on Google Play** since 2026-09-03 — <https://play.google.com/store/apps/details?id=fit.ignia.app> returns 200. Market it as available |
-| Voice dictation · the redesigned Add screen · the fasting Live Activity · the wide home-screen widget | **Public since 1.2.0 released 2026-08-19** — claimable. (This row said "only on TestFlight" until 2026-09-17.) |
+| Travel mode · composition maintenance · the maintenance display | `travelMode`, `compositionMaintenance`, `maintenanceDisplay` are `'admin'` in `apps/mobile/src/lib/features.ts` — owner-only; `forbesPrior` is `false` |
 
-**Corrected 2026-08-15 — two rows in this table were badly wrong**, and both
-would have suppressed a real headline feature during a launch push:
-
-- *"AI meal photo → macros — `photoScan: false` on both platforms (ADR-0015,
-  deferred)"*. **False since 2026-08-07.** ADR-0017 amended 0015: photo scan is
-  **ON and free to everyone** (`apps/mobile/src/lib/features.ts` reads
-  `photoScan: true`; the web copy is gone with ADR-0036 — verified in
-  code). Its tiering is server-side only. It is in the live 1.1.0 binary and is
-  claimable today.
-- *"Apple Watch — not built"*. **False since 1.1.0.** The watch app and its
-  complication ship from build 19 on, `apps/mobile/targets/` holds `watch` and
-  `watch-widget`, and Apple would not have taken 1.1.0 without the watch
-  screenshots that are on file. Claim the **app and the glanceable numbers**;
-  do not claim real-time refresh, which is `BEHAVIOUR UNVERIFIED` and, per
-  ADR-0023, cannot be pushed to a WidgetKit complication at all — what ships is
-  an approximately hourly pull.
+(Until 2026-11-19 this table also listed the Android app and voice dictation /
+the Add screen / the fasting Live Activity / the wide widget — all claimable —
+and carried a "Corrected 2026-08-15" block on photo scan and the Watch app, both
+now in the shipped list above.) **Watch caveat that stands:** claim the app and
+the glanceable numbers, not real-time refresh — per ADR-0023 a WidgetKit
+complication cannot be pushed to; what ships is an approximately hourly pull.
 
 **Shipped, in the live binary, and previously mis-filed as "not in a binary
 yet":** Apple Health sync including the activity import (steps, active energy)

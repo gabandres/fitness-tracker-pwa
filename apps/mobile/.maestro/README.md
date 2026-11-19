@@ -19,9 +19,14 @@ So the rule for this directory: **assert on visibility, not existence.**
 `assertVisible` fails when text is not rendered on screen, which is the only
 assertion that can catch a layout regression.
 
-## The Android emulator lives on `ignia-mac` — 2026-08-08
+## The Android emulator lived on `ignia-mac` — 2026-08-08
 
-**The owner has no Android device.** Every Android box in `WIDGET.md` was
+> **BLOCKED since 2026-11-13: `ignia-mac` was sold.** Everything below that runs
+> on the Mac (this emulator, the iOS simulator suite) is the runbook for the next
+> Mac; where it says the Mac "has" or "carries" something, read "had".
+
+**On 2026-08-08 there was no Android device** (this said "the owner has none"
+until 2026-11-19; the LG G6 and OnePlus 8T rows elsewhere came later). Every Android box in `WIDGET.md` was
 unticked from the day the feature shipped, and vc 18 and vc 21 both reached
 testers with nothing anywhere having launched them. The emulator is what closes
 that, and it is already installed:
@@ -33,28 +38,20 @@ that, and it is already installed:
 | bundletool | `/opt/homebrew/bin/bundletool` | installed |
 | AVD `pixel_api36` | `~/.android/avd` | present — keep it |
 
-This table said the image was API 35 and that AVD `ignia-a35` was "deleted to
-reclaim 2 GB — recreate it below", because the Air was someone else's laptop.
-True until the 2026-09-10 rebuild made it a dedicated box; the whole toolchain
-was then absent 2026-08-17 → 2026-09-17 and came back as API 36. The AVD is no
-longer disposable. If it is ever missing (the system image stays, so no
-download):
+(The table's earlier API 35 / `ignia-a35` history is in git.) If the AVD is
+missing (the system image stays, so no download):
 
 ```sh
 echo no | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n pixel_api36 \
   -k 'system-images;android-36;google_apis;arm64-v8a' -d pixel_7 --force
 ```
 
-**`JAVA_HOME` and `ANDROID_HOME` are exported by `~/.zshrc`, `~/.zprofile` and
-the T3 Code launchd plist since 2026-09-17.** This paragraph said neither was
-in the Mac's shell config (true until then). A non-interactive
-`ssh ignia-mac '…'` reads neither rc file, so export them explicitly there;
+**Export `JAVA_HOME` (`/opt/homebrew/opt/openjdk@17`) and `ANDROID_HOME`** in
+`~/.zshrc`, `~/.zprofile` and any launchd plist: a non-interactive
+`ssh <mac> '…'` reads neither rc file, so export them explicitly there too;
 Maestro 2.x otherwise fails with a bare *"Java 17 or higher is required"* (old
 Microsoft JDK 11) or *"Unable to locate a Java Runtime"* (nothing on `PATH`).
-
-**`openjdk@17` is back since 2026-09-17** at `/opt/homebrew/opt/openjdk@17`,
-which is the exported `JAVA_HOME`. This paragraph said it was gone since the
-2026-09-10 rebuild — true for one week. Durable: `/usr/libexec/java_home -V`
+Durable: `/usr/libexec/java_home -V`
 does not see Homebrew JDKs, and a `JAVA_HOME` at a wrong path fails with
 *"JAVA_HOME is set to an invalid directory"* — which reads nothing like a
 missing JDK. The requirement is 17 **or higher**.
@@ -172,13 +169,11 @@ cd android && ./gradlew assembleRelease   # → app/build/outputs/apk/release/ap
 Debug-keystore signing is fine here (email sign-in only). Two obligations
 travel with this: it is NOT evidence about a shipped binary — artifact-level
 verification stays with `verify-mobile-artifact.mjs` on real `.aab`s — and
-fingerprint work follows `AGENTS.md`'s rule: **generate on the host that builds
-the platform, from the same tree state as the build.** This paragraph said the
-`android/` prebuild dir had to be deleted first because it was hashed — disproven
-2026-08-17 (`dir:` sources hash only git-tracked content; `AGENTS.md`, "What
-does NOT move it"), and moot the other way since 2026-09-17, when the Mac
-became the Android build host and `eas build --local` prebuilds anyway. The one
-worktree-only hazard is line endings (`AGENTS.md`, last section).
+fingerprint work follows `AGENTS.md` (the artifact's value is the gate; Windows
+and Mac compute the same hashes since 2026-11-12 — this said "generate on the
+host that builds the platform" until 2026-11-19). The `android/` prebuild dir is
+not hashed (`dir:` sources hash only git-tracked content); the one worktree-only
+hazard is line endings (`AGENTS.md`, last section).
 
 ### The Settings sheet is 31 seconds tall on the LG G6 — budget for it
 

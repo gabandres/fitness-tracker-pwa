@@ -109,14 +109,10 @@ about **freshness**.
 ## Build traps
 
 **The `gradlew` / `gradlew.bat` / `patch-android-release.mjs` recipes from here
-down are the Windows raw-Gradle route (vc 31–45).** Since 2026-09-17 the
-intended release path is `eas build --local -p android --profile production` on
-`ignia-mac` (`SKILL.md`, `docs/build-infrastructure.md`) — no
-`patch-android-release.mjs`, no `gradlew.bat`. This file presented the Windows
-recipes as *the* release route until then. They stay until the cutover lands
-(`STATUS.md`): the live runtime (vc 45) is Windows-built, so a Windows rebuild
-is the fallback until the first Mac-built vc ships, and the Windows section of
-`SKILL.md` is deleted in the same commit as the guard flip.
+down are the Windows raw-Gradle route (vc 31–45).** vc 46–53 shipped from
+`ignia-mac` (raw Gradle + the patch script, `SKILL.md` Step 3); with the Mac sold
+2026-11-13, this Windows route is the only local Android path, unverified since
+vc 45. (This paragraph described a pending Mac cutover until 2026-11-19.)
 
 **`SENTRY_AUTH_TOKEN` fails the build at the very end.** `@sentry/react-native`
 uploads source maps as a Gradle task. Measured 2026-08-17: 1089 tasks executed,
@@ -181,9 +177,8 @@ once per ABI.
 
 ## Avenues that were closed on Windows — history of the Windows era (2026-08-17 → 2026-09-17)
 
-Android's build host moved back to `ignia-mac` on 2026-09-17, so none of these
-is on the release path any more; this heading read "genuinely closed on Windows"
-in the present tense until then. The rows are durable facts about the Surface
+Android's build host was `ignia-mac` from 2026-09-17 until its sale on
+2026-11-13; with no Mac, Windows is again the only local route. The rows are durable facts about the Surface
 (ARM64) and still hold for anyone building there. Kept because each was tried,
 and the first two will be re-proposed.
 
@@ -341,7 +336,7 @@ sees the path:
 const env = { ...process.env };
 delete env.NoDefaultCurrentDirectoryInExePath;
 spawnSync('cmd.exe', ['/d', '/c', '.\\gradlew.bat bundleRelease'],
-          { cwd: 'Z:/macro-app/apps/mobile/android', stdio: 'inherit', env });
+          { cwd: 'Z:/fitness-tracker-pwa/apps/mobile/android', stdio: 'inherit', env });
 ```
 
 **Write that runner with a file-writing tool, never a heredoc.** Confirm it
@@ -369,7 +364,7 @@ will not remove a directory that is any process's cwd.
 
 ```sh
 # from a session whose cwd is NOT inside android/
-Remove-Item -Recurse -Force Z:\macro-app\apps\mobile\android
+Remove-Item -Recurse -Force Z:\fitness-tracker-pwa\apps\mobile\android
 ```
 
 This one does *not* exit 0 — it fails honestly — but it reads as a locked file

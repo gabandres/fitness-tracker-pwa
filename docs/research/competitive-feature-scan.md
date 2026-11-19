@@ -1,9 +1,68 @@
 > **VERDICT** — Against Cal AI, MacroFactor, MyFitnessPal, Lose It! and Cronometer, Ignia's gaps resolve to twelve validated candidates: Health sync, a home-screen widget, a Watch app, restaurant data and recipe-URL import are table-stakes at $0; meal photo-scan is the category's loudest acquisition hook and its only cost-exposed one; and Ignia already gives away free the barcode, voice logging, coach and fasting timer that competitors paywall at $60-100/yr.
-> **Status:** SETTLED (candidate characterization only — prioritization was deliberately left to other tickets; Cal AI **pricing is now verified**, its DB/integration claims stay flagged unverified) · **Researched:** 2026-07-11 · **Prices re-verified:** 2026-08-03
+> **Status:** SETTLED (candidate characterization only — prioritization was deliberately left to other tickets; Cal AI **pricing is now verified**, its DB/integration claims stay flagged unverified) · **Researched:** 2026-07-11 · **Prices re-verified:** 2026-08-03 · **Market refreshed:** 2026-11-19 (addendum below; most of the twelve candidates have shipped, and Cal AI's price and Lose It!'s free barcode no longer hold)
 > **Read this only if:** you are weighing a new feature against the market and need competitor paywall boundaries, cost exposure, or the free-vs-paid positioning wedge.
 > **Do not** re-derive the conclusions below; cite them.
 
 # Competitive Feature Scan
+
+> **Addendum 2026-11-19 — market refresh, nutrition AND training.** Read this
+> before the July body below; where they differ, this is newer. Sources were
+> store listings and the apps' own sites, read 2026-11-19; Reddit and
+> fitbod.me could not be fetched, and roundup sites written by competitors are
+> not used. "Unverified" = not on a primary page.
+>
+> **What changed in the five (since 2026-07-11).** **Cal AI** was bought by
+> MyFitnessPal (announced March 2026, unverified on a primary page) and was
+> briefly pulled from the App Store in April for billing violations; its listing
+> now says scan results require a subscription, so the $29.99/yr price verified
+> 2026-08-03 is **no longer confirmed**. **MyFitnessPal** replaced the Diary tab
+> with a "Today" feed in April and drew a backlash (diary behind "View All",
+> macros per meal hidden); it added GLP-1 tracking and a multi-photo AI coach.
+> **MacroFactor** added AI label scan → custom food, a Snap / Describe split and
+> AI recipe import, and launched a separate **Workouts** app (January 2026,
+> $71.99/yr, no free tier, 600+ demo videos, rule-based progression, Watch still
+> in beta). **Lose It!** now lists barcode under Premium (the July body assumed
+> it was free) and added GLP-1 logging. **Cronometer** added Apple Watch and
+> Siri food logging; its barcode stays free.
+>
+> **Apps not covered in July.** **FoodNoms** (iOS, 4.7★): the closest design
+> peer — swipe to re-log, multi-select re-log, favorites from Watch and widgets,
+> share-to-app, and "Calibrated Energy", the same idea as Ignia's measured
+> maintenance, at $39.99/yr. **Yazio**: 78 onboarding steps and a paywall with a
+> spin-the-wheel discount before the dashboard. **Lifesum**: an AI redesign that
+> reviewers say broke logging. **MyNetDiary**: free barcode and voice, a GLP-1
+> companion, "Autopilot" adaptive targets. **SnapCalorie**: LiDAR portions at
+> $149/yr. **Training:** Hevy (free logging with caps, video, social, Watch),
+> Strong (minimal logbook, Watch), Boostcamp (14,000 free programs; plate
+> calculator and charts behind Pro), Alpha Progression (795 videos, no account
+> needed), JEFIT (1,400 videos, Watch + Wear OS), Liftosaur, Fitbod
+> (unverified).
+>
+> **What Ignia lacks, ranked.** (1) **How-to for an exercise** — every serious
+> logger ships video; Ignia's seeded form cues exist but are shown only in the
+> template editor. (2) **A plan handed to a novice** — a picker by goal, days
+> and equipment; MacroFactor does it with rules, not AI. (3) **Apple Watch
+> logging**, food and sets — the reason lifters name for switching; native, so
+> blocked. (4) **Re-log from history with multi-select.** (5) **CSV import from
+> Hevy / Strong.** (6) AI label scan → custom food (an AI cost). (7) A GLP-1 /
+> protein-first mode (three majors shipped one in 2026). **Not gaps, checked in
+> code:** plate + warm-up panel, PR detection, 1RM estimate, per-lift settings,
+> Health write-back of workouts. Work items: `UX_AUDIT.md` §S24 batch 4.
+>
+> **How the combined apps join food and training:** mostly they do not.
+> MacroFactor ships two apps sharing body metrics, with no automatic calorie
+> adjustment from training and an explicit stance that wearable burn is too
+> unreliable to move a target — the same decision as ADR-0024. MyFitnessPal has
+> an "eat back burned calories" switch. No app found has one weekly review
+> across both halves.
+>
+> **The wedge is wider than in July.** Barcode is now paid in MyFitnessPal AND
+> Lose It!; photo is paid in Cal AI, MyFitnessPal, Lose It!, Cronometer,
+> MyNetDiary and SnapCalorie; auto-progression is paid in Boostcamp, Alpha
+> Progression, JEFIT and MacroFactor. Ignia gives all of them away. The 2026
+> backlashes (MyFitnessPal's redesign, Yazio's onboarding, Cal AI's billing)
+> are about friction and trust, which is where Ignia's own weak spot is:
+> activation, not features.
 
 > **Addendum 2026-08-09 — two "gaps" below have since shipped.** Read the
 > verdict as the 2026-07 snapshot it is, not as today's feature list.

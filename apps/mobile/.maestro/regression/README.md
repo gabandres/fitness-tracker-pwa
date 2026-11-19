@@ -50,49 +50,16 @@ setup on BOTH platforms, silently and in two different ways, and this section
 described a machine that could no longer run any of it. What follows is what
 was actually executed.
 
-### iOS — `ignia-mac`, WORKING again since 2026-09-22 (on an iOS 26 runtime)
+### iOS — on a Mac; BLOCKED since 2026-11-13 (`ignia-mac` sold, no Mac)
 
-> **2026-09-23: iOS 27 runs the app again.** 1.2.4 enabled Expo scene support
-> (`ios.enableSceneSupport`), so a build from this tree launches on the iOS 27
-> `Ignia-QA` and the suite passed 21/21 there. The banner below describes
-> builds from before `7f25177c`; keep `Ignia-QA-26` for comparing against iOS 26.
-
-> **The suite runs. Shipping is what is blocked — do not confuse the two.**
->
-> `ignia-mac` is on **Xcode 27.0** and the iOS 26.5 runtime is gone. Anything
-> built here links the iOS 27 SDK, and on the **iOS 27 runtime** it dies on the
-> first frame:
->
-> ```
-> (UIKitCore) failure in _UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption
-> Application failed to launch: UIScene life cycle is required for apps built with this SDK.
-> ```
->
-> The build SUCCEEDS and installs — it dies on launch, so it reads like an app
-> crash and is not one.
->
-> **The workaround is the runtime, not the SDK.** Measured 2026-09-22: the same
-> binary that aborts on iOS 27.0 launches and passes 21/21 on **iOS 26.0**. The
-> check lives in the runtime's UIKit, so an older runtime does not carry it.
-> (Corroborating evidence: the 2026-09-17 build linked the iOS 26 SDK and ran
-> fine on 26.5 — so it is the iOS 27 SDK *plus* the iOS 27 runtime that bites.)
->
-> ```sh
-> xcodebuild -downloadPlatform iOS -buildVersion 26.0   # one shot, ~5 min
-> ```
->
-> **You do not need to rebuild to use it** — `simctl install` the existing
-> `.app` out of DerivedData onto a 26.0 device.
->
-> **What this does NOT fix:** a binary cut here still links the iOS 27 SDK and
-> will not launch for a real user on iOS 27. Neither `react-native@0.86.2` nor
-> `expo@57.0.14` ships a `UIWindowSceneDelegate`, so there is no
-> `app.json`-only fix — the manifest would point at a delegate that does not
-> exist. `STATUS.md` §3 owns that decision; `CODE_REVIEW_2026-09-22.md` §0 has
-> the evidence and the options.
->
-> **`Ignia-QA` (the old device) is on iOS 27 and cannot run the app.** The
-> device this section now builds is **`Ignia-QA-26`**.
+What follows is the runbook for the next Mac. **iOS 27 runtime:** builds from
+before `7f25177c` (1.2.4, scene support) die on the first frame with
+`UIScene life cycle is required for apps built with this SDK` — a launch abort
+that reads like an app crash. Run those on an iOS 26.0 runtime
+(`xcodebuild -downloadPlatform iOS -buildVersion 26.0`; `simctl install` the
+existing `.app`, no rebuild); newer builds pass 21/21 on iOS 27 (2026-09-23).
+(This replaced two stacked banners on 2026-11-19; the evidence file they cited,
+`CODE_REVIEW_2026-09-22.md`, was deleted 2026-10-15 — see git.)
 
 Three things to set up, none of which announces itself until you try.
 **Re-measured 2026-09-16; the first two rows said something different and
@@ -159,9 +126,9 @@ the measurement.
 
 Android UI regression was **unhosted** on 2026-08-18, and this heading said
 "Android has NO host" in the present tense until 2026-09-17. Today the suite
-runs on `ignia-mac` (`emulator -avd pixel_api36` + adb, recipe in
-`.maestro/README.md`) or on the LG over adb from Windows. The table is that
-day's state; only the Windows row is still true:
+runs on the LG over adb from Windows; the `ignia-mac` emulator (recipe in
+`.maestro/README.md`) went with the Mac on 2026-11-13 (this said it ran there
+until 2026-11-19). The table is 2026-08-18's state; only the Windows row is still true:
 
 | Machine | Why it could not run the Android suite (2026-08-18) |
 |---|---|
@@ -190,7 +157,7 @@ historically and structurally invisible on a local build.
 **THAT HOST EXISTS since 2026-08-29.** The **LG VS988** (Android 9 / API 28)
 is driven over adb from this workstation and Maestro 2.8.0 runs the suite
 against it natively. The Windows-emulator half of this section is durable
-(ARM64); the Mac emulator is back since 2026-09-17. Three things learned
+(ARM64); the Mac emulator ran 2026-09-17 → 11-13. Three things learned
 running it on the LG on 2026-08-29:
 
 - **The suite requires the app in ENGLISH.** Flow 01 asserts `"Today"`; an

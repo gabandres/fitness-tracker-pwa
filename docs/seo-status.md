@@ -245,7 +245,9 @@ downloaded. **That is fixable with anchors, and anchors need no router** — the
 
 ### What the migration would actually cost, measured
 
-Not a guess; counted:
+Not a guess; counted — **before ADR-0036.** Re-count before costing: of the
+services below only `translation`, `admin` and `analytics` still exist, and
+`app.ts` no longer has the `navigator.onLine` initialiser (both checked 2026-11-19).
 
 | Piece | Size |
 |---|---|

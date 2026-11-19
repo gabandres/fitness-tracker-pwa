@@ -1,8 +1,8 @@
 # Ignia — UX Audit
 
-> Updated: 2026-07-29 — trimmed to open items; completed items are in git history and CHANGELOG.md
+> Updated: 2026-11-19 — cut from 1,075 lines to the open backlog on this date. Shipped items, score narratives and correction stacks were deleted; outcomes are in `CHANGELOG.md`, reasoning in `docs/adr/`, the full text in `git log -- UX_AUDIT.md`.
 
-Living backlog of open UX/launch work for Ignia. Sections §S1–§S11 (the 2026-04 copy, a11y, onboarding, dashboard and post-launch passes) and the old §1/§3/§4/§6 narrative are fully shipped and have been removed — see git history and `CHANGELOG.md`. What remains: §2 (invariants to not regress), §S12 (positioning + remaining market items), §S13 (launch-readiness checklist, kept in full), §S14 (declutter decisions, none shipped yet) and §5 (checks for new surfaces). **Status legend:** `[ ]` open · `[~]` in progress · `[x]` shipped · `[-]` decided against. Tick the box and note the commit/date inline when you ship; keep each "Why:" intact.
+The **open UX backlog** for Ignia, and nothing else. §S13 is the launch-readiness checklist. Past audit sections survive as two-line stubs so references elsewhere in the repo (`§S16`…`§S23`, `F0`–`F7`, `N5`) still resolve. **Status legend:** `[ ]` open · `[~]` in progress · `[-]` decided against. When an item ships, delete it here and record the outcome in `CHANGELOG.md`.
 
 ---
 
@@ -20,95 +20,13 @@ Don't regress these while fixing below.
 
 ## 🎯 S12 — Market-informed strategic direction (2026-04-17)
 
-After a deep market dive (MyFitnessPal, Cronometer, MacroFactor, Cal AI, Lose It! — see the sources under §S13 and `CHANGELOG.md`), the product positioning crystallized as:
-
-> **"The calm, private macro log with an AI coach that actually reads your data."**
-
-Four load-bearing words: **calm** (vs shame-based MFP), **private** (real trust moat), **log** (editorial, adult, not gamified), **coach that reads your data** (adaptive TDEE + AI consultation — uniquely *both* photo-AI AND MacroFactor-style learning TDEE, which no competitor does).
-
-### Live backlog (in priority order)
-
-Weeks 1–3 (conversion path, first-session retention, daily-use polish) are complete; only Week 4 market-signal items remain.
+Positioning: **"The calm, private macro log with an AI coach that actually reads your data."** — calm (vs shame-based MFP), private (trust moat), log (editorial, not gamified), coach that reads your data (photo-AI *and* adaptive TDEE; no competitor does both). Weeks 1–3 of the backlog shipped.
 
 #### Week 4 — market signals
-- [ ] Play Store TWA wrap for discovery.
+- [ ] Play Store TWA wrap for discovery. *(Likely moot: it wraps the PWA, which ADR-0036 retired, and the native Android app is on Play. Owner to confirm and delete.)*
 - [ ] One creator collab for "calm macro log" TikTok angle.
 
----
-
-## 🚀 S13 — Public-launch readiness (2026-04-18)
-
-> **2026-08-30 — the web logging app is retired (ADR-0036).** Items below that
-> name the PWA, `ngsw`, web push, the web install prompt or web onboarding are
-> history; the launch surface is the two store apps plus the `ignia.fit` shell
-> (legal pages, `/support`, `/status`) and `/admin`.
-
-What's between "deployed" and "safe to share with strangers." Grouped by severity, not by effort. Everything in this section is gating wider distribution.
-
-### 🚨 Hard blockers — must-have before any public share
-- [x] **Stripe live-mode end-to-end verification.** *(2026-04-19)* — verified via Stripe CLI + Cloud Functions logs. Product `prod_UKSEcAQhRmQQ9u` + both prices (`price_1TLnJdHvWnhD3GuYy7gWFvyJ` $3/mo, `price_1TN1eGHvWnhD3GuYS90n9x3a` $24/yr) all `active: true, livemode: true`. Webhook `we_1TLnJfHvWnhD3GuYzV5h8a1m` → `ext-firestore-stripe-payments-handleWebhookEvents`, subscribed to 14 events including all subscription + invoice + checkout lifecycle. Signing-secret match proven by successfully-handled real events (`invoice.paid`, `customer.subscription.created`, `checkout.session.completed`) in the Cloud Functions logs.
-- [x] **Stripe Tax enabled.** *(2026-04-19)* — Tax Settings `status: active`, head office set to the Caguas PR address. Default tax code is `txcd_10103000` ("Software as a service (SaaS) - personal use"). Product `prod_UKSEcAQhRmQQ9u` has no explicit tax_code, so it inherits the correct account default — functionally equivalent, though setting it explicitly at the product level would be nicer belt-and-suspenders for future products. **Zero jurisdictional registrations** recorded yet — Stripe monitors US state thresholds but does not collect until a registration is added. When a PR customer or meaningful EU/UK volume appears, register via Hacienda (PR SUT/IVU), OSS (EU), HMRC (UK) and add to Stripe via `POST /v1/tax/registrations`.
-- [x] **Firebase Auth password policy.** *(2026-04-19)* — applied via Identity Platform REST API: `ENFORCE`, min length 10, requires uppercase + lowercase + numeric. `forceUpgradeOnSignin: false` so existing passwords remain valid.
-- [x] **GCS backup bucket exists.** *(2026-04-19)* — `gs://fitness-tracker-gb-1775407101-backups` created (us-central1, uniform-bucket-level access, 30-day delete lifecycle). `647810616435-compute@developer.gserviceaccount.com` granted `storage.admin` on the bucket + `datastore.importExportAdmin` on the project so `weeklyFirestoreBackup` can write.
-- [x] **Cloud Monitoring alerts.** *(2026-04-19)* — email channel `projects/…/notificationChannels/14532171541501133516` (→ `gabrielandresbermudez@gmail.com`) + 3 alert policies (Cloud Functions error rate >5% over 10 min; statusPulse absent >30 min; analyzePhoto >500 invocations/hour). Applied via REST because `gcloud beta` wasn't installed; documented the REST fallback in `scripts/monitoring/setup-alerts.sh`.
-
-### ⚠️ Soft blockers — ship-breakers if the app catches traction
-- [x] **Terms of Service legal review.** *(closed 2026-09-17)* — the item's trigger was subscription auto-renewal language for auto-renew SaaS, and no subscription exists or is planned outside Apple/Google IAP (the Stripe extension was removed 2026-08-31; `PRO_ENABLED = false`). A general lawyer read of `/terms` (liability, arbitration, jurisdiction) is not a launch blocker for a free app; re-open if a paid tier ships.
-- [x] **Refund policy published.** *(2026-04-19)* — "refunds" + "subscriptions + auto-renewal" sections on `/terms`. EU/UK/CH 14-day statutory withdrawal with explicit email path, rest-of-world discretionary goodwill, chargeback-before-file clause. en + es-PR.
-- [x] **Account deletion wiring audit.** *(2026-04-19)* — verified `deleteAccount` purges all 5 subcollections (dailyLogs, presets, reports, dailyWeights, measurements), both quota collections, Stripe subscriptions (cancel_at_period_end), profile doc (which holds fcmToken), and the Firebase Auth user. Rate-limited 5 s.
-- [x] **Age gate in onboarding.** *(2026-04-19)* — new required checkbox on step 1, stamps `ageConfirmedAt: Timestamp` on the profile. Attestation bound to an explicit `ageConfirmed: true` in `ProfileFields` so future `saveProfile` callers cannot silently age-attest. Rules validator updated.
-- [x] **Full GDPR Art. 20 data export.** *(2026-04-19)* — new `exportUserData` callable dumps profile (redacted of `webhookApiKey` + `fcmToken`) + all 5 subcollections + quota docs. Size-guarded at ~9 MB with typed error. Download button on `/privacy`.
-
-### 💪 Strongly advised (not strictly blocking)
-- [x] **Custom domain.** Purchased **`ignia.fit`** (2026-07-05). Code URLs migrated macrolog.web.app→ignia.fit. Owner still to: connect `ignia.fit` as a custom domain on the `macrolog` hosting site (Firebase console + DNS, ~day to settle), update the Gemini client-key HTTP-referrer allow-list to include `https://ignia.fit`, and `gsutil cors set storage-cors.json` for the bucket.
-- [x] **Open Graph meta tags in `index.html`.** *(verified live 2026-08-04)* — this item described a state that had already stopped being true, and was read as open work twice. The full set (`og:type/site_name/title/description/url/image` + dimensions + alt, `twitter:card` large-image) is in the shell, `og-image.png` serves 200 as `image/png`, and `scripts/prerender-seo.mjs` rewrites title/description/url/locale/image **per route across all 105 prerendered pages** — `/es/` gets Spanish copy and `es_PR`. Cards render. The only real gap found on inspection was `og:locale` missing from the EN homepage: the homepage is the one `<head>` the prerender deliberately does not touch (rewriting `index.html` would break the SPA fallback), so it never received the tag the other 104 pages got. Declared in the shell, `fa80d0e6`.
-- [x] **PWA icon set audit.** *(2026-04-19)* — explicit apple-touch-icon declarations for 152 (iPad) + 192 (iPhone) in `src/index.html`. Manifest covers 72/96/128/144/152/192/384/512. A dedicated 180×180 render from `icon-source.svg` is a nice follow-up but iOS scales 192 cleanly.
-- [x] **Transactional email sender domain.** *(2026-07-24, `6cf63df3`)* — the real fault was never the DNS records this item assumed: mail shipped from Resend's shared sandbox domain and password resets from Firebase's, so DMARC alignment was impossible whatever `ignia.fit` published. Both now send from our own domain, password reset is a first-class server-generated link rather than Firebase's default, and every message carries a real plain-text part.
-- [x] **Welcome / onboarding email sequence.** *(2026-07-24, `6cf63df3`)* — Day-0 welcome email ships, bilingual. Note it was also corrected for over-promising: it advertised photo scanning while photo scanning was gated. **That gate is GONE — photo scan has been ON and FREE to everyone on both platforms since ADR-0017 (2026-08-07), which amends ADR-0015 — so the email is no longer over-promising anything.** This line said "deferred to a paid tier (ADR-0015)" until 2026-08-29; it is the same stale claim the docs audit already had to remove from `STATUS.md` §5, and it survived here because it reads as history rather than status. **The durable lesson is the one worth keeping:** a lifecycle email is written once and sent to every future signup, so a feature claim inside one silently becomes a promise the product must keep forever. Check any addition against the flags, not against memory.
-- [ ] **Support inbox + SLA.** §S11 added a GitHub issue link + in-app feedback. Fine for zero users, terrible at 100+. Provision a real support address and state a 30-day response SLA in the privacy policy. **Not `support@macrolog.app`** — that was the pre-pivot domain and it does not exist; this line named it until 2026-08-29. The live domain is `ignia.fit`, and the org address is `gabriel@bermudezsystems.com` (Microsoft 365, MX verified 2026-08-29).
-- [x] **Privacy policy disclosures match reality.** *(2026-04-19)* — `dontShare` enumerates Google Cloud/Firebase, Gemini, Stripe, Sentry. No Plausible mention (was never in the policy — confirmed clean).
-- [x] **Link `/status` publicly.** *(2026-04-19)* — added to both pre-auth and authed footer in `app.ts` alongside privacy/terms/contact.
-
-### 🔧 Engineering cleanup pre-launch
-- [x] **Bundle budget regression.** *(2026-04-19)* — raised `maximumWarning` to 1.6 MB in `angular.json`; error cap stays at 2 MB. Deferred aggressive re-splitting until the trend justifies it.
-- [x] **Rate limit audit on Cloud Functions.** *(2026-04-19)* — `deleteAccount` (5 s), `checkAccessStatus` (300 ms), `exportUserData` (30 s) now route through `enforceRateLimit`. New generic `RATE_LIMITED` error code (client + server twins + en/es-PR copy). `logWebhook` (onRequest) + `generateWeeklyReport` (6-day interval) keep their existing gating.
-- [ ] **Staging environment on a separate Firebase project.** `environment.development.ts` exists but deploys go straight to prod. Real staging prevents "oops, that was production."
-- [ ] **Function-handler unit tests.** `firestore.rules` suite now includes 2 new `ageConfirmedAt` specs (13 total); `sendDayThreeCoachPush`, `publishUserCount`, `generateWeeklyReport`, `analyzePhoto`, `exportUserData`, `deleteAccount` still lack handler-level tests. Would require `firebase-functions-test` wiring + admin-SDK mocking.
-
-### Recommended launch order
-
-**Five of the original six are done** (2026-08-02 audit). The list below used to
-say "owner, not shipped" for items ticked `[x]` two sections above it — it was
-read as a to-do list months after the work landed, which is exactly how this repo
-re-scopes finished work. What actually remains:
-
-1. ~~**Terms of Service legal review**~~ — **closed 2026-09-17**: its trigger was
-   auto-renewal language for a subscription, and none exists (Stripe removed
-   2026-08-31; any future paid tier is Apple/Google IAP). Re-open with a paid tier.
-2. ~~**OG meta tags**~~ — **closed 2026-08-04, and it was never actually open.**
-   The tags were live and per-route correct; the entry above records what was
-   verified and the one genuine gap it turned up. This is the third time this
-   file has listed finished work as pending — the check is one `curl`, and it
-   costs less than the re-scope.
-
-Shipped since this list was written: Stripe live-mode + Tax, password policy, GCS
-backup bucket, monitoring alerts (all 2026-04-19); the custom domain `ignia.fit`;
-and the transactional email sender domain, which is no longer "blocked on custom
-domain" — `6cf63df3` rebuilt the templates and moved password reset onto our own
-sender, and the welcome email ships with it.
-
-**This section no longer gates distribution.** The app is live on the iOS App
-Store and on the Play alpha track, with production submitted (see `STATUS.md`); what gates wider promotion now is in
-`STATUS.md`, not here.
-
-### Decided against (deliberately not shipping)
-
-- **Shame-based gamification** (streak-break punishment, red/green progress) — breaks the calm positioning. **NARROWED 2026-08-29, and the narrowing is deliberate rather than a drift** (#108/#109/#110): a *retrospective record* of what already happened is permitted; a *mechanism that applies forward pressure* is still rejected outright. The finding this rests on is that the pressure in a badge system lives in the forward-looking meter, not in the backward-looking record — Ignia already shows a live streak on Today and on ShareCard, so recording that someone once reached 30 days adds no pressure the running counter does not already create, whereas "four days to your next badge" manufactures a new one. What shipped is therefore called **Milestones**, never "achievements" (and *Hitos* / *Marcos*, never *Logros* / *Conquistas*), renders only what was earned and never the locked remainder, cannot be taken away by a broken streak (`firestore.rules` denies the update outright, so `earnedAt` cannot even move), and carries no countdown in any locale. **Both halves are enforced in code rather than requested in prose, because this line existed as prose and did not prevent the feature being scoped as "achievements" in the first place:** `packages/core/src/milestones.ts` exports nothing that can express distance to an unearned milestone and `milestones.test.ts` fails the build if such an export appears, while `apps/mobile/src/__tests__/milestones-copy.test.ts` scans the en / es-PR / pt-BR strings for forward-looking language. Re-read those two tests before extending this feature; they are the decision.
-- **Third pricing tier** ($7.99/mo "Pro+") — revisit at 1,000+ active users; not worth the maintenance cost today.
-- **Forced account creation before first log** — planned "Guest Mode" is the fix if Day-1 retention data warrants it.
-
-### Market research sources
-
+Market research sources:
 - [Best Macro Tracking Apps Compared 2026](https://www.macronutrientcalculator.org/blog/macro-tracking-apps/)
 - [MyFitnessPal Premium Cost 2026](https://healthfitpublishing.com/myfitnesspal-premium-cost-is-macro-tracking-worth-it-in-2026/)
 - [MacroFactor Review 2026 — Outlift](https://outlift.com/macrofactor-review/)
@@ -119,957 +37,180 @@ Store and on the Play alpha track, with production submitted (see `STATUS.md`); 
 
 ---
 
-## 🧹 S14 — Feature-declutter audit (2026-06-14)
+## 🚀 S13 — Public-launch readiness (2026-04-18)
 
-After the nine-feature batch (`CHANGELOG.md` 2026-06-13), the surface grew
-faster than the **calm / restraint** brand allows. This pass audits every
-tab against that lens — verdicts KEEP / MERGE / DEMOTE / CUT / PRO-GATE —
-and consolidates without deleting capability. **No `utils/*` math is
-removed; only UI placement changes** (cheap to re-expose). Grilled with
-`/grill-with-docs`; new glossary terms **Weekly panel**, **Coach panel**,
-**Nudge vs utility** landed in `CONTEXT.md`.
+The launch-readiness checklist: what stands between "deployed" and "safe to share with strangers". Every hard blocker and all but one soft/advised item shipped (Stripe items are history: the extension was removed 2026-08-31). The app is live on both stores; what gates wider promotion now lives in `STATUS.md`. Since ADR-0036 the launch surface is the two store apps plus the `ignia.fit` shell and `/admin`.
 
-### Decisions (locked)
+### 💪 Strongly advised
+- [ ] **Support inbox + SLA.** Provision a real support address and state a 30-day response SLA in the privacy policy. Not `support@macrolog.app` (pre-pivot domain, does not exist); the org address is `gabriel@bermudezsystems.com` (Microsoft 365).
 
-| ID | Change | Status |
-|----|--------|--------|
-| **T1** | Trends: merge "Averages" into Insights. Drop raw weight Δ (keep least-squares slope); collapse avgKcal + avg-vs-target into one cell. Result: a 6-cell insights grid (best/worst day · avgKcal+vs-target · avgProtein · adherence % · weight trend). | [x] `c824b99d` 2026-06-14 — verified on screen 2026-08-12: the grid renders exactly those six cells |
-| **T2** | Trends: fold WeeklyBudget into the insights card as a toggle → the **Weekly panel** (default view = insights). `weekly-budget.ts` untouched. | [x] `c824b99d` 2026-06-14 — the `panelView` toggle, default `insights` |
-| **T3** | Trends: merge WeeklyReport + AI coach into one **Coach panel** — free "Ask the coach" (quota'd) shown first, Pro WeeklyReport below with an inline lock badge → existing upsell. | [x] `c824b99d` 2026-06-14 — Ask first, collapsible report below |
-| **B1** | Body: move the Body-fat estimate caption out of the weight card into the Measurements card (its inputs — waist/neck — are entered there). | [x] **not open — verified 2026-08-12.** Body fat is its own standalone card between the weight hero and Measurements (`body.component.ts:137`). Solved differently from the wording, but the stated problem — it living in the weight card — has not been true for some time |
-| **B2** | Body: pull the Progress Photos block out of the weight card into its own card, **collapsed by default, placed last** (matches Measurements pattern). | [-] **moot — verified 2026-08-12.** There is no Progress Photos block on the web Body page at all; the only match is marketing copy describing it as a Pro feature. Nothing to move |
-| **TD1** | Today: one-**Nudge**-at-a-time gate (priority refine → push → install → what's-new). Repeat-yesterday reclassified as a **utility**, ungated. Worst-case Today: rings + repeat-yesterday + one Nudge. | [x] **web was already done; MOBILE shipped 2026-08-12.** Web has had `activeNudge()` since `c824b99d` (`today.component.ts:560`). Mobile could stack three — update banner, what's-new banner, recalibration card — above the rings. `useTodayNudge` is the mobile twin, priority update → recalibration → whatsNew, pinned by tests |
-| **TR1** | Train: collapse the per-set "Plates" buttons into the per-exercise warm-up toggle → one **"Plates & warm-up"** tools panel per exercise (plate breakdown per distinct set weight + warm-up ramp). Accepts loss of per-set inline plate glance. `plate-math.ts` / `warmup.ts` untouched. | [x] **not open — verified 2026-08-12.** `session-sheet.component.ts:98` is literally "Plates & warm-up tools (barbell only) — one affordance per exercise", with the plate breakdown per distinct weight and the warm-up ramp inside it |
+### 🔧 Engineering cleanup
+- [ ] **Staging environment on a separate Firebase project.** Deploys go straight to prod; the dev app also talks to prod Firestore.
+- [ ] **Function-handler unit tests** for `sendDayThreeCoachPush`, `publishUserCount`, `generateWeeklyReport`, `analyzePhoto`, `exportUserData`, `deleteAccount` (needs `firebase-functions-test` + admin-SDK mocking).
 
-> **The four rows above were checked against the code on 2026-08-12, and three
-> of them were already done.** That is the fifth time this table's empty boxes
-> have been read as open work. The check took twenty minutes; the box is now
-> ticked with the file and line that proves it, which is the only form of this
-> row worth keeping. Only TD1 had anything left, and only on mobile.
-
-**Net:** Trends 6 cards → 3 (chart · Weekly panel · Coach panel); Body
-weight card returns to weight; Today caps at one Nudge; Train logger
-loses per-row button noise.
-
-**Untouched:** rings, 7-day chart, fasting, measurements core, share
-button (inline), CSV import, recipe builder.
-
-**ADR check:** none warranted — every change is UI-only and reversible
-with the pure modules preserved, so the "hard to reverse" bar fails.
+### Decided against (deliberately not shipping)
+- [-] **Shame-based gamification** (streak-break punishment, red/green progress). Narrowed 2026-08-29: a *retrospective record* is allowed (**Milestones**, never "achievements"/*Logros*/*Conquistas*; earned only, never the locked remainder, no countdown, cannot be revoked); *forward pressure* is rejected. Enforced by `packages/core/src/milestones.test.ts` and `apps/mobile/src/__tests__/milestones-copy.test.ts` — those tests are the decision.
+- [-] **Third pricing tier** ($7.99/mo "Pro+") — revisit at 1,000+ active users.
+- [-] **Forced account creation before first log** — Guest Mode (N5) is the fix if Day-1 retention data warrants it.
+- [-] **ToS legal review** — closed 2026-09-17: its trigger was auto-renewal language, and no subscription exists (any paid tier goes through Apple/Google IAP). Re-open with a paid tier.
 
 ---
 
 ## 🧭 S15 — Competitive roadmap backlog (2026-08-07)
 
-Derived from `docs/research/competitive-feature-scan.md` by removing everything
-that has since shipped. **Most of that scan's twelve candidates are closed** —
-Health sync (both platforms, incl. Health Connect), home-screen widget, Watch
-app + complication, recipe-URL import, adaptive TDEE (`packages/core/tdee-recalibration.ts`),
-local nudges, streak + freeze, barcode, voice/NL logging, AI coach. Do not
-re-scope those; check the file that owns each before believing this list.
+From `docs/research/competitive-feature-scan.md`. Shipped and not to be re-scoped: Health sync, widgets (N4, N4b), Watch, Siri/Quick Settings tile (N1), bundled USDA DB (N2), photo-scan grounding (N2b), fasting Live Activity (N3), recipe import, adaptive TDEE, nudges, streak + freeze, barcode, voice, AI coach, chain-restaurant data (N6).
 
-Candidate 9 (photo-scan) **shipped 2026-08-07** — see ADR-0017 and `CHANGELOG.md`.
-What remains, in the order it was prioritized with the owner:
+- [ ] **N5 · Guest mode / log-before-signup.** Forced signup before the first log is the standard freemium leak; "no account needed" carries the privacy pitch. Revisit against real D1 retention data (`STATUS.md` lever 6).
+- [-] **N6 remainder · Starbucks/Chipotle-style build-your-own drinks** need a licensed menu source; never invent macros (fabricated health data is worse than no result). *(The 2026-08-12 entry said Starbucks had 0 rows and Chipotle 3; `CHANGELOG.md` 2026-08-24 later added 25k items from 91 chains incl. Chipotle.)*
+- [-] **N7 · Full micronutrient panel (80+).** Deferred: off the kcal+protein focus; Cronometer owns the niche.
+- [-] **N8 · Social challenges / community.** Not planned: needs a server + moderation (cost discipline) and gamified competition contradicts "calm".
 
-### Approved in principle — next projects
+### From a real user — Abdiel Medina, 2026-08-21
 
-- [x] **N1 · Siri / App Intents + Android Quick Settings tile.** **SHIPPED
-      2026-08-07 — ADR-0020.** Android in **vc 18** (alpha): a Quick Settings tile
-      that logs slot 1, labelled with the preset's name, writing through
-      `ledger.ts` from a headless JS context — so Android needed no native write
-      path at all. iOS in **build 27** (TestFlight): `AppShortcutsProvider` Siri
-      phrases writing over the Firestore REST API with an ID token minted from a
-      refresh token in the app's own Keychain.
-      One correction to this entry's original wording: the promised phrase "log 40
-      grams of protein" cannot be honoured as written, because `LogEntry.calories`
-      is required and protein-only has no legal value to write — the intent takes
-      calories and **prompts** for it when missing, which is one spoken question
-      instead of a fabricated number. $0 runtime held: no function, no secret, no
-      Firestore field, no rules change.
-      **iOS shipped BROKEN in build 27 and was fixed in build 28** (2026-08-08).
-      iOS silently refused to register the `AppShortcutsProvider`, because an App
-      Shortcut may not carry a *required* parameter and one invalid shortcut
-      invalidates the provider — so Ignia never appeared in the Shortcuts app and
-      every phrase answered "I can't help with that". Nothing caught it: the build
-      was clean and `Metadata.appintents` extracted perfectly into the binary. See
-      the trap in `apps/mobile/AGENTS.md`.
-      **iOS device QA: the starred Siri row PASSED on build 28** — Siri offered the
-      presets and wrote a real row, so the whole REST path (Keychain, token
-      exchange, `PATCH`, rules) is proven. **Build 29** adds spoken preset names
-      ("log overnight oats in Ignia"); those phrases are unrun.
-      **Android APP-UI QA is now automated** (2026-08-09): the Maestro regression
-      suite walks 15 flows on an emulator, 15/15 green, and its e2e rows are
-      verified against Firestore. **That does NOT close the widget rows** — the
-      suite drives the app, and no `adb` command can place a home-screen widget,
-      so the widget's own quick-add button stays unverified on Android. The
-      Quick Settings tile IS drivable (`adb shell cmd statusbar click-tile`).
-      Of the 21 checkboxes in `apps/mobile/WIDGET.md`, one is ticked.
-- [x] **N2 · Bundle USDA as the food DB.** **SHIPPED 2026-08-07** — ADR-0018.
-      13,272 foods (SR Legacy + FNDDS + Foundation, CC0) committed at
-      `functions/data/usda-foods.json` and searched in memory, replacing the
-      live FDC API: no key, no 1,000 req/hour ceiling, no upstream outage.
-      Open Food Facts still serves branded/barcode. Wire contract unchanged, so
-      it shipped functions-only with no client release. Makes
-      `USDA_FDC_API_KEY` dead code — though **it is still BOUND to the deployed
-      revisions and cannot simply be deleted**, and unbinding it takes 8 → 7
-      active secret versions, which does **not** get under the free-tier cap of 6.
-      Measured 2026-08-08: the doctor check stays red either way, so the saving is
-      ~$0.06/mo and nothing else. `STATUS.md` §1 carries the two routes already
-      tried and the one remaining.
-      **N6 and N7 are unblocked by this.**
-- [x] **N2b · Photo-scan resolves its macros against that DB.** **SHIPPED
-      2026-08-07** — ADR-0019, and the half N2 deliberately left open. The vision
-      model now returns a list of `{name, grams, state}` and
-      `functions/src/photo-resolve.ts` looks each up, closing ADR-0015 §1's split
-      vision architecture. The response is additive, so every already-installed
-      binary got the grounded numbers on the functions deploy; the itemized
-      review screen went out as an OTA. Also 2.9x faster (`thinkingBudget: 0`),
-      and `scripts/smoke-photo-scan.mjs` now exists to check it end to end
-      against prod, which nothing did before.
+Reported in Spanish over chat against the live Android build: the speed dial stayed open over the scan result; *"no se le puede añadir un custom mode que la persona misma pueda poner la cantidad que quiere?"* (custom calorie goal); and *"una parte de feedback in-app para que por shy te escriban sugerencias"* (the social barrier, not the channel). All three resolved — `CHANGELOG.md` 2026-08-22. Nothing open.
+- [-] Custom-target input floor of 1,200 — decided against: `dailyTargets` clamps at `calorieFloor` (1,500 default), so a lower input would be stored and silently overridden.
 
-### Tier 2 — cheap and on-brand, unscheduled
+### From a real user — "not intuitive for women", relayed 2026-08-22
 
-- [x] **N4b · The wide quick-add face: 4×2 Android / `systemMedium` iOS.**
-      **SHIPPED 2026-08-13** — iOS build 46 (`.systemMedium` + a purpose-built
-      `HomeWideView`) and Android vc 30, off `ab19dd97`. Android's provider XML
-      had `resizeMode` absent, which defaults to `none` — that alone was the
-      "square only" limitation. **Device-verified**, and it took four builds:
-      picking the rectangle crashed on a `ForEach` over colliding ids, the face
-      rendered empty because no home face had ever drawn `Metric.progress`, and
-      the chips were invisible on tinted Home Screens. Details in `STATUS.md` §1.
-      Original entry follows.
-      *(Was still unticked on 2026-08-15, three days after shipping and after
-      being device-verified — the fourth time this file has listed finished work
-      as pending.)* With up
-      to 3 buttons instead of 1. Split out of N4 (above) so vc 18 and build 27
-      each carried exactly one new native surface. Everything it needs already
-      exists — `QUICK_ADD_MAX` is 3, the snapshot already carries up to 3 slots,
-      and `performQuickAdd` already takes a slot index — so this is a layout plus
-      an `app.json` widget-size declaration, **not** new plumbing. Native config,
-      so it needs builds on both platforms. **Do not start it before the starred
-      device-QA rows in `WIDGET.md` pass**: it widens a surface whose basic
-      mechanism is still unverified.
-      **Gate status 2026-08-08 — HALF OPEN.** The iOS starred row passed on build
-      28, so the iOS half is clear. **Android's three starred rows remain unrun**,
-      and Android's write path is a different mechanism entirely (headless JS
-      through `ledger.ts` with `AsyncStorage` auth, not Swift + REST), so the iOS
-      result says nothing about it. Since N4b widens *both* platforms, the gate is
-      still shut — and build 27 is the standing argument for why it should be.
-- [x] **N3 · Fasting Live Activity / Dynamic Island.** **SHIPPED 2026-08-08**
-      in iOS build 30 (ADR-0021), and **verified on an iPhone 17 Pro simulator**
-      the same day: `liveactivitiesd` logged the activity against
-      `FastActivityAttributes`, the Dynamic Island rendered the flame with a
-      counting timer, and ending the fast cleared it within seconds. Drawn
-      on-device by `Text(timerInterval:)` — no APNs, no Cloud Function, no
-      secret. **Still unverified: the 8-hour ceiling and its re-arm**, which
-      needs nine real hours on hardware. Extends the fasting timer already
-      shipped free (Cronometer paywalls theirs at $59.99/yr). iOS-only, $0,
-      pure lock-screen retention.
-- [x] **N4 · Interactive widget quick-add.** **SHIPPED 2026-08-07** — one
-      quick-add button on the existing 2×2 Android face (vc 18) and on iOS
-      `systemSmall` via `Button(intent:)` (build 27), ADR-0020. It paired with N1
-      exactly as predicted: one shared `performQuickAdd`, one slot list, one
-      Settings picker, one snapshot field.
-      **One piece deliberately left:** the wider **4×2 / `systemMedium`
-      three-button face**, moved to Tier 2 below rather than shipped alongside,
-      because a widget's declared size is native config and `WIDGET.md`'s locked
-      reasoning caps a binary at one untested native surface.
-- [ ] **N5 · Guest mode / log-before-signup.** Already listed under §S13
-      "Decided against" as the fix *if Day-1 retention warrants it*. Forced
-      account creation before the first log is the standard freemium leak, and
-      "no account needed" carries the privacy pitch better than any copy does.
-      Revisit against real retention data, not intuition.
+She said she needs **a tutorial or walkthrough** of the app; the owner's framing: men tend to start tapping and figure it out. GenderMag (Burnett et al.) finds learning style — **tinkering vs. process-oriented** — clusters by gender statistically, not individually, so the fix is an orientation path anyone can take, **never a gender-branched UI**. Durable rules: a guided path with an order and an end; show the whole map first; say what is reversible; replayable and skippable.
 
-### Found by the Maestro regression suite, 2026-08-09 — small, unscheduled
-
-Both surfaced from the suite's first-ever walk of these states. Neither is a
-crash; both are "the app says nothing when it should say something", which is
-the class of defect this project keeps paying for.
-
-- [x] **The Coach quota is invisible until you spend one.** **FIXED
-      2026-08-09.** `remaining`/`limit` were set only from the stream's
-      `onMeta` inside `ask()`, so the chip could not render on a freshly-opened
-      screen. Coach now reads the day's `consultationQuota` doc on mount:
-      `firestore.rules` allows a client to read its OWN doc (ids are
-      `<uid>_<day>`, so the uid prefix is the tenant key; writes stay denied),
-      which costs one document read and **no new Cloud Function**. Rules
-      deployed before the client shipped, with two tests covering the
-      uid-scoping — including that a prefixing uid cannot slip through.
-- [x] **A failed dictation start is indistinguishable from a dead mic.**
-      **FIXED 2026-08-09.** `MicButton`'s `error` listener flipped `listening`
-      back to false and surfaced nothing. It now shows `voice.failed` and
-      points at typing — not at Settings, since that is the permission path,
-      which already has its own message. Found on the emulator, which has no
-      recognizer at all; on hardware one normally exists, which is why this
-      path had never been seen.
-
-### From a real user — Abdiel Medina, 2026-08-21 (unscheduled, not yet triaged)
-
-Three items, reported in Spanish over chat against the live Android build.
-Recorded verbatim in substance; nothing here is fixed yet.
-
-- [x] **The speed dial stays open on top of the photo-scan result, blocking
-      "Add today". FIXED and SHIPPED 2026-08-22 — Android OTA number 6 and iOS
-      OTA number 5, both verified.** Reproduced
-      on the LG VS988 first, and it was TWO defects, not one. (a) The label
-      pill was a plain `View`, so it became the touch target and no ancestor
-      was a responder: tapping the words "Scan meal" did nothing at all, while
-      the same tap 90px right on the circle worked. (b) Hardware back on the
-      scan screen navigated out from under the open dial and landed on Today
-      with it still fanned open. `LogSpeedDial` now makes pill+circle one
-      `Pressable`, takes back while open, and closes on any route change;
-      `log-speed-dial-dismiss.test.tsx` pins all three (3 fail before the fix,
-      3 pass after). The `06-scan-intro.yaml` workaround is deleted. His words: after the scan finishes and the food appears,
-      *"se queda abierta la opcion de scan meal y manual entry por encima de la
-      info"* — the Scan meal / Manual entry pills sit over the result and he
-      expects them to dismiss on their own.
-
-      **This is the SAME defect the Maestro suite hit the same day, and that
-      matters.** `06-scan-intro`'s capture came out as the scan screen greyed
-      under the dial's scrim, and it was written up in that flow as a
-      test-harness artifact — "the fallback deep link lands with the dial still
-      open." A real user hitting it on the review screen says otherwise: it is a
-      **product bug**, and the flow's comment understates it. `LogSpeedDial` is
-      rendered by the TAB LAYOUT, so it survives navigation; `choose()` closes it
-      only when the satellite BUTTON is tapped, and a tap that lands on the label
-      pill (or races the navigation) leaves it open over whatever comes next.
-      Fix the component, not the flow — then simplify `06-scan-intro` back.
-
-- [x] **No way to set a custom calorie goal. SHIPPED 2026-08-22.** An explicit
-      `targetMode` (Automatic / Custom), editable numbers on the onboarding plan
-      step, and a Settings → Daily targets editor. The premise turned out to
-      understate it: `manualCaloriesTarget` already existed and was written at
-      onboarding, but it was a **seed** — `dailyTargets` used it only until a
-      measured estimate became reliable and then replaced it silently, so the
-      complaint was not just "no input" but "the number I was given is not
-      mine". Custom now beats measured, the estimator keeps running and is shown
-      beside the user's number, and Refine no longer deletes what they typed.
-      Verified on an LG VS988: the hero ring moved to a typed 2,000 against a
-      measured 2,723, and switching back to Automatic left both stored values
-      intact. **Decided against the plan's 1,200 input floor** — `dailyTargets`
-      clamps at `calorieFloor` (1,500 default), so 1,300 would have been stored
-      and 1,500 displayed, which is the same silent override in a new place.
-      ORIGINAL REPORT: *"cuando vas a editar el goal de
-      los kcal … los pone automatico, no se le puede añadir un custom mode que
-      la persona misma pueda poner la cantidad que quiere?"* The target is
-      computed and cannot be overridden with a number the user chooses. Worth
-      weighing against the estimator work — a manual override competes with
-      measured TDEE, so decide whether it pins the target, seeds it, or is a
-      separate mode before building.
-
-- [x] **No in-app feedback surface. SHIPPED 2026-08-22.** A composer at
-      Settings → Send feedback, in its own section second from the top, plus a
-      standing line on the What's-new card. Writes `users/{uid}/feedback/{id}`,
-      create-only, and a Firestore trigger emails the owner. **One detail here
-      was wrong and is worth keeping:** the note below says nothing in the app
-      points at `/support`. Something did — Settings → Help, filed under
-      **Legal** between Terms of Use and the medical disclaimer. That does not
-      weaken the report, it sharpens it: the channel existed and was placed
-      where nobody would find it, which is exactly the social-barrier point.
-      Verified end to end from the device — a real send reached
-      gabriel@bermudezsystems.com, confirmed `delivered` by the Resend API.
-      ORIGINAL REPORT: *"por qué no le haces una parte de feedback
-      in-app para que por shy te escriban sugerencias"* — his point is the
-      social barrier, not the channel: people who would not message the owner
-      directly would leave a note inside the app. Note this arrived by private
-      chat, which is itself the evidence. `/support` exists on the web shell but
-      nothing in the app points at it.
-
-### From a real user — "not intuitive for women", relayed 2026-08-22 (partially resolved: she asked for a tutorial)
-
-**The report arrived in two pieces and the second one is the actionable half.**
-First: one relayed sentence — *the app is not intuitive for women* — with no
-author, platform, screen or task. Then, on being asked, the owner came back
-with what she actually said: **she needs some kind of tutorial or walkthrough
-of the app.** The owner's own framing: *"at least for men we typically just
-start tapping and figuring things out but maybe for women the story changes."*
-
-That is a concrete, buildable request, and it is **not** the same problem as
-anything else in this section. It is not a missing feature and not a broken
-screen — the app never explains itself to someone who does not want to learn it
-by poking at it.
-
-**The owner's intuition has real research behind it, and the research says
-build the tutorial rather than build a "women's version".** Burnett et al.'s
-GenderMag work (Oregon State) identifies five problem-solving facets whose
-individual differences *cluster* by gender — motivations, information
-processing style, computer self-efficacy, attitude toward risk, and **learning
-style: tinkering vs. process-oriented**. Information processing style is the
-one with the strongest reported effect (p = 0.0003). "Just start tapping" is
-tinkering; "show me how this works first" is process-oriented. Both are normal;
-only one of them is currently served by Ignia.
-
-The load-bearing consequence for this repo: these are **statistical clusters,
-not rules about individuals**, so the fix is an orientation path *anyone* can
-take, never a gender-branched UI. A tutorial helps the tinkerer who wants a
-refresher and the process-oriented user who wants the map, and it never has to
-guess which one is reading. Gender-targeted UI would be both condescending and
-unshippable, and the research does not ask for it.
-
-**What that means concretely** — each maps to a GenderMag facet rather than to
-taste:
-
-- *Process-oriented learning* → a guided path with a stated order and an end,
-  not a pile of tooltips waiting to be discovered.
-- *Comprehensive information processing* → show the whole map before the first
-  step, so the user can see the shape of the app rather than meeting it one
-  surprise at a time.
-- *Lower computer self-efficacy + risk aversion* → say what is reversible.
-  "You can change this later" removes the cost of a wrong tap, and most of this
-  app *is* reversible; nothing currently says so.
-- *Replayable and skippable* → a tutorial that cannot be re-opened punishes the
-  user who dismissed it before understanding it.
-
-The findings below (F1–F6) came from a structured first-run walkthrough on the
-LG VS988 against vc 37 plus the current OTA, run before the tutorial detail
-arrived. They stand on their own merits — F1 in particular is a correctness
-defect, not a comprehension one — but **F0 is the thing she actually asked
-for.**
-
-- [x] **F0 · There is no tutorial, no guided tour, and no first-run
-      orientation of any kind. SHIPPED 2026-08-22 — Android OTA numbers 12–15
-      and iOS OTA number 7, device-verified on Android end to end.** Six cards
-      at `apps/mobile/src/app/tour.tsx`: the whole map first, what Today's
-      numbers mean, the three ways to log a meal, weighing in, whose numbers
-      these are, and a close that states what is reversible. Auto-opens once
-      per device for anyone with a completed profile — deliberately NOT
-      first-run-only, because a first-run gate reaches every future user and
-      misses the one who asked, who already has an account. Skip marks it seen;
-      replayable from Settings → How Ignia works. The auto-open decision is
-      pure (`shouldAutoOpenTour`) and pinned by 11 cases. **The device rejected
-      the first publish three ways that `jest` passed** — the map card's fifth
-      row sat under the CTA, "Skip" cropped to "Skin", and the footer collided
-      with the tab bar and the + button; the tour is a root route now. Original
-      state, for the record: after the
-      onboarding form saves, the user is dropped straight onto Today with a
-      hero panel reading `0 / 2,323 kcal`, `maintenance 2,723`, a Fasting /
-      Water / Sleep card, and a + button. Nothing names the tabs, nothing says
-      what the primary action is, and nothing says what any number means.
-      Discovery is entirely by tapping. Replayable from Settings is a
-      requirement, not a nicety — see the facet notes above.
-
-- [x] **F1 · The first number the app gives you is body weight × a constant,
-      and that constant is biased by sex. FIXED 2026-08-22 — onboarding asks
-      the four Mifflin-St Jeor questions itself and the seed runs the app's own
-      formula.** `packages/core/src/onboarding-seed.ts` (`onboardingSeed`) is
-      the new entry point: Mifflin-St Jeor × the activity bucket, minus the
-      pace deficit, floored — with `computeKcal` kept as the fallback for a
-      skipped set and for the two public web surfaces, whose signature and
-      behaviour are untouched. For the 180 lb 45-year-old woman below, "lose
-      fat" goes from **1,980 kcal (2 above her own maintenance) to 1,500** —
-      the floor binding, which the plan step now says out loud. The man of the
-      same weight and age gets 1,720, because they are different people. 24
-      cases in `onboarding-seed.test.ts`, 11 wiring cases in
-      `apps/mobile/src/__tests__/onboarding-body-step.test.tsx`, and three in
-      the rules spec proving the new write shape is accepted and a HALF-written
-      one is not. The original finding, unedited:
-
-      Onboarding's plan step calls
-      `computeKcal(weightLb, goal)` — `packages/core/src/macro-heuristic.ts:46`
-      — which is `weight × {11 lose | 14 maintain | 17 gain}`. No sex, no
-      height, no age, no activity level. Compared against the app's *own*
-      Mifflin-St Jeor path (`basalMifflinStJeor`, `packages/core/src/tdee.ts:981`)
-      at the "Lightly active" 1.375 bucket:
-
-      | Person (same weight, same age, same activity) | Real maintenance | App "maintain" | App "lose" → actual rate |
-      |---|---|---|---|
-      | Woman, 150 lb, 30 | 1,894 | 2,100 (**+11%**) | 1,650 → 0.49 lb/wk |
-      | Man, 150 lb, 30 | 2,240 | 2,100 (−6%) | 1,650 → 1.18 lb/wk |
-      | Woman, 180 lb, 45 | 1,978 | 2,520 (**+27%**) | 1,980 → **−0.00 lb/wk** |
-      | Man, 180 lb, 45 | 2,324 | 2,520 (+8%) | 1,980 → 0.69 lb/wk |
-
-      Heights are the CDC/NCHS **measured** NHANES means for US adults 20+,
-      Aug 2021–Aug 2023 — 5'8.9" male, 5'3.5" female — so the only things
-      varying between the paired rows are sex and average height, the two
-      inputs `computeKcal` does not take. Every constant used is the app's own:
-      the 1.375 "light" bucket from `ACTIVITY_MULTIPLIERS` (`tdee.ts:226`) and
-      `KCAL_PER_POUND = 3500` (`tdee.ts:147`).
-
-      Same app, same weight, same age, same goal: the man loses at **2.4×** the
-      woman's rate. The bottom row is the one that matters — for a 180 lb
-      45-year-old woman the app's "lose fat" target of 1,980 kcal sits **2
-      kcal/day above** her estimated maintenance. She follows it exactly and
-      loses nothing, ever. "Not intuitive" is a mild way to describe that; so
-      is "this app doesn't work".
-
-      **Two honest caveats, neither of which rescues the finding.** Mifflin-St
-      Jeor is itself an estimate (±10% is the usual quoted band), so the "real
-      maintenance" column is a reference point, not truth — but it is *the app's
-      own reference point*, which is the whole argument: Ignia disagrees with
-      itself by up to 27%, and does so in one direction for women. And the
-      3,500 kcal/lb conversion is a static rule that **overestimates** real
-      loss as time passes (Hall, *Int J Obes* 2013), so the lb/wk column is the
-      optimistic case; the lived result is slower still.
-
-      Why it persists: `dailyTargets` (`packages/core/src/targets.ts:178-186`)
-      uses the onboarding number until `tdee.source === 'measured' && reliable`
-      — weeks of logging away. The formula path cannot rescue it either,
-      because `toProfileFields` returns `null` without `sex`/`heightIn`/`age`/
-      `activityLevel` (`targets.ts:85-97`). So a user who never opens Refine
-      targets sits on the heuristic for the entire period in which she is
-      deciding whether the app works.
-
-- [x] **F2 · The app already contains the correct math and routes every new
-      user around it. FIXED 2026-08-22, same change as F1.** Two steps were
-      added between goal-weight and the plan: **body** (sex, height, age) and
-      **activity** (the same five buckets as Refine targets). Both are
-      **skippable** — a required sex question is a locked front door for anyone
-      who will not answer it — and a skipped set writes **none** of the five
-      fields rather than half, because `firestore.rules` validates them as a
-      group and `toProfileFields` needs all of them. The plan step now names
-      its own basis: estimated maintenance when the formula ran, and an explicit
-      *"rough estimate from your weight alone"* when it did not, so skipping is
-      a stated trade rather than a silent downgrade. A completed set also
-      stamps `targetsRefinedAt`, which retires the Refine-targets prompt for
-      that user — they have just answered it. No `firestore.rules` change was
-      needed: every field was already on the completed-profile allowlist.
-      The original finding:
-
-       Sex, height, age and activity level — exactly the four
-      Mifflin-St Jeor inputs — are collected only in **Settings → Refine
-      targets**, whose subtitle is *"Sharpen your calorie target · unlocks body
-      fat"*. That reads as an optional power-user extra. It is not: without it
-      the target is a guess with a sex-dependent error (F1), and the body-fat
-      estimate — whose formula genuinely differs by sex,
-      `packages/core/src/body-fat.ts:37` — cannot run at all. The screen is
-      four short fields. Moving it, or a prompt toward it, into the first run
-      is the cheapest fix in this section.
-
-      *Not a finding, recorded so nobody re-reports it:* the Sex selector shows
-      "Male" pre-selected on the QA account because that account has it
-      **stored**. For a fresh profile the state is `null` and neither option is
-      selected (`refine-targets.tsx:57`). There is no male default.
-
-- [x] **F3 · Body weight is pounds-only, everywhere, with no way to change
-      it. FIXED 2026-08-22.** `packages/core/src/body-weight-units.ts` is the
-      seam: `parseWeightToLb` on the way in, `toDisplayWeight` /
-      `formatBodyWeight` on the way out, `weightBoundsFor` so the 50–500 band
-      is quoted as 23–226 kg to someone who reads kilograms. **Storage stays
-      in pounds** — `firestore.rules`, `checkWeightEntry`, Mifflin-St Jeor and
-      the TDEE regression are all lb, and a stored unit would mean migrating
-      every historical row or tagging each one. Applied at onboarding (both
-      weight steps), the Body hero, goal rail, trend chip and weigh-in
-      history, the weigh-in sheet, the Train finish sheet's bodyweight field,
-      and both History screens. Settings' row is renamed from **Portion
-      display** to **Units** with the sub-line *"Serving sizes and body
-      weight"* — the old label was honest and became wrong.
-
-      **Lifted loads followed on the owner's ask, in a second pass**, and they
-      needed their own module (`load-units.ts`) rather than a reuse of the
-      body-weight one — because per unit the *objects* differ, not just the
-      number. The bar is 45 lb or **20 kg** (= 44.09 lb, so two different
-      bars); the plates are 45/35/25/10/5/2.5 against
-      25/20/15/10/5/2.5/**1.25**; the step is 5 or 2.5. Which is why **plate
-      math is solved in the display unit**: solve in pounds and convert
-      afterwards and a metric lifter is told to load 20.4 kg a side, a plate
-      nobody owns — pinned by a test asserting exactly that. Converted with it:
-      set entry, the set-table header, week volume, top set, session volume,
-      both PR cards, the bump suggestion, and the template editor's per-set
-      weight, target load, weight step and progression sentence. Storage stays
-      in pounds throughout, so a lifter who switches units can still compare
-      this month to last. The original finding: Onboarding's `BigInput` hardcodes a literal `lb` glyph
-      (`onboarding.tsx:443`) beside a 72 pt number, and the Body tab hardcodes
-      `lb` on the hero, the goal rail and every history row. The `unitSystem`
-      profile field exists and is settable, but Settings labels that row
-      **`settings.portionDisplay`** and it only reaches food serving sizes — so
-      the label is honest and the gap is real: a metric user cannot enter or
-      read body weight in kilograms anywhere in the app. Typing 68 (kg) at
-      onboarding yields a plan built for a 68 lb person.
-
-- [x] **F4 · The most common way to log food has no name on the entry
-      surface, and the name it does have discourages use. FIXED 2026-08-22.**
-      The speed-dial satellite is **Search foods** (`Buscar comidas`), which
-      names what the sheet behind it actually opens with; typing macros by
-      hand is still there, one tap further in, as *Write it in*. The sheet
-      also has a title now — every other mode announced itself and the one
-      most people land on opened with a bare search field. The original
-      finding: The speed dial
-      offers exactly two choices: **Scan meal** and **Manual entry**. The sheet
-      behind "Manual entry" opens with a full-width **"Search foods…"** field
-      as its first and largest element. So the food database — the path most
-      people want — is labelled as the manual-work option. A user who does not
-      want to photograph her lunch and does not want to type macros by hand
-      reads that dial as offering nothing for her. Renaming the satellite is a
-      one-string change; the sheet also has no title.
-
-- [x] **F5 · On Today, the + button covers the empty state's only CTA.
-      FIXED 2026-08-22.** The scroll content gets `flexGrow: 1` and the empty
-      block `flex: 1` + `justifyContent: 'center'` + a `FAB_BAND`
-      (96) bottom padding, so it claims the leftover height and centres itself
-      inside a region that **excludes** the button's band. Deterministic at any
-      screen height, where "add some padding" is a guess that holds at one. The
-      96 is a named constant now rather than a bare literal in one place and
-      absent where it mattered. The original finding: At
-      360×720 dp the orange FAB is drawn over "Repeat yesterday", which renders
-      as `Repe⬤sterday`. Screenshot-confirmed on the LG VS988. The ScrollView
-      has a 96 px tail spacer (`index.tsx:333`) that handles the scrolling
-      case, but on a first run the content is *shorter* than the viewport, so
-      nothing scrolls and the spacer sits below the button instead of lifting
-      it. The empty state is the one screen every new user sees first.
-
-- [x] **F6 · Terms of art go unexplained on the two most-viewed panels.
-      FIXED 2026-08-22.** The Train tab already had the answer — a "?" in the
-      header opening a glossary sheet — so rather than invent a second way to
-      explain a word, `TrainGlossary` was generalised into
-      `components/Glossary.tsx` and the same affordance added to **Today and
-      Trends**: same icon, same place, same sheet. `NumbersGlossary` defines
-      nine terms in both locales — kcal (*"the same thing people mean by
-      calorie on a food label"*), daily target, maintenance, protein target,
-      streak, the MEASURED badge, maintenance estimate, logging completeness
-      and weight trend. Completeness says out loud what 70% means and that
-      nobody hits 100%. The original finding:
-      Today's hero reads `0 / 2,323 kcal` and `maintenance 2,723`; Trends leads
-      with a **MEASURED** badge, *Maintenance estimate*, and *73% logging
-      completeness*. None is defined anywhere in the app. "kcal" appears in
-      20+ strings where most people would read "calories"; "maintenance" is a
-      term someone who has dieted before knows and nobody else does; and a
-      first-run user has no way to tell whether 73% completeness is good.
-      Trends does one thing right and it is worth copying — *"Weekly averages
-      unlock at 3 logged days"* explains itself.
-
-- [x] **F7 · `CutPace` is unsigned and every consumer subtracts it, so the
-      estimator hands a "gain" user a DEFICIT. FIXED 2026-08-22.**
-      `paceOffsetKcal(pace, goalDirection)` in `packages/core/src/tdee.ts` is
-      the one place the sign is decided, and both `calculateTdee` branches plus
-      `onboardingSeed` now go through it — so the number the plan step shows
-      and the number the estimator produces a fortnight later finally agree.
-      `paceReality` returns null for a "gain" goal: a surplus moves AWAY from
-      the calorie floor, so there is nothing for that card to warn about and
-      computing it anyway reported a floor-capped pace that was not real.
-      `goalDirection` was already on `ProfileFields` and already survived
-      `toProfileFields` — nothing downstream had ever read it. **Absent keeps
-      subtracting, byte for byte**, which is every account predating v2
-      onboarding; only `'gain'` flips. Onboarding consequently stores a real
-      0.5 lb/wk surplus for a bulker instead of the 0 that F1 had to use as a
-      workaround. Pinned by four cases including the absent-direction one. The
-      original finding: Found while building F1, and
-      recorded rather than fixed because it is a different defect with a
-      different blast radius. `targetPaceLbsPerWeek` is typed `[0, 2]`
-      (`types.ts:131`) and both `calculateTdee` (`tdee.ts`) and `paceReality`
-      compute `tdee − pace × 3500/7`. Nothing anywhere reads `goalDirection`
-      when deriving a target. So a bulker who sets a 1 lb/wk pace in Refine
-      targets is given maintenance **minus** 500 the moment the formula or
-      measured branch takes over — the opposite of the goal they chose. F1
-      works around it by persisting pace `0` for "gain", which makes the
-      estimator hold at maintenance rather than cut, and by seeding the plan
-      step at maintenance + 250 (a 0.5 lb/wk lean bulk) so the first number is
-      still honest. That is the closest the current model can express. A real
-      fix is either a signed pace or a goal-direction-aware target, and it
-      touches `packages/core` (shared with the web app when this was written;
-      that app is retired since ADR-0036) — so it wants its
-      own change, not a rider on this one.
-
-**Ranking, if the verbatim reports never arrive:** ~~F1 and F2 are the same fix
-and should be done together~~ — **done 2026-08-22.** F5 is a ten-minute
-layout fix. F4 is one string. F3 and F6 are real but are scope, not defects.
-F7 is a correctness defect like F1 was, but it affects only users whose goal is
-"gain", which is the smallest of the three cohorts.
-
-### Tier 3 — deliberately deferred, with the reason
-
-- [x] **N6 · Restaurant / chain-menu data — MOSTLY ALREADY SHIPPED, measured
-      2026-08-12.** The premise was wrong, and it was wrong because N2 fixed it
-      as a side effect. FNDDS carries chain menu items and N2 bundled FNDDS, so
-      the committed dataset already holds **61 McDonald's rows, 28 Burger King,
-      24 KFC, 19 Wendy's, 19 Pizza Hut, 13 Taco Bell, 12 Subway, 10 Domino's**.
-      Searching works today: "big mac", "whopper" and "taco bell burrito" each
-      return the right item as the top hit. Six regression locks now pin that in
-      `functions/test/usda-db.spec.ts`, because the coverage is **incidental** —
-      nothing in the ingest asks for restaurant data, so a `--no-survey` run or
-      a size trim would silently delete all of it.
-      **What genuinely remains is narrow: Starbucks (0 rows) and Chipotle (3).**
-      Both are drink- and build-your-own-heavy, which the FNDDS survey does not
-      model. Closing that half needs a **licensed menu source**, not a guess:
-      inventing macros for a latte would be fabricating health data, which is
-      worse than returning nothing. A test asserts those two queries return
-      empty, so the day a source is added, it fails and says so.
-- [ ] **N7 · Full micronutrient panel (80+).** Off the kcal+protein focus;
-      Cronometer owns this niche. Cheap only if N2 lands first.
-- [ ] **N8 · Social challenges / community.** **Not planned.** Needs a server
-      plus moderation, conflicting with the cost discipline in `CLAUDE.md`, and
-      gamified competition contradicts the "calm" positioning §S12 is built on.
-      Recorded here so it stops being re-proposed, not because it is queued.
+Findings **F0–F7** (F0 tutorial/tour, F1 sex-blind calorie seed, F2 Mifflin inputs at onboarding, F3 kilograms, F4 "Search foods" naming, F5 + button over the empty-state CTA, F6 glossaries on Today/Trends, F7 signed pace for "gain") all shipped 2026-08-22 — `CHANGELOG.md` 2026-08-22. Still open: whether *she* finds it intuitive now — no follow-up from her is recorded.
 
 ---
 
-## 🎨 S16 — Full-app design audit, 2026-08-31 ("does this read as designed?")
+## 🎨 S16 — Full-app design audit (2026-08-31)
+96 device screenshots + code audits; verdict "foundation strong, drift". 3 fixes + all twelve S16-1…S16-12 judgment calls shipped 2026-08-31 (`fcdcea07`, `534b55c2`; Android OTA 96 / iOS OTA 60) — not in `CHANGELOG.md`, see the list at the bottom.
 
-**Method:** 96 device screenshots (the 08-29/30 regression sweep + a purpose-built
-capture flow in `apps/mobile/.maestro/capture/`, LG VS988, both themes, en+es)
-reviewed screen by screen, plus code audits (hex-outside-theme, radii vs tokens,
-fontWeight×custom-family, dingbat glyphs, number formatting). **Verdict: the
-foundation is strong** — token discipline, dual theme, no ink-on-ink failures,
-circles everywhere radii looked off-token. What reads as un-designed is drift,
-and most of it is below.
-
-### Fixed 2026-08-31 (unambiguous, shipped with this commit)
-- [x] Recalibration card printed unformatted numbers ("2691 kcal/day") beside a
-      comma-formatted hero; onboarding floor error and Trends activity-evidence
-      kcal had the same bug. All through `formatNumber` now.
-- [x] Text dingbats replaced with Ionicons (+ a11y labels where the guard
-      demanded): `✕` (EntrySheet ×2, MealText, RecipeBuilder, train set-delete),
-      `⚠` (MealText warnings), `✓/✗` (WatchDiagnosticsCard, train done-check),
-      `★`/`＋` prefixes baked into `entry.savePreset`/`entry.saveMyFood` in all
-      three locales.
-- [x] Serving rows could read "126 g (126 g)" — `buildFoodDetail` now drops the
-      parenthetical when the portion label is itself a gram amount (core).
-
-### Judgment calls — ALL TWELVE SHIPPED 2026-08-31, owner-approved (`fcdcea07` batch 2 + `534b55c2` retint sweep; delivered as Android OTA 96 / iOS OTA 60)
-- [x] **S16-1 · Light theme: `accent` (#c62f27) and `danger` (#dc2626) are
-      nearly the same red.** Additive actions (+ Add set, + Add ingredient,
-      Save as preset) and destructive ones (REMOVE, Discard, delete ✕) are
-      visually one family; the Train live logger shows red doing five jobs at
-      once. Dark theme doesn't collide (orange vs red). Cheapest real fix:
-      move additive/utility text-actions to `teal` (the designated secondary
-      interactive) in light, keep coral for primary CTAs and destructive red.
-- [x] **S16-2 · What's-new banner is a 13-line paragraph** on the app's front
-      door, every release. Cap the copy at 2–3 sentences (the changelog voice
-      belongs in a changelog). Both recent banners exceed it.
-- [x] **S16-3 · History day detail renders two "+" FABs** — the black
-      add-to-this-day (bottom right) beside the coral global add-to-today
-      (bottom center). Suppress the global dial on that screen or merge them.
-- [x] **S16-4 · History calendar dots (red/teal) have no legend.**
-- [x] **S16-5 · Case drift in Train:** `+ Add set` (sentence) vs
-      `PLATES & WARM-UP` / `REMOVE` (caps) in one card; live logger columns
-      `LB REPS LEFT` vs template editor `lb reps`.
-- [x] **S16-6 · Today→Trends habit shortcut lands at the TOP of Trends** —
-      the face is preselected but the Habits strip is below the fold, so the
-      user must scroll to see what they tapped for. Consider auto-scrolling.
-- [x] **S16-7 · Sheet dismiss idiom varies:** manual entry = back chevron +
-      centered title; MealText = bold "Cancel" top-LEFT; recipe calculator /
-      import = "Cancel" top-RIGHT. Pick one.
-- [x] **S16-8 · Body measurement rows say "W 33.3 · N 15.5 · Ch 41.2"** —
-      single-letter codes nothing on screen expands.
-- [x] **S16-9 · Search results eyebrow "LAB TESTED"** is raw USDA dataType
-      speak; "USDA · lab" or plain "USDA" reads designed.
-- [x] **S16-10 · Native Alert dialogs** (save-preset confirm, preset alerts)
-      break the brand mid-flow (system font, teal buttons). A branded confirm
-      sheet is the fix, but it's real scope — not a quick thing.
-- [x] **S16-11 · es-PR names the same thing "preajuste" and "preset"** in
-      adjacent strings.
-- [x] **S16-12 · Scan intro says "the AI estimates…"** — generic-AI wording in
-      an app fighting an AI-slop impression; "Ignia estimates…" is the brand.
-
----
-
-## 🏋️ S17 — Train module UX overhaul, 2026-09-16 (SHIPPED — OTA'd to both platforms 2026-09-17, `apps/mobile/docs/fingerprint-ledger.md`; this heading said "not yet OTA" until then)
-
-Triggered by the owner: "crowded, and not as intuitive as I imagined — not just
-editing or creating a template, but starting the workout too." The reading is
-in [ADR-0041](docs/adr/0041-train-ux-overhaul-logger-vs-coach.md), which owns
-the reasoning and the competitive scan; this section is the checklist so the
-items are not re-scoped.
-
-**Diagnosis in one line:** the progression engine's vocabulary
-(ADR-0038/0039/0040) had become the whole tab's default for everyone. The
-header's glossary button was the tell.
-
-- [x] **S17-1 · The home screen answers "what am I doing today."** The
-      full-width primary was `Start workout` = an EMPTY session, the rarest
-      path. Now a **Next up** card (`nextTemplateUp`, least-recently-performed)
-      naming the template and when it was last done. Empty workout kept as a
-      link.
-- [x] **S17-2 · The catalog is not a home-screen section.** It rendered
-      unbounded as the sixth stacked block; now one row into a searchable
-      sheet. Cluster audit collapsed from six chips to its verdict.
-- [x] **S17-3 · PREVIOUS on every set row**, positional (row 3 vs row 3). It
-      was one aggregate line at the card head. The tick now accepts last
-      session's reps AND load, not only a template's prescription.
-- [x] **S17-4 · One action on the card, the rest behind `⋯`.** Set row down
-      from six hit targets to five; the permanent `✕` is now swipe-left, with
-      a labelled equivalent in the set sheet for VoiceOver. The set-kind and
-      RIR pickers no longer expand inside the set list and shove the rows
-      below them down.
-- [x] **S17-5 · Template editor asks for the structure FIRST** and scaffolds
-      the rows from it; add-buttons follow the declaration. Typed rows are
-      kept and the card says so. Notes/rest/cardio behind **Template
-      options** — "Rest (mini)" and "Rest (cluster)" were fields 3 and 4 of an
-      empty form.
-- [x] **S17-6 · A live workout is visible from every tab** (a dot on the Train
-      icon). One boolean, no new listener.
-- [x] **S17-7 · Two real defects.** `EXERCISE_LIBRARY` (70 movements with
-      muscles + cues, three locales) was **unreachable from every picker**;
-      `muscles` was **write-once**, so `weeklyClusterAudit`'s `unattributed`
-      line could never be cleared. Both pickers now search the library, exact
-      typed names inherit metadata, and the exercise sheet has a muscle
-      picker. Deleting a logged workout now confirms (was a bare long-press).
-
-### Open, deliberately not done in this pass
-
-- [x] **S17-8 · Continuous scroll instead of the accordion in a live session**
-      (what Strong and Hevy do). **Decided 2026-10-07 (owner): keep the
-      accordion.** The accordion is load-bearing for a
-      nine-exercise session at 360dp, and PREVIOUS + `⋯` address most of what
-      it was hiding. Revisit only if the complaint survives a few sessions on
-      the new build.
-- [ ] **S17-9 · A real program entity with ordered days.** The right long-term
-      shape; needs a new entity, editor and migration. `nextTemplateUp`
-      delivers the rotation behaviour with no stored state, so this is not
-      urgent — and if it is ever built it replaces that one function.
+## 🏋️ S17 — Train module UX overhaul (2026-09-16)
+S17-1…S17-7 shipped, OTA'd 2026-09-17 — see ADR-0041 and `CHANGELOG.md` 2026-09-16.
+- [-] **S17-8 · Continuous scroll instead of the accordion** — owner 2026-10-07: keep the accordion (load-bearing for nine exercises at 360dp). Revisit only if the complaint survives.
+- [ ] **S17-9 · A real program entity with ordered days.** Needs a new entity, editor and migration; `nextTemplateUp` covers rotation statelessly, and a program would replace that one function. Not urgent.
 
 ## 📏 S18 — Scored UX audit against 2026 standards (2026-09-28)
-
-Three independent read-only reviews (HIG iOS 26/27, Material 3 Expressive, WCAG
-2.2 AA, Nielsen), one per screen group, with computed contrast ratios and a
-programmatic three-locale parity check (1,309/1,309/1,309 keys). Weights:
-Usability 25 · A11y 20 · Platform 15 · Visual 15 · Perf 10 · Copy 10 · Delight 5.
-
-| Screen group | Usab. | A11y | Platf. | Visual | Perf | Copy | Delight | **/100** |
-|---|---|---|---|---|---|---|---|---|
-| Today · Scan · History | 7 | 5 | 7 | 8 | 8 | 8 | 8 | **68.5** |
-| Trends · Body · Train · Coach · Milestones · tab bar | 7 | 5 | 6 | 8 | 6 | 8 | 8 | **67** |
-| Sign-in · Onboarding · Tour · Settings flows | 7.5 | 5 | 7.5 | 8 | 7 | 7.5 | 9 | **71** |
-| **App** | | | | | | | | **69** |
-
-**What caps the score is accessibility, and it is mechanical.** Visual system,
-copy and motion already sit at 8–9; a11y is 5 across all three groups for the
-same five reasons. Fixing S18-1..5 alone is worth ~10 points.
-
-### Shipped 2026-09-28 — all eighteen items
-S18-1..S18-12, S18-15, S18-16 and the copy half of S18-17 shipped in the morning
-(`329bf0d7` + `b4e9a535`, iOS OTA `b2d0205b…`); the rest — S18-13 month paging +
-cached History/Body paint, S18-14 Coach and Milestones on the root native stack,
-S18-17/18 tap-to-log + with a long-press dial and a tinted Flame, and the
-priming half of S18-10 — shipped the same afternoon (`16cdb4cf`, iOS OTA
-`dbe26c08…` on build 67, Android OTA `605679ee…` on vc 46). `CHANGELOG.md`
-2026-09-28. Entries deleted per the housekeeping rule; the score table above is
-the pre-ship baseline. **Re-score at the next audit** — the a11y block alone was
-scoped at ~10 points, and nothing in §S18 is open.
-
-**Preserve** (all three reviews, independently): motion accessible by
-construction through `lib/motion.tsx`; durable offline-first adds with honest
-dedupe; validation that explains itself from one source of truth; empty states
-that teach; the PREVIOUS column with one-tap accept in the logger.
+Rubric: Usability 25 · A11y 20 · Platform 15 · Visual 15 · Perf 10 · Copy 10 · Delight 5 (reused by S19–S23). Scored **69/100**; all eighteen S18 items shipped — `CHANGELOG.md` 2026-09-28. Preserve: `lib/motion.tsx` accessible motion, offline-first adds with honest dedupe, self-explaining validation, teaching empty states, PREVIOUS column.
 
 ## 📏 S19 — Today + add-meal re-scored to 9+ (2026-10-04)
-
-Same rubric as §S18. Three parallel reviews (Today; add-meal with competitor
-tap counts; a11y + platform with computed contrast), then seven fix rounds, each
-re-scored by a fresh independent read-only reviewer.
-
-| Pass | Today | Add-meal |
-|---|---|---|
-| Baseline (3 reviews) | 74.5 | 68.6 |
-| Rounds 1 → 6 | 82.3 · 84.3 · 86.8 · 88.8 · 89.6 · 90.4 | 77.0 · 80.5 · 84.5 · 87.4 · 88.8 · 89.6 |
-| **Shipped** (`4773b4b1`) | **91.1** | **90.3** |
-
-Tap counts at ship (Ignia / best competitor): re-log yesterday's meal 1 / 3,
-fix a serving just logged 3 / 3, barcode 3 / 3, quick add 3–4 / 3–4, saved meal
-2 / 3, photo plate 5 / 4–5. `CHANGELOG.md` 2026-10-04 has the delivery.
-
-**The remaining gap to 9.5 is native, not JS** (every reviewer agreed): native
-iOS 26 sheet detents / Liquid Glass, `UIContextMenu` with a row preview, Android
-predictive back (`predictiveBackGestureEnabled` in `app.json` — moves both
-fingerprints). These cap Platform at ~8.6. The gram basis on logged rows
-shipped 2026-10-07 (§S21).
-
-**Device-QA first** (nothing here was run on a phone): in-app camera
-(`onCameraReady` + 2 s fallback), the per-field iOS KeyboardBar, a confirm
-presented from inside an open sheet, `sendAccessibilityEvent` focus moves, the
-in-panel toast's elevation on Android.
+Baseline 74.5 / 68.6 → shipped **91.1 / 90.3** (`4773b4b1`) — `CHANGELOG.md` 2026-10-04.
+- [ ] **Device QA never run:** in-app camera (`onCameraReady` + 2 s fallback), per-field iOS KeyboardBar, a confirm presented from inside an open sheet, `sendAccessibilityEvent` focus moves, in-panel toast elevation on Android.
 
 ## 📏 S20 — all five tabs re-scored for 1.2.5 (2026-10-05)
-
-Same rubric as §S18, a fresh independent read-only reviewer per tab per pass
-(code read, not run on a device). A new reviewer re-baselines: S20 opened
-Today at 87.5 against S19's shipped 91.1 with no regression between them.
-
-| Pass | Today | Add-meal | Train | Trends | Body |
-|---|---|---|---|---|---|
-| S20 start | 87.5 | 87.8 | 67 | 69.5 | 71 |
-| Round 2 | 88.3 | 88.2 | 79.3 | 79.6 | 81.0 |
-| **Round 3** | **89.8** | **90.4** | **85.3** | **83.8** | **82.8** |
-
-**Round 3's own fix lists are implemented (`255e8e16`) and NOT re-scored** — the
-numbers above are the tree before them; nothing measures what 1.2.5 actually
-ships. Re-score before claiming a number. What the reviewers said still caps
-Platform: native work, not JS. `CHANGELOG.md` 2026-10-05 has the delivery.
-
-**Impeccable native audit — a second rubric, trialled 2026-10-05.** The
-third-party skill (impeccable.style, user-level plugin; its auto-hook is OFF via
-`IMPECCABLE_HOOK_DISABLED=1`, and its detector cannot read React Native) scored
-Today and Train **13/20** each on its 0–4 × 5 scale. It is a code read against
-HIG / Material checklists, and it caught what our per-screen rubric did not:
-cross-screen regressions. Its two P0s — the glass bar over the rest bar and
-over Settings' Delete account — were fixed the same hour (`ae9d647b`), then
-the workout keyboard (`89a335ed`) and dark-mode text on fills (`445d1565`). Hand it
-the recorded-decision list (raised +, brand fonts, predictive back off, no
-iPad, no Material You) or ~9 of them come back as defects. **Open from it**
-— **all closed by §S21 (2026-10-06) except two:** Android ⋯ menus drop item
-subtitles (`NativeMenuButtonModule.kt`, needs a binary) and Android 16 large
-screens ignore the portrait lock with no width cap on Today.
+Round 3: Today 89.8 · Add-meal 90.4 · Train 85.3 · Trends 83.8 · Body 82.8 (round-3 fixes not re-scored) — `CHANGELOG.md` 2026-10-05.
+- [ ] **Android 16 large screens ignore the portrait lock, with no width cap on Today** (from the Impeccable native audit; its other open item, ⋯ menu subtitles, shipped in vc 48).
+- When running the Impeccable audit, hand it the recorded decisions — raised +, brand fonts, predictive back off, no iPad, no Material You — or ~9 come back as defects.
 
 ## 📏 S21 — whole-app audit, six reviewers incl. the first on-device pass (2026-10-06)
-
-Same rubric as §S18. Six independent reviewers on HEAD `932b4d71`: four per
-screen group (code), one cross-cutting measured audit (contrast computed,
-role/label/target counts, locale parity), and one on the `Ignia-QA-26`
-simulator (light, dark, AX5) — the first review to look at rendered screens.
-
-| Group (usage weight) | Score at `932b4d71` |
-|---|---|
-| Today + add-meal (40%) | 87.5 |
-| Train (15%) | 83.4 |
-| Body (12.5%) | 84.9 |
-| Trends (12.5%) | 83.1 |
-| First run (10%) | 76.6 |
-| Settings · Coach · Milestones · Connected apps · shell (10%) | 72.8 |
-| **Weighted, code** | **83.5** |
-
-Cross-cutting: Accessibility 7.6, Platform 7.4, visual-system consistency 8.6.
-The simulator pass scored Visual 6.8 / Delight 5.4 (code reviewers ~8.5);
-blending half of that gap put the app at **~81**. Lesson: per-tab code
-re-scores ran ~3–6 points hot against rendered screens, and the a11y-roles
-test passed only because it scanned a curated 38-file list.
-
-**Shipped the same day as OTA-only** (`622089d0`, `b240cf87`, `8a4e6be1`; iOS
-`a1f83a15…`, Android `429e9754…`, both on the 1.2.5 runtimes): the P0 blank
-dark-mode onboarding panels; units from the device region; Settings / Daily
-targets / Refine targets / Feedback on the root native stack; whole-app
-roles/labels/headers with `a11y-roles.test.ts` widened to every screen and
-component; `TARGET` (44/48) in `theme.ts`; Android ripple via
-`components/Touchable`; text-size relayout (`lib/font-scale.ts`) and AX5 header
-hierarchy; one `SegmentedControl`; "why it changed" on Trends; the full
-per-tab fix lists. `CHANGELOG.md` 2026-10-06.
-
-**Not re-scored.** Reviewers' JS-only ceilings put the app at ~90 with these
-fixes, ~92–93 with native work + a device a11y pass. Re-score before quoting a
-number.
-
-**Open**
-- [x] Device QA on **Android** — done on the emulator 2026-10-06, §S22
-  (what it found and what stays open is there; a hardware pass is still owed).
-- [ ] Real VoiceOver / TalkBack pass (placeholder hints in Train, focus moves).
-- [x] Light `accent` (`#c62f27`) and `danger` (`#c42020`) were nearly the
-  same red (ΔE76 4.2), so benign CTAs read as destructive. Owner's call
-  2026-10-07: keep the accent, move danger — now `#a3173b`, ΔE76 26, pinned
-  by `theme-contrast.test.ts` (`b96207a3`, OTA).
-- [x] The Train accordion (§S17-8) — owner's call 2026-10-07: kept.
-- [x] Native (binary): Android ⋯ menu subtitles and the ongoing rest
-  notification — vc 48 (§S22).
-- [x] Native segmented controls (owner, 2026-10-07) — a local two-platform
-  module, `modules/native-segmented-control` (no `npm install`):
-  `UISegmentedControl` in system colours on iOS, Material 3 segmented buttons
-  (`MaterialButtonToggleGroup`, app palette) on Android. Trends, Body and
-  Settings' four choices; the JS control stays for older binaries, identity
-  dots and accessibility text sizes (`1a1f601e`, `10f7ddc6`, `3202b4cf`; iOS 1.2.6
-  build 70 / Android vc 50).
-- [x] Gram basis on logged rows (owner, 2026-10-07) — `DailyLog.grams`,
-  rules deployed first; an edit of a weighed row opens with its grams field
-  and re-weighs from the row's own numbers (`1ebd474f`; OTA on every live
-  runtime, verified end to end on the emulator against prod).
-- [x] Native sheets: a thin translucent strip under the opaque content at the
-  bottom edge of fit-detent sheets — the home-indicator band, drawn as the
-  sheet's own glass. An opaque underlap below the surface (`6f15ec22`, iOS
-  OTA `d475121f…`; simulator-verified).
+Weighted code score **83.5**, ~**81** after blending the simulator pass; fixes shipped OTA — `CHANGELOG.md` 2026-10-06. Lesson: code-only re-scores ran 3–6 points hot against rendered screens.
+- [ ] **Real VoiceOver / TalkBack pass** (placeholder hints in Train, focus moves) — same work as S23-9.
 
 ## 🤖 S22 — the first Android pass on the S21 work (2026-10-06)
-
-S21 never ran on Android. This pass did, on the `pixel_api36` emulator
-(1080×2400, API 36) with the Play vc 47 artifact and its OTA, then on vc 48:
-one reviewer agent (look-and-navigate, QA account) plus a hands-on re-check
-of every fix on the vc 48 build with the final JS re-embedded.
-
-**The finding that mattered: under `<KeyboardProvider>` Android does not
-resize the window for the keyboard.** Every input screen had been written on
-the premise that it does (`behavior` iOS-only, "Android relies on
-adjustResize"), so on Android the sign-in password was typed into a field
-hidden behind the keyboard, and Save/Send footers sat under it on Daily
-targets, Refine targets, Feedback and Body's weight sheet. The S21 move of
-the providers above the form is what pushed sign-in's fields low enough to
-show it.
-
-**Fixed** (`fab2be42`, `e88428a9`; vc 48 + OTAs, verified on the emulator):
-sign-in and the live workout use `KeyboardAwareScrollView` on Android; the
-`KeyboardAvoidingView` screens pad on both platforms; Android `fit` sheets
-keep their content off the gesture bar (the sheet itself rises with the
-keyboard); the tab focus pill keeps its radius after a tab switch; ⋯ menu
-faces centred and item subtitles shown (native, vc 48); an ongoing rest
-countdown notification (native, vc 48, `modules/rest-timer-notification`);
-Safety floors stack at large text; TalkBack no longer reads icon glyphs into
-labels; sign-in's email action key moves to the password; the template
-empty-state copy points at the search above it.
-
-**Checked and fine:** back on the four moved screens returns to the opener;
-dark native sheets are opaque; ⋯ menus elsewhere; Coach and the add-sheet
-search keep their fields above the keyboard.
-
-**Closed 2026-10-07** (`0f6a8976`…`9656ce54`; OTA on all three runtimes,
-verified on the emulator and on the OnePlus 8T — `CHANGELOG.md`):
-- [x] Square ripples — `overflow: 'hidden'` on the pressable ITSELF clips
-  the Fabric ripple to its radius (no wrapper needed; `rippleClip()` in
-  `lib/motion`). Settings rows bleed to the card edge on Android.
-- [x] Focused fields under the keyboard — the Note rides `revealField`; the
-  template editor uses `useRevealFocusedInput`; the recipe list shrinks.
-- [x] Body title's descender — header `paddingBottom`.
-- [x] Large text — Train section head wraps; Settings choices stack (they
-  also broke words, "Espa/ñol"); recent names take two lines; tab cells
-  48 dp.
-- [x] Small targets — recipe ✕ and the four sub-screen Cancels are 48 dp.
-- [x] Coach gutter 24 dp; Quick add's empty circles `lineStrong`.
-- [x] Font size change → Today. NOT the S21 relayout: Android recreated
-  MainActivity (no `fontScale` in `configChanges`) and RN restarted the app.
-  `patch-android-release.mjs` step 4f — native, vc 49 (in Play review
-  2026-10-07; verified on the emulator with the vc 49 artifact).
-- [x] Hardware pass (OnePlus 8T, Android 14, vc 48 + this JS): rounded
-  ripples, keyboard reveal on the live workout, the rest countdown
-  notification (it sits in the shade's **Silent** section — importance LOW,
-  by design: no sound per rest).
+Emulator pass found Android does not resize for the keyboard under `<KeyboardProvider>`; fixed in vc 48 + OTAs, remainder closed 2026-10-07 incl. a OnePlus 8T hardware pass — `CHANGELOG.md` 2026-10-06 / 2026-10-07. *(S21's open list still said "a hardware pass is still owed"; S22's 2026-10-07 close supersedes it.)*
 
 ## 🏋️ S23 — Train tab scored against 2026 standards, two passes (2026-10-12): 72.3 → 81.6 → 83.9
-
-Rubric: `docs/research/train-ux-standards-2026.md` (fetched 2026-10-11; HIG,
-M3, WCAG 2.2, NN/g, Hevy/Strong help docs), S18 weights. Every score below is
-from RENDERED captures (iOS 26 simulator light/dark/AX-large; Android emulator
-for the final round), by reviewers who wrote none of the fixes. Evidence and
-the per-round reviews live on `ignia-mac` only, in
-`apps/mobile/.maestro/capture/train-ux/` (screenshots, ~257 MB, not in git).
-
-| Surface | Baseline | Final |
-|---|---|---|
-| Home | 81.0 | 81.5 |
-| Session detail | 81.3 | 83.0 |
-| Glossary / starters / share | ~78 | 84.5 |
-| Weekly volume | 64.0 / 58.8 | 74.0 |
-| Exercise detail + lift settings | 76.3 / 71.5 | 76.5 |
-| Recommendation note | 77.5 | 79.3 |
-| Template editor | 68.4 | 78.8 |
-| Live logger | 78.5 | 82.8 |
-| Rest / superset | 83.0 / 81.0 | 83.5 |
-| Finish / exits | 69 / 78 | 82.5 |
-| **Whole tab (journey reviewer)** | **72.3** | **81.6** |
-
-**Ceiling, agreed by all four final reviewers:** JS alone reaches ~88. 9.5+
-needs all of: the JS items below, a native build, a real-device VoiceOver +
-TalkBack pass, and the owner calls below.
-
-### Round 2 (2026-10-12, same day) — 81.6 → **83.9**
-Independent re-score `FINAL-SCORE-R2.md` (iOS renders; A11y capped at 8, no
-screen reader). Closed: S23-1 (editor ↑↓), S23-4 (one Finish line), S23-7
-(Maestro 18/22 — 18's "overshoot" was a real Android bug, every native sheet
-could not scroll back up; fixed, see CHANGELOG), S23-10/11/12/13 (owner calls,
-shipped), plus most of S23-2/3/5/6. S23-8 is code-complete and ships in 1.2.7
-(+~0.9 once on a device). JS-only ceiling is still ~87.
+Rubric `docs/research/train-ux-standards-2026.md`, scored from rendered captures — `CHANGELOG.md` 2026-10-12 (both entries). JS alone reaches ~87–88; 9.5+ needs the items below plus a native build and a device a11y pass. Evidence lived in `apps/mobile/.maestro/capture/train-ux/` on `ignia-mac` (not in git; that Mac was sold 2026-11-13).
 
 ### Open — JS
-- [ ] **S23-2** Android keeps the branded confirm over native sheets (the drag-dismiss re-present was only verified with it) — a device check decides whether it moves to the system dialog too.
-- [ ] **S23-3** AX5: "Sets | Clust…" switch label; "TOP WEIGH/T"; home hero pills overflow; at AX the one-line rest bar still sits over a card. Re-capture the post-capture fixes (Finish tiles, exercise-detail Delete row, card title cap).
-- [ ] **S23-5** Myo-rep rows still read 1a/1b/1c on the row (the set words are in the set sheet + VoiceOver); "REPEAT — couldn't judge last time" shows twice.
-- [ ] **S23-6** Editor: ↑↓ on their own row roughly double a collapsed card's height; More options is still a third level; title close to Cancel. The set row is 5 focus stops (grouping waits on S23-9).
-- [ ] **S23-7b** Android regression flows (emulator, round-2 JS): 16/22 teardown cannot find their lift once the catalog passes the 5-row inline list (`CATALOG_INLINE`, `StartView.tsx`) — go through Browse all; 18's keyboard-dismiss tap on the "New template" title now expands Template options. Flow maintenance, not app regressions (`QA-R2-ANDROID.md`). 18's Android drag workaround can go now that sheets scroll.
-- [ ] **S23-14** After collapsing and re-expanding a card, the ‹ › Done keyboard bar no longer attaches (iOS falls back to an English "Next") — predates round 2 (`KeyboardBar.tsx`, `SetRow.tsx`).
-- [ ] **S23-15** Deleting a finished workout leaves that day's "exercise completed" food-log entry (`ledger.ts` ~2183) — not checked whether it predates round 2.
+- [ ] **S23-2** Android keeps the branded confirm over native sheets; a device check decides whether it moves to the system dialog too.
+- [ ] **S23-3** AX5: "Sets | Clust…" label; "TOP WEIGH/T"; home hero pills overflow; one-line rest bar over a card. Re-capture the post-capture fixes (Finish tiles, exercise-detail Delete row, card title cap).
+- [ ] **S23-5** Myo-rep rows still read 1a/1b/1c; "REPEAT — couldn't judge last time" shows twice.
+- [ ] **S23-6** Editor: ↑↓ row doubles a collapsed card's height; More options is a third level; title close to Cancel; set row is 5 focus stops (grouping waits on S23-9).
+- [ ] **S23-7b** Android Maestro flows 16/22 can't find their lift past the 5-row inline catalog (`CATALOG_INLINE`, `StartView.tsx`) — use Browse all; 18's keyboard-dismiss tap expands Template options; 18's drag workaround can go. Flow maintenance, not app bugs.
+- [ ] **S23-14** After collapse/re-expand, the ‹ › Done keyboard bar no longer attaches (`KeyboardBar.tsx`, `SetRow.tsx`).
+- [ ] **S23-15** Deleting a finished workout leaves that day's "exercise completed" food-log entry (`ledger.ts` ~2183).
 
 ### Open — native build
-- [ ] **S23-8** In 1.2.7: whole-workout Live Activity / Android notification with lock-screen **Done set**, Android 16 promoted Live Update with −30/+30/Skip. Needs the device script in `FIX-N2.md`.
+- [ ] **S23-8** Whole-workout Live Activity / Android notification with lock-screen **Done set**; Android 16 promoted Live Update with −30/+30/Skip. Needs the device script in `FIX-N2.md`.
 
 ### Open — device
-- [ ] **S23-9** The owner's VoiceOver + TalkBack pass — checklist `apps/mobile/.maestro/capture/train-ux/DEVICE-A11Y-CHECKLIST.md` (on `ignia-mac`); then group the set row; measure tick feedback and cold paint on a mid-range Android.
+- [ ] **S23-9** Owner's VoiceOver + TalkBack pass (checklist `DEVICE-A11Y-CHECKLIST.md`, was on `ignia-mac`); then group the set row; measure tick feedback and cold paint on a mid-range Android.
 
 ### Owner calls still open
-- [ ] **S23-13 (rest)** Red on status surfaces ("WORKOUT IN PROGRESS"); "Next up" picks never-done templates first. Not answered — left alone.
+- [ ] **S23-13 (rest)** Red on status surfaces ("WORKOUT IN PROGRESS"); "Next up" picks never-done templates first.
+
+---
+
+## 🧭 S24 — "Is it hard to understand?" — comprehension audit + market refresh (2026-11-19)
+
+**Different question from S18–S23.** Those scored conformance (a11y, platform, visual). This one asked whether a first-time, non-expert user understands the app, and what solid competitors have that Ignia lacks. Five reviewers read every surface in code plus the 2026-10-12 simulator captures; two surveyed the market (`docs/research/competitive-feature-scan.md`, 2026-11-19 addendum). **Not run on a device** (no Mac, no simulator), and the production sample is 43 signups — treat tap counts as measured in code, percentages as small-sample.
+
+**Verdict.** On the right track where it counts: logging is 2 taps with no wait (search, typed kcal, preset), every write has Undo, the glossaries are plain, and the market moved toward Ignia's position this year (MyFitnessPal's Today redesign, Yazio's 78-step onboarding and Cal AI's subscription wall all drew backlash). **The gap is not features. It is that a new user is stopped before the first log, lands on a screen that does not point at the next action, and reads the owner's vocabulary.** Difficulty for a novice: logging easy · Today / Body moderate · Trends, Train, Settings hard. Every item below is JS (or rules) and ships by OTA.
+
+### Scored against current standards (same day, second pass)
+
+Rubric: `docs/research/app-ux-standards.md` — 92 rules A1–A92 read from primary sources on 2026-11-19 (Apple HIG for iOS 27, Android / Material 3 at target API 36, WCAG 2.2 AA, store policy, plain-language guidance), §S18 weights; Train also against `train-ux-standards-2026.md`. **Every score is CODE-ONLY** — no Mac, no simulator, no Android SDK on `winbox` — and §S21 found code-only scores 3–6 points above rendered ones. This rubric is stricter than October's (48 dp on Android, visible field labels, units and plain words on every number), so the totals are **not** a like-for-like drop from 83.5.
+
+| Surface | Code-only | Lowest dimension |
+|---|---|---|
+| First run | 75.0 | Accessibility 6 (placeholder-only labels on sign-in; 33–40 pt links) |
+| Today | 79.5 | Accessibility 7.5 |
+| Add-food sheet + scan | 73.5 | Accessibility 6.5, Platform 6.5 (26–30 dp fields; scan controls in the home-indicator band) |
+| Trends | 75.5 | Visual 7, Copy 7 |
+| Body | 77.8 | Copy 7 |
+| History | 69.5 | Accessibility 6 (colour-only dots; unit-less rows) |
+| Train: home / logger / editor / finish | 81.5 / 81.0 / 79.3 / 83.0 → **81.2** | Editor Usability 7 |
+| Settings + shell | 75.0 | Accessibility 7, Platform 7, Copy 7 |
+| **Whole app, §S21 usage weights** | **≈ 77** (rendered would read ≈ 71–74) | |
+
+**Train eroded.** 81.2 code-only against 83.9 *rendered* on 2026-10-12 means roughly 75–78 rendered: five weeks of additions (kg|lb, plate #, Gym busy, time cap, home-plan cards) put up to seven notes and switches above the first exercise, with new controls under 48 dp and spoken names that do not contain their visible text.
+
+Measured, whole app: locale parity 2,755 keys × 3, 0 missing · roles and labels 0 missing (matches `a11y-roles.test.ts`) · reduce-motion 0 bypasses · 454 pressables, 0 under 44 without `hitSlop`/`TARGET`, but 8 use a literal 44 (4 dp short on Android) · contrast under the bar and **not pinned by `theme-contrast.test.ts`**: light `warn` on `tealSoft` 4.39, dark `faint` on `tealSoft` 4.04 and `danger` on `tealSoft` 4.20 (text, need 4.5); light `ring` 2.70, `protein` 2.89, `carbs` 2.04, `habitFasting` 2.85 (non-text, need 3.0).
+
+- [ ] **S24-20 · BUG — saving a template in the editor drops "plate #" from every lift.** `stackPositions` is not in `CARRIED_ROW_FIELDS` (`packages/core/src/progression-apply.ts`) and `buildDraft` does not write it (`TemplateEditorModal.tsx`); the exercises array is overwritten on save. Read in code, not run. Template-level options survive (the write merges). Fix + a test. **First.**
+- [ ] **S24-21 · Targets (A1).** Literal 44 → `TARGET` at the 8 sites; scan item / gram fields and typed-meal macro fields (26–30 dp); Train's kg|lb and plate # switches and Finish's "Keep … instead"; first-run "Skip for now", "I already have an account", tour Skip; Trends "?" and habit-stub dismiss; three controls that reach size only through `hitSlop`.
+- [ ] **S24-22 · Visible field labels (A34, WCAG Level A).** Placeholder-only: sign-in email / password / names, bedtime and wake, scan item name, recipe name.
+- [ ] **S24-23 · Units, written and spoken (A51, A35, A22).** No unit on: the onboarding plan number, "Maintenance 2,665" on the hero, the safety-floor steppers, History's recent rows, the Calories caption, typed-meal macro fields. Screen readers get "kcal" and "g" spelled out — use "calories" / "grams" in all three locales.
+- [ ] **S24-24 · Scan screen ignores the bottom safe area (A3, A5).** Shutter and the Add footer sit in the home-indicator band (`scan.tsx`, `ScanCamera.tsx`).
+- [ ] **S24-25 · Colour as the only signal (A17, Level A).** History's "logged" and "weigh-in" dots differ only by colour; a bad recipe field is only a red border.
+- [ ] **S24-26 · Lost input and silent denials (A31, A50).** Back discards typed input with no prompt on Daily targets, Refine targets and Feedback; Android back on sign-in leaves the app; turning reminders on with notifications denied snaps the switch off and says nothing (no Settings link).
+- [ ] **S24-27 · Smaller, all OTA.** Contrast pairs above → fix and pin in `theme-contrast.test.ts`; no Increase Contrast handling (A19); hero number capped at 1.2× text size (A14); "session" vs "workout" in the logger (A55); plate mode's load column header is "#", same as the set column; the time-cap note is never announced; Finish can chain three confirms; no "check with a doctor" line where targets are set (A73, Settings only); "within about 3–4% of a DEXA scan" and "measures your real maintenance" are accuracy claims (A74) — say "estimates"; `signIn.errWrong` says "below", the buttons are above.
+- [ ] **S24-28 · Owner calls from the rubric.** Pre-permission screens carry "Not now" beside the action (HIG asks for one button; the two-button form is what keeps the one-time iOS prompt unspent) — record as a decision or change. Portrait lock vs WCAG 1.3.4 (AA). Hero rings' resemblance to Apple's Activity rings (A77).
+- **Blocked on a binary:** the camera purpose string says barcodes only (photo scan uses it too) and the Health read string omits steps, active energy and workouts — **store-policy accuracy, fix in the next build of either platform**; the portrait lock is ignored at ≥ 600 dp on Android at API 36, so large-screen layout is unverified; predictive back; confirming the shipped `targetSdk` from the artifact.
+- **Needs a device, not scored as passes:** real VoiceOver / TalkBack, clipping at 200 % / AX5, edge-to-edge scrims, keyboard reveal, paint and tick timing. No reader test of the copy exists (A65).
+
+### Batch 1 — activation (the measured problem: 33% ever log, 34 min to the first one, 0 of 43 reminders)
+- [ ] **S24-1 · Email signups hit a verification wall before onboarding.** Nothing is visible until the user leaves the app, finds the mail and returns (`app/_layout.tsx` verify gate; `firestore.rules:24` `email_verified`). Fix: let an unverified account write its own profile and logs, show verification as a banner, keep the AI callables verified-only. **Owner call** (abuse surface). Cheaper than guest mode (N5).
+- [ ] **S24-2 · Day-0 Today does not point at logging.** Order is hero → notices → fasting / water / sleep / hunger / "Day fully logged?" → Meals, below the fold (`app/(app)/index.tsx`, `DailyMetrics.tsx`); `today.emptyHint` ("Tap + to log your first meal.") is no longer rendered anywhere. Fix: with no entries, a first-meal card directly under the hero, trackers after it; that card also re-offers the onboarding first-log step, which today is one-shot (`onboarding.tsx`, profile saved at Plan).
+- [ ] **S24-3 · Reminders are asked before the app has done anything** (`onboarding.tsx` step `reminders`). Lever 10 is not built. Fix: drop the step; ask once on the first successful save.
+- [ ] **S24-4 · Onboarding copy assumes the vocabulary.** "Calorie deficit" / "Lean gain" goal hints, "measures your real maintenance from your own weight trend", five activity levels with no description, "You're all set" with two screens to go, protein shown with no reason. Fix: plain hints, one example line per activity level, retitle, one line on protein; move the optional goal-weight step to Settings. Delete dead `onboarding.tagline`.
+
+### Batch 2 — legibility
+- [ ] **S24-5 · Trends opens on a method, not an answer.** First read is "Maintenance estimate 2,665 kcal" + MEASURED/FORMULA badge and five lines of method (±95% range, blended, completeness, outliers). Fix: one sentence on top from values already computed ("losing about 0.5 kg a week, eating 150 under target"); method text behind the existing "About your maintenance" sheet; below 3 logged days show a checklist ("Log food 3 days · Weigh in twice") instead of empty charts; label the weight readout "−1.2 lb over 3 months", not "Trend" (Body's "Pace" is per week).
+- [ ] **S24-6 · One concept, several names.** Maintenance is also "measured burn", "what you actually burn", "maintenance estimate", "Profile estimate → measured"; target is also "goal"; saved foods are Quick add / My Foods / preset / Slot / recipe; "Volume" is weight × reps in the glossary and sets per muscle on the link; "Safety floors" / "minimum" / "floor". Keep: **maintenance · target · left / over · entry · Quick add + My Foods · workout + template · minimum**. Drop "preset", "Slot", "engine", "burn". Same pass in es-PR ("Volumen" is both the bulk phase and training volume; two names for Quick add) and pt-BR ("Cutting/Bulking").
+- [ ] **S24-7 · Copy that is wrong.** `targets.errBelowFloor` sends the user to Refine targets; the floor is in Settings → Safety floors (es-PR names a screen that does not exist). `settings.healthSub` says Health data "never uploaded to our servers" while the permission primer says it goes to the user's Ignia account — **a privacy claim, fix first**. The RIR glossary says "nothing else in the app depends on it" while Finish reads a blank as 0. iOS users are told about the Android Quick Settings tile (`QuickAddCard.tsx`). `connected.intro` says connecting "takes you to their site" (false for Health). Five non-actionable errors ("Lookup failed.", "it was refused", "Something went wrong").
+- [ ] **S24-8 · Trackers cannot be turned off.** Fasting, water, sleep, evening hunger and "Day fully logged?" always render. Fix: per-tracker switches in Settings; for new accounts fasting, hunger and day-logged start off; hide day-logged until the measured number exists. **Owner call** on the defaults.
+- [ ] **S24-9 · Photo review is a form, not a confirm.** Up to seven decisions after the model returns (name, per-item name and grams, add an item, portion, meal, time, another angle; `scan.tsx`). The model is ~3–7 s; the rest of the 80 s is framing plus this screen. Fix: total + read-only items + Add, everything else behind one "Adjust". Read the median of `secsPerLog` first — it is a mean capped at 300 s.
+- [ ] **S24-10 · Settings shows the owner's program to everyone.** Volume gate, "cluster", dumbbell-step switch, auto-apply and a training Phase that defaults to **Cut** regardless of the diet goal (`core workout.ts` `DEFAULT_TRAINING_PHASE`); Watch diagnostics and the bundle id line; two doors for targets (Daily targets shows the goal but cannot change it; Refine changes it but does nothing visible for a Custom user). Fix: one "Advanced training" group hidden until a template exists; phase follows the goal; diagnostics behind taps on the version line; goal picker on Daily targets, Safety floors there too as "Minimums".
+- [ ] **S24-11 · Smaller.** Diary rows: Move to meal and Copy to today exist only behind long-press — add a ⋯. History: reached by an unlabelled calendar icon; rows show a bare "1,850"; dots do not say over/under. Body: body fat + measurements always shown — collapse to one "Track measurements (optional)" row until first use; drop the sleep chip and the "(Nedeltcheva 2010)" citation. Recipe builder has no food lookup (`RecipeBuilder.tsx`; `MealText` already resolves foods). Camera and barcode appear twice in the add sheet. Coach is reachable only from Trends.
+
+### Batch 3 — Train for someone who is not the owner
+- [ ] **S24-12 · Nothing says how to train.** A first set is refused until a weight is typed and nothing says how to pick one; ~70 seeded lifts ship form cues in three locales that are visible only in the template editor's More options. Fix: on a no-history card, "Pick a weight you can lift 10 times with 2 left in the tank; Ignia adjusts from there"; cues as a collapsible "How to" on the card and in the exercise detail sheet.
+- [ ] **S24-13 · No plan is offered.** Starters are separate adds showing a name, a count and three lift names — not sets × reps, days, or the template's own notes. Fix: a "Push / Pull / Legs" bundle row with notes, then a rule-based picker (goal · days a week · equipment → a bundle). No generative AI.
+- [ ] **S24-14 · Advanced prompts reach novices.** The flat-reps warning ("are these sets close to RIR 0?") fires after two sessions of tick-to-accept; "Gym busy" renders on every session with 2+ lifts; a kg|lb switch sits on every weight card and saves on a stray tap; the owner's cluster split (Paramount machines, "This REPLACES vertical Smith bench") ships as a starter. Fix: gate each on the lift's own data (`liftUsesRir`, template `gymBusy`, `unitByGym`), move the cluster starter out.
+- [ ] **S24-15 · Recommendation notes lead with numbers.** "{reps} reps, but {next} (+{pct}%) predicts only {predicted} — under {min}. Build reps first." Fix: a plain verb sentence first ("Same weight, aim for one more rep"), numbers behind a tap. Glossary gains deload, Zone 2, calibration, rotation, PREV, Gym busy; call labels open their entry.
+
+### Batch 4 — what the market has that Ignia lacks, OTA-able
+- [ ] **S24-16 · Re-log from history with multi-select** (FoodNoms, Cronometer "repeat items"). Ignia has Repeat yesterday and per-meal copy; per-item re-log from any past day is missing.
+- [ ] **S24-17 · Import a Hevy / Strong CSV.** Switchers bring history; MacroFactor Workouts cannot import. `expo-document-picker` is in the binary.
+- [ ] **S24-18 · Exercise stills.** Every serious logger ships how-to media. Video is native (`expo-video` is not in the binary); stills via `expo-image` are OTA. `yuhonas/free-exercise-db` is Unlicense but its image provenance is unstated — **check before use**. S24-12's cues come first and cost nothing.
+- [ ] **S24-19 · Owner calls, not queued.** A GLP-1 / protein-first mode (MyFitnessPal, Lose It!, MyNetDiary all shipped one in 2026; Ignia is already protein-first — mostly positioning plus a medication log). AI label scan → custom food (MacroFactor, FoodNoms, SnapCalorie) — an AI cost.
+- **Blocked on a build, so parked:** Apple Watch food and workout logging (the reason lifters name for switching apps), a share extension, Control Center / Smart Stack, exercise video, S23-8.
+
+**Keep (reviewers' lists agree):** the 2-tap ⊕ against the on-device index and "Food or kcal" in one field; Undo on every write; the first-log step that opens the add sheet; Next up + PREV + tick-to-accept; RIR asked only for lifts that use it; locked tiles that say what unlocks them; the replayable tour; the non-judgmental voice (no shaming copy was found).
+
+**Not worth copying:** a paywall before the first log, streak-restore as a purchase, hiding the diary behind a "Today" feed, free-tier caps on routines and history, a generator that overwhelms beginners.
+
+---
 
 ## 5. Notes for future additions
 
 - When adding a new surface, check it against: (a) does copy work for a first-time user; (b) is every icon-only button labelled; (c) does it announce state changes via `aria-live`.
 - The "Personal Calibration Log" aesthetic is the differentiator — preserve it in *typography and frames*, not in *function-gating* words.
+- A feature claim inside a lifecycle email is a promise to every future signup: check it against the flags, not memory.
+- Before treating an unticked box here as open work, check the code: this file has listed finished work as pending at least five times.
+
+---
+
+## Shipped, not in the changelog
+
+- **S14 feature declutter (web, 2026-06-14, `c824b99d`)** — Trends Weekly panel + Coach panel; web code since retired (ADR-0036). Mobile one-Nudge gate (`useTodayNudge`) shipped 2026-08-12.
+- **S16 design audit (2026-08-31, `fcdcea07` + `534b55c2`)** — unformatted numbers, dingbats → Ionicons, S16-1…S16-12 (light accent vs danger, short What's-new, single FAB on day detail, calendar legend, case drift, habit-shortcut scroll, sheet dismiss idiom, measurement labels, USDA badge, branded ConfirmSheet, es-PR "preset", "Ignia estimates").
+- **Maestro findings (2026-08-09)** — Coach quota visible on mount (reads own `consultationQuota` doc); failed dictation start shows `voice.failed`.

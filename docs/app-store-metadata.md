@@ -7,17 +7,17 @@ Everything on this page is **metadata-only** — it changes in App Store Connect
 with **no new binary and no EAS build**. It is still the biggest ASO lever
 available, and none of it is blocked.
 
-*(This used to add "builds are capped until the August 2026 quota reset". That
-stopped being true on 2026-08-03: builds run locally on `ignia-mac` at zero EAS
-quota — `STATUS.md` §3, "Builds: no longer the binding constraint". Metadata is
-valuable on its own merits, not because binaries are rationed.)*
+*(This used to add "builds are capped until the August 2026 quota reset"; local
+builds on `ignia-mac` ended that on 2026-08-03, and the Mac's sale on 2026-11-13
+ended those — `docs/build-infrastructure.md`. Metadata is valuable on its own
+merits either way.)*
 
 **Before pasting, re-read the not-claimable list** (`go-to-market.md` §0). If
 a build flag flips, this file is stale. Nothing here mentions Pro or trials —
 those stay off. **The rest of that old list has since SHIPPED and this copy
 still omits them deliberately**: photo-scan is on and free (ADR-0017), Health
-sync, the widget and the Watch app are in the binary, and Android is on the
-Play alpha track with production submitted (`STATUS.md`). Omission is a choice about App Store copy, not a statement that
+sync, the widget and the Watch app are in the binary, and Android is on Play
+production (this said "alpha, production submitted" until 2026-11-19). Omission is a choice about App Store copy, not a statement that
 the features are unbuilt — check `STATUS.md` before repeating "unbuilt"
 anywhere.
 
@@ -53,7 +53,7 @@ SDK 57 required a fresh marketing version, not a promotion.
 **What is applied as listing metadata** (the thing this file *does* own): the
 English and es-MX name, subtitle, description, keywords, promotional text and
 URLs are saved and unchanged since 1.1.0. Only the What's New text moves per
-release — see the 1.2.0 block below.
+release — see the newest What's New block below.
 
 **This file is the source of truth for listing field values.** `go-to-market.md`
 owns positioning and strategy; The pre-launch listing draft was deleted
@@ -348,9 +348,8 @@ the per-version reminder below is closed for good.
 
 ### What's New — 1.2.0 · SHIPPED 2026-08-19 as build **55** (submitted 08-15 with build 54), kept for reference
 
-**Historical — the live release copy is the 1.2.3 block above** (1.2.3 / build 64
-went `READY_FOR_SALE` 2026-09-06; this heading said "This is the live release
-copy" until 2026-09-17). Written against App Store 1.1.0 / build 24
+**Historical — the live release copy is the newest block above** (this named
+1.2.3 as live until 2026-11-19; `STATUS.md` §1 has which version is). Written against App Store 1.1.0 / build 24
 (uploaded 2026-08-07) → build 54, i.e. everything the public has not seen.
 The machine-readable copy is **`store-assets/whats-new-1.2.0.json`**, which
 `scripts/asc-swap-review-build.mjs --notes` uploads. This document stays the
@@ -500,7 +499,7 @@ above and the 1.2.3 read-back confirm — deleted 2026-09-17.)
 > **NOT LIVE YET.** ASC refuses screenshot edits on a `READY_FOR_SALE` version,
 > so they sit on a **1.2.12 *Prepare for Submission* draft** (id `30305a82…`,
 > created 2026-11-08 for this purpose, `AFTER_APPROVAL`). They go live only when
-> a 1.2.12 binary is attached and the version passes review. The 1.2.11 listing
+> a 1.2.12 binary (no Mac to build one since 2026-11-13) is attached and passes review (draft re-read in ASC 2026-11-19). The 1.2.11 listing
 > still shows the 2026-09-05 set. The draft copied 1.2.11's description,
 > keywords and watch frames. What's New is empty; write it before submitting.
 
@@ -682,7 +681,7 @@ Sin anuncios. Sin venta de datos. Exporta o borra tu cuenta desde la app.
 Ignia no es un dispositivo médico y no da consejo médico.
 ```
 
-### Novedades — 1.1.0 · SHIPPED, kept for reference (the live es-MX copy is 1.2.3, in the What's New — 1.2.3 block above; this said 1.2.0 until 2026-09-17)
+### Novedades — 1.1.0 · SHIPPED, kept for reference (the live es-MX copy is the newest What's New block; this named a version until 2026-11-19)
 
 Same gating as the English block above: if the widget or Health bullets are
 cut there, cut them here too, or the two localizations claim different builds.

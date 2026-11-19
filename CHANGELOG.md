@@ -4,6 +4,20 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-19 — comprehension audit + market refresh; docs cut back to what is true (no code change)
+
+Seven reviewers: five read every mobile surface for "can a first-time user understand this", two re-surveyed
+nutrition and training apps. Verdict: features are at or past parity; activation and legibility are the gap.
+Nineteen open items in four OTA batches, `UX_AUDIT.md` §S24; market notes in
+`docs/research/competitive-feature-scan.md` (2026-11-19 addendum). Nothing built.
+
+Docs: `UX_AUDIT.md` 1,075 → 184 lines (shipped items deleted; open ones kept by ID), `STATUS.md` 328 → 236 (the
+Travel section was pasted in twice; the OTA row carried a month of history), `docs/training-backlog.md` 387 → 92,
+and eighteen other files corrected for the Mac's sale on 2026-11-13 (no iOS build host; OTAs from `winbox`).
+State that left `STATUS.md` with this cut: **iOS 1.2.11 / build 75 went live 2026-11-06** and supersedes 1.2.10
+(build 74) and 1.2.9 (build 73, never submitted); the Bolivia trip ended 2026-11-18; travel mode, pause / resume,
+the Haven plan and the maintenance display were delivered by OTA on the dates in the entries below.
+
 ## 2026-11-19 — Home v2.4 locked in after the trip; per-template re-entry, home plan, travel kit (`scripts/owner-data-2026-11-19-v2-4-lock.mts`)
 
 App: **re-entry rules per template** on the trip (`TravelPeriod.reentryRules`, frozen as

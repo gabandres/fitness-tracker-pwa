@@ -32,9 +32,10 @@ npm --prefix functions run build         # tsc → functions/lib
 cd apps/mobile && npx expo start         # Expo dev server + Expo Go
 ```
 
-**The emulator suite needs JDK 21+** and PATH `java` here is 17, so it fails
+**The emulator suite needs JDK 21+**; on a PATH `java` of 17 it fails
 with `firebase-tools no longer supports Java version before 21` — a PATH
-problem that reads like a broken suite. `scripts/require-java21.mjs` is a
+problem that reads like a broken suite (PATH `java` on `winbox` is 21, read
+2026-11-19; this said "is 17" until then). `scripts/require-java21.mjs` is a
 **launcher**: it finds a JDK 21+, puts it first on PATH and runs the command,
 so `npm run test:rules` needs no PATH export (`docs/COMMANDS.md`; this line said
 "preflights it and prints the fix" until 2026-09-17 — a child process cannot
@@ -76,7 +77,7 @@ There is no app server. `firestore.rules` (~670 lines, dense — per-collection 
 - **`docs/COMMANDS.md`** — how to *check* a claim in `STATUS.md` rather than trust it: ASC/Play/EAS/Sentry queries, the OTA fingerprint gate, the `build-info.json` deploy check. Prefer running one of these over believing a number in prose.
 - **`docs/build-infrastructure.md`** — EAS ceilings, iOS credentials/profiles, Android signing, and the resolved build traps that will be re-hit (silent pod drops, `.easignore`, `autoIncrement` gaps).
 - **`CONTEXT.md`** — canonical domain glossary. One concept = one term, with legacy synonyms called out (e.g. Log/Entry/Meal all map to `DailyLog`). Read it before naming things or grepping.
-- **`docs/adr/`** — architecture decisions 0001-0047 (this said 0001-0024 until 2026-09-17): the "why" behind the seams above. 0013 (food resolution), 0014 (mobile theming), 0015 (Ignia pivot), 0016 (per-hook subscriptions), 0022 (the web freeze) and **0036 (the web logging app is retired; `ignia.fit` is a shell plus `/admin`)** are load-bearing and cited throughout this file. 0024 owns the one seam a plausible optimisation would break: the device's activity multiplier is a *seed-only* prior and must never reach the measured estimate.
+- **`docs/adr/`** — architecture decisions 0001 onward (`ls docs/adr | tail -3` for the latest; this pinned a top number, which went stale twice, until 2026-11-19): the "why" behind the seams above. 0013 (food resolution), 0014 (mobile theming), 0015 (Ignia pivot), 0016 (per-hook subscriptions), 0022 (the web freeze) and **0036 (the web logging app is retired; `ignia.fit` is a shell plus `/admin`)** are load-bearing and cited throughout this file. 0024 owns the one seam a plausible optimisation would break: the device's activity multiplier is a *seed-only* prior and must never reach the measured estimate.
 - **`CHANGELOG.md`** — significant ships, newest first. Entries before 2026-06-13 live in `CHANGELOG-archive.md`.
 - **`docs/research/`** — long-form research (watch transport, watchOS targets, activity/TDEE semantics, competitive scan). **Every file opens with a VERDICT block: read that and stop, unless you need the detail.** Cite these conclusions; do not re-derive them.
 - **`UX_AUDIT.md`** — open UX backlog only; **§S13 is the launch-readiness checklist**.
@@ -99,7 +100,7 @@ prose alone did not prevent them:
 |---|---|---|
 | `guard_firestore_import.py` | `from 'firebase/firestore'` in `src/**` (not specs, not `apps/mobile/**`, not `functions/**`) | a second SDK copy breaks `doc()`/instance identity; it broke prod sign-in once |
 | `guard_firebase_deploy.py` | a hosting deploy whose `dist` has no `build-info.json` (written last by the prod build), no `sitemap.xml`, no safety worker, or predates `src/` | a dev/stale build ships no prerendered pages and no release stamp; until ADR-0036 it also left the PWA update banner firing for every returning user |
-| `guard_eas_update.py` | a bare `eas update` (no single `--platform`), one without `--environment`, or one from a host not in its `OWNER` table. **Since 2026-11-12 both the Mac and the Windows PC may publish both platforms** — they compute the same fingerprints (`patches/@expo+fingerprint+0.20.14.patch`) and export the same bundles (`apps/mobile/metro.config.js`'s Windows-only Sentry tests); `ignia-mac` is sold 2026-11-13, so OTAs go out from `winbox`, checkout `Z:\fitness-tracker-pwa`. From 2026-08-17 to then the hosts were split per platform | the fingerprint was machine-dependent; a publish whose hash matches no binary exits 0 and reaches **nobody** |
+| `guard_eas_update.py` | a bare `eas update` (no single `--platform`), one without `--environment`, or one from a host not in its `OWNER` table. **OTAs for both platforms go out from `winbox`, checkout `Z:\fitness-tracker-pwa`** (the table still allows `mac` for a future Mac: both hosts compute the same fingerprints, `patches/@expo+fingerprint+0.20.14.patch`, and export the same bundles, `apps/mobile/metro.config.js`). `ignia-mac` was sold 2026-11-13; from 2026-08-17 to 2026-11-12 the hosts were split per platform | the fingerprint was machine-dependent; a publish whose hash matches no binary exits 0 and reaches **nobody** |
 
 They match **invocations, not mentions** — echoing, grepping or heredoc'ing one
 of these commands is allowed, and `npm run build && firebase deploy` (the

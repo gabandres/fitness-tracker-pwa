@@ -72,9 +72,9 @@ the bug you "fixed" keeps getting reported.
 
 **Since 2026-11-12 the Windows PC and the Mac compute the same fingerprints and
 export the same bundles, so OTAs publish from the Windows PC** (`winbox`,
-checkout `Z:\fitness-tracker-pwa`). `ignia-mac` is sold on 2026-11-13. No machine
-here can build an iOS binary after that, and a change that moves the fingerprint
-still needs one per platform.
+checkout `Z:\fitness-tracker-pwa`). `ignia-mac` was sold 2026-11-13: **iOS builds
+are BLOCKED until another Mac is set up**, the PC's Android build path is unverified
+since vc 45, and a change that moves the fingerprint still needs one per platform.
 
 | Platform | Gate + `eas update` from | Runtime value |
 |---|---|---|
@@ -176,21 +176,11 @@ Three commit-independent causes, found by diffing the two `sources` arrays
   and stops at them on macOS. Aligning Node/npm cannot converge the two hashes,
   and `npm ci` is not a fix for a mismatch.
 
-**Consequence (SUPERSEDED 2026-11-12: parity was achieved, see above): cross-host fingerprint parity is not achievable and is no longer a
-goal.** It also does not need to be. Since 2026-08-17 each platform is built,
-gated and published on one host — iOS on the Mac; Android on Windows through
-vc 45 and on the Mac from vc 46 (2026-09-28) onward (table above) — so each
-hash only ever has to match binaries produced by the same machine, which it does:
-measured that day, Windows/Android returns `3d3bc410…` (= live vc 31, read from
-the `.aab`) and Mac/iOS returns `886bf0b3…` (= build 55, read from the `.ipa`).
-**A hash is valid only against artifacts from the machine that produced it**;
-comparing across hosts is meaningless, not merely inconvenient.
-
-The corollary is a live hazard: because the 228-entry gap is `@expo/fingerprint`
-behaviour rather than repo state, **an upgrade of that package can move the
-Windows hash with no change to this repo at all** — silently stranding every
-Android OTA. Re-read the gate against the shipped `.aab` after any bump of
-`expo-updates`/`@expo/fingerprint`, not just after a code change.
+This paragraph concluded "cross-host parity is not achievable" until 2026-11-12,
+when the backslash patch above achieved it. The hazard it named still holds:
+**an upgrade of `@expo/fingerprint`/`expo-updates` can move the hash with no
+change to this repo at all** — re-read the gate against the shipped artifacts
+after any such bump, not just after a code change.
 
 **Ground truth is inside the artifact — read it, don't compute it:**
 
@@ -254,11 +244,11 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 
 | Platform | Binary | Runtime fingerprint | Read from |
 |---|---|---|---|
-| Android | vc 52 / 1.2.8 — alpha + production 100% sent for review 2026-10-15 (until it is live, users are on vc 50 `a4b78806…`; vc 48/49 `c87935bf…`, vc 47 `ef607e85…`; vc 51 `21d90a2c…` alpha — pinned publishes)  **vc 53 / 1.2.10 (Sentry 8.31 + native fixes) uploaded to alpha 2026-10-22, runtime `e989353d992e38a829ca883290f99d5ad08d4479`** — not in production. | `dfb995eae6902f95b5388c02c7914bde0eeb1967` | the `.aab` |
-| iOS | build 72 / 1.2.8 — submitted for review 2026-10-15, AFTER_APPROVAL (until it is live, users are on build 70 / 1.2.6 `60000098…`; build 68 `489bf3b5…`; build 71 `705652e8…` TestFlight — pinned publishes). **Build 73 / 1.2.9 (Xcode 27.1 SDK, iPhone Duo) uploaded 2026-10-21, runtime `d7aad40dcea59c51dc1d55b22de777a3e21da6b4`** — not yet submitted for review  **Build 74 / 1.2.10 (Sentry 8.31 + native fixes, Xcode 27.1) `VALID` in ASC 2026-10-22, runtime `a55af49c65e0003a9dfcd4bb62d36febfd04f15e`** — TestFlight only. **Build 75 / 1.2.11 (HealthKit background delivery) submitted 2026-11-06, runtime `e6d2973e85038818ae56e1db6d9bd0fe1aaa016c`** — **LIVE 2026-11-06 21:49Z** (first OTA on it 2026-11-07, ledger). | `50a47f6235c5a9529278f1e5ce9915883f0264ba` | the `.ipa` |
+| Android | vc 52 / 1.2.8 (and vc 53 / 1.2.10: `e989353d992e38a829ca883290f99d5ad08d4479`) | `dfb995eae6902f95b5388c02c7914bde0eeb1967` | the `.aab` |
+| iOS | build 75 / 1.2.11 | `e6d2973e85038818ae56e1db6d9bd0fe1aaa016c` | the `.ipa` |
 
-The 1.2.5 runtimes share nothing with 1.2.4's — `app.json` moved both — so a
-1.2.4 user gets 1.2.5's JS only through the store update. Which OTA is newest
+Until 2026-11-19 these rows carried review states and superseded binaries, and
+the iOS fingerprint cell held `50a47f62…` (not build 75's). Which OTA is newest
 on which runtime is the ledger's top rows, not this paragraph: it named an OTA
 two publishes stale on 2026-09-17 and four on 2026-10-05. **Only a value read
 from the artifact is evidence** — a build log, a locally generated hash, or an
@@ -308,12 +298,10 @@ gate")
   42, 43 do not exist. Gaps are normal. (history: "do not exist")
 - **The EAS cloud worker is a third machine with a third fingerprint.** A cloud
   artifact lands on a runtime no installed binary matches. Build locally: iOS on
-  `ignia-mac` (needs the watchOS platform installed — the scheme embeds
-  `IgniaWatch.app`, `DEV_ENVIRONMENT.md` §3.10), Android on `ignia-mac` too
-  since 2026-09-17 (`eas build --local -p android --profile production`,
-  `build-android` skill). Windows built vc 31–45 via raw Gradle and this line
-  said "Android on Windows" until 2026-09-17; Windows stayed the Android OTA
-  host until vc 46 shipped from the Mac on 2026-09-28.
+  a Mac (needs the watchOS platform — the scheme embeds `IgniaWatch.app`,
+  `DEV_ENVIRONMENT.md` §3.10; **none exists since `ignia-mac` was sold
+  2026-11-13**); Android by `eas build --local` on a Mac (vc 46–53) or raw Gradle
+  on Windows (vc 31–45, unverified since). This said "on `ignia-mac`" until 2026-11-19.
 
 **Delivery:**
 

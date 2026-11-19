@@ -1,12 +1,12 @@
 ---
 name: build-ios
-description: Build and optionally submit an iOS binary on the MacBook Air (`ignia-mac`) over SSH, or decide that a JS-only change needs no build at all — a local EAS build that costs no EAS quota and no cloud queue. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill; since 2026-09-17 it builds on the Air too (the Air was iOS-only from 2026-08-17 to then), so do not run both platform builds at once on its 16 GB. `ignia-mac` is sold 2026-11-13: until another Mac is set up there is no iOS build host; OTAs publish from the Windows PC (`build-android`).
+description: Decide whether an iOS change needs a binary at all (a JS-only change ships as an OTA from the Windows PC via `build-android`), and the runbook for building and submitting an iOS binary locally on a Mac over SSH at no EAS quota. iOS builds are BLOCKED since 2026-11-13 — `ignia-mac` was sold and no Mac exists. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill; on a Mac do not run both platform builds at once on 16 GB.
 ---
 
 # Build iOS on the Mac
 
-> **2026-11-13: `ignia-mac` is sold, so there is no iOS build host until another
-> Mac is set up.** Everything below the gate describes that machine; a new Mac
+> **BLOCKED since 2026-11-13: `ignia-mac` was sold, so there is no iOS build host
+> until another Mac is set up.** Everything below the gate describes that machine; a new Mac
 > needs `scripts/mac-bootstrap.sh`, Xcode with the watchOS platform, the ASC key
 > and the signing material (`docs/build-infrastructure.md`). OTAs do not need a
 > Mac: they publish from the Windows PC (`build-android` Step 2).
@@ -44,13 +44,13 @@ still running at 17 days and 3+ weeks (developer.apple.com threads 816092 and
 ## Step 0 — do you need a build at all?
 
 **A JS/TS-only change needs no binary.** Gate first, **on the Windows PC**
-(`winbox`, checkout `Z:\fitness-tracker-pwa`) — since 2026-11-12 it computes the
-Mac's fingerprints exactly (`apps/mobile/AGENTS.md`), and `ignia-mac` is sold on
-2026-11-13:
+(`winbox`, checkout `Z:\fitness-tracker-pwa`, Git Bash) — since 2026-11-12 it
+computes the Mac's fingerprints exactly (`apps/mobile/AGENTS.md`). This was an
+`ssh winbox` from the Mac until 2026-11-19:
 
 ```sh
-ssh winbox "cd /d Z:\fitness-tracker-pwa && git checkout main && git pull --ff-only"
-ssh winbox "cd /d Z:\fitness-tracker-pwa\apps\mobile && npx expo-updates fingerprint:generate --platform ios" \
+cd /z/fitness-tracker-pwa && git checkout main && git pull --ff-only
+cd apps/mobile && npx expo-updates fingerprint:generate --platform ios \
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))"
 ```
 
@@ -86,7 +86,7 @@ ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx eas whoami"
 | on the intended ref | a branch is fine; record **which** in `STATUS.md` |
 | `which fastlane` | `brew install fastlane` — **never** the gem (system Ruby has a broken `ffi`) |
 | iOS runtimes > 0 | `sudo xcodebuild -downloadPlatform iOS`. **watchOS runtime is also required** — the scheme embeds `IgniaWatch.app` and archiving needs the platform |
-| disk ≥ ~17 GB | clear `~/Library/Developer/Xcode/DerivedData/*`. The Air is iOS-only now, so the whole disk is iOS's |
+| disk ≥ ~17 GB | clear `~/Library/Developer/Xcode/DerivedData/*`. (this said "the Air is iOS-only now" until 2026-11-19; it built both platforms from 09-17) |
 | `eas whoami` | copy `~/.expo/state.json` from the workstation (owner runs the `scp`) |
 
 **Validate the Sentry token, don't just check the file exists** — a present-but-
@@ -173,7 +173,7 @@ ingestion starts, so poll:
 
 ```sh
 node -e "
-import('file:///Z:/macro-app/scripts/asc-client.mjs').then(async ({api, APP_ID}) => {
+import('file:///Z:/fitness-tracker-pwa/scripts/asc-client.mjs').then(async ({api, APP_ID}) => {
   const r = await api('GET', '/v1/builds?filter[app]='+APP_ID+'&sort=-uploadedDate&limit=5&fields[builds]=version,processingState,uploadedDate');
   for (const b of r.data) console.log(b.attributes.version, b.attributes.processingState);
 });"
