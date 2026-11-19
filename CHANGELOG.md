@@ -4,6 +4,25 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-19 — standards sweep (`d9cb2e9a`; OTA on iOS build 75, Android vc 53); vc 53 sent to Play production
+
+First batch from `UX_AUDIT.md` §S24, repairs only, no flow change. **Bug:** saving a template in the editor erased
+"plate #" (`stackPositions`) from every lift, and `excludedReads` / `ladder` with it — now in `CARRIED_ROW_FIELDS`.
+**Wrong copy:** Settings said Health data is "never uploaded to our servers" (it is saved to the user's own
+account); the below-minimum error named Refine targets for a setting in Settings → Safety floors; iOS was told
+about the Android Quick Settings tile; "takes you to their site" for Health; `signIn.errWrong` said "below".
+**Sweep:** visible labels on placeholder-only fields (sign-in, sleep times, scan item, recipe name); kcal / g on the
+plan number, Maintenance, the minimum steppers, History rows and typed-meal fields, "calories" / "grams" spoken;
+`TARGET` on the literal 44s, scan and typed-meal fields, the kg|lb and plate # switches, small first-run links; the
+scan screen clears the bottom safe area; History's weigh-in mark is a ring; discard prompts on Daily targets, Refine
+targets and Feedback; a message + Open Settings when notifications are denied; Cancel on the weigh-in and
+measurement sheets; Android back on the sign-in form returns to the intro; "workout", not "session", in the live
+logger; next-action buttons on three empty states. 62 strings × 3 locales. No what's-new bump.
+core 2,758 · mobile 328 suites / 3,375 · **not seen on a screen before publishing** (no simulator or emulator).
+
+**Play:** vc 53 / 1.2.10 committed to production and sent for review. The Android minimum stays 52 until the
+listing shows it live.
+
 ## 2026-11-19 — comprehension audit + market refresh; docs cut back to what is true (no code change)
 
 Seven reviewers: five read every mobile surface for "can a first-time user understand this", two re-surveyed

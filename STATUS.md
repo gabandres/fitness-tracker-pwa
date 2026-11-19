@@ -30,17 +30,17 @@ run 2026-11-19).
 |---|---|
 | **App Store (iOS)** | **1.2.11 / build 75 LIVE** since 2026-11-06 21:49Z, runtime `e6d2973e…`. 175 of 175 territories. A **1.2.12 *Prepare for Submission* draft** holds the new screenshots (§3) |
 | **TestFlight** | **Not re-read since 2026-09-08.** Read the group's builds AND each build's `externalBuildState` (`asc-testflight-external.mjs`) — `VALID` + in the group ≠ installable |
-| **Play** | **Production: vc 52 / 1.2.8. Alpha: vc 53 / 1.2.10.** Promoting vc 53 is the owner's call (§3). The tracks API cannot tell "in review" from "live" — the store page or the Console row is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
+| **Play** | **Production: vc 53 / 1.2.10 COMMITTED 2026-11-19 and sent for review; vc 52 / 1.2.8 is what the listing serves until that clears.** Alpha: vc 53. The tracks API cannot tell "in review" from "live" — it already reports vc 53 as production — so the store page or the Console row is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
 | **Web `ignia.fit`** | **Shell + `/admin`** (ADR-0036). 113 prerendered pages, EN + es-PR, both store badges. Grep `public/` as well as `src/` before claiming copy is gone |
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last changed with the 2026-11-19 Train OTA (`CHANGELOG.md`) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
-| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`, production) and vc 53 (`e989353d…`, alpha), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`), so nothing older runs. **Newest: 2026-11-19 (`81a744ef`) and 2026-11-17 (`bde62272`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`). vc 52 cannot take `main`'s JS (it lacks `0c30979d`), so every vc 52 OTA is a worktree from that tag + a cherry-pick, and the gap to `main` grows with each skipped publish. **The way out needs no build:** promote vc 53 to production and raise the Android minimum to 53 — then every OTA comes from `main`. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
+| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-19, the §S24 standards sweep (`d9cb2e9a`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Publishing:** OTAs for both platforms go out from the Windows PC (`winbox`,
-checkout `Z:\fitness-tracker-pwa`); the first two (2026-11-17, 2026-11-19) were
-read back with `eas update:list`. Procedure: the `build-android` skill (one
+checkout `Z:\fitness-tracker-pwa`); all three so far (2026-11-17, 2026-11-19
+twice) were read back with `eas update:list`. Procedure: the `build-android` skill (one
 runtime per command, Android pinned to the artifact value and reverted, assert
 `git rev-parse HEAD` first). Current artifact fingerprints: the table in
 `apps/mobile/AGENTS.md`.
@@ -48,7 +48,14 @@ runtime per command, Android pinned to the artifact value and reverted, assert
 **There is no build machine.** `ignia-mac` was sold 2026-11-13, so **no iOS
 binary can be built** until another Mac is set up. Android: the Windows
 raw-Gradle path is unverified since vc 45 and `winbox` has no Android SDK
-installed (checked 2026-11-19). **Anything that moves a fingerprint — a new
+installed beyond `platform-tools` (`Z:\packages\android-sdk`, 2026-11-19).
+**No screen can be looked at before a publish:** there is no simulator, and the
+Android emulator for this ARM64 PC (preview-channel `emulators;latest` 37.1.9 +
+an `arm64-v8a` image) needs the Windows Hypervisor Platform, which is OFF —
+`Enable-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform -All`
+in an elevated PowerShell, then a reboot (owner). Even then a release binary
+only loads PUBLISHED updates, so the emulator checks an OTA after it goes out,
+not before. **Anything that moves a fingerprint — a new
 native library, a permission, an `app.json` change — is blocked. All work ships
 as JS over OTA.** The Mac's git-ignored local files (`.env.local`, the ASC
 `.p8`, Android signing, Train-UX captures, build 75's `.ipa` in
@@ -57,8 +64,8 @@ as JS over OTA.** The Mac's git-ignored local files (`.env.local`, the ASC
 ## 2. Merged, on `main`, and not delivered everywhere
 
 - **Android production (vc 52) is behind `main`** by everything since
-  2026-11-10: the 2026-11-17 and 2026-11-19 Train changes (owner-facing:
-  one-off templates, stack positions, home plan, per-template re-entry) and
+  2026-11-10: the 2026-11-17 and 2026-11-19 Train changes, the 2026-11-19
+  standards sweep (labels, units, targets, the corrected Health privacy line) and
   `0c30979d` (Sentry RN 8.31, Expo patches — native, in vc 53 and iOS build 75
   only). Re-derive: `git log --oneline` against the newest ledger row per
   runtime.
@@ -81,10 +88,15 @@ set is at or past parity; what is missing is activation and legibility.**
 Then scored against standards re-read that day (`docs/research/app-ux-standards.md`,
 92 rules): **≈ 77 code-only, whole app** — Train 81.2, History lowest at 69.5.
 Findings, the score table and the OTA batches: `UX_AUDIT.md` §S24; the market refresh:
-`docs/research/competitive-feature-scan.md` (2026-11-19 addendum). Nothing is
-built yet. Three owner calls gate the first batch: the email-verification wall,
-promoting vc 53 (so the fixes reach Android production from `main`), and
-whether trackers default to hidden.
+`docs/research/competitive-feature-scan.md` (2026-11-19 addendum).
+**Shipped 2026-11-19: the standards sweep (S24-20…26).** It was not seen on a
+screen before publishing — **owed: the owner opens the app on the iPhone**
+(sign-in form labels, the scan screen's bottom edge, Daily targets back prompt,
+History calendar) and says if anything looks wrong; rollback is one republish
+(groups in the ledger). **Next: batch 1, activation** — owner said yes
+(2026-11-19) to relaxing the email-verification wall (AI callables stay
+verified-only; rules deploy before the OTA) and to hiding fasting, hunger and
+"Day fully logged?" by default for new accounts.
 
 ### Blocked on a Mac
 
@@ -125,9 +137,6 @@ whether trackers default to hidden.
 
 ### Bugs known and not fixed
 
-- **Saving a template in the editor drops "plate #" from its lifts**
-  (`stackPositions` is not carried across the editor's full-overwrite save;
-  read in code 2026-11-19, not run — `UX_AUDIT.md` §S24-20).
 - **A session held open in the phone's memory beats the server copy**
   (`useTrain`: "a session started, resumed or edited in THIS runtime wins"), so
   a session closed by a script was finished again on the phone at the 24 h cap
@@ -141,7 +150,8 @@ whether trackers default to hidden.
 
 ### Owner calls
 
-- **Promote vc 53 to Play production** and raise the Android minimum to 53 (§1).
+- **Raise the Android minimum to 53** once the Play listing shows vc 53 live (§1).
+- **Enable the Windows Hypervisor Platform + reboot** so the Android emulator can run (§1).
 - **After the trip (ended 2026-11-18):** home v2.4 is locked in and the travel
   templates are archived and tagged (`CHANGELOG.md` 2026-11-19). First Push /
   Pull / Leg session each is a re-entry; maintenance shows "Rebuilding n/14"
