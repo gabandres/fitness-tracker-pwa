@@ -154,6 +154,12 @@ function useOpenDay(onOpenDay: (dateKey: string) => void, t: TFn, onUsed?: () =>
   );
 }
 
+/** The three cards' "Line chart, from {min} to {max} {unit}" — the chart
+ *  type and axis span for a screen reader without the audio graph. */
+function useDescribeSpan(t: TFn, unit: string): NonNullable<TrendChartProps['describeSpan']> {
+  return useCallback((min: string, max: string) => t('a11y.chart.lineSpan', { min, max, unit }), [t, unit]);
+}
+
 /**
  * The window caption on the cards without chips, as a pull-down: the weight
  * and protein cards follow the maintenance card's 1M/3M/All, and "Last 30
@@ -405,6 +411,7 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
     }),
     [t, locale],
   );
+  const describeSpan = useDescribeSpan(t, t('trends.kcalUnit'));
 
   const reference = useMemo(
     () =>
@@ -450,6 +457,7 @@ function ExpenditureCardImpl({ keys, intake, series, days, target, milestones, r
           xTickLabel={xTickLabel}
           openDay={openDay}
           audioGraph={audioGraph}
+          describeSpan={describeSpan}
           testID="expenditure-chart"
         />
       )}
@@ -483,6 +491,9 @@ export interface WeightTrendCardProps {
   unitSystem: UnitSystem;
   milestones: Record<string, Date>;
   onOpenBody: () => void;
+  /** The empty state's next action (opens the weigh-in sheet). Omit and the
+   *  empty state is text only. */
+  onLogWeight?: () => void;
   onOpenDay: (dateKey: string) => void;
   /** The shared range. Without it the caption is static text. */
   range?: TrendRange;
@@ -492,7 +503,7 @@ export interface WeightTrendCardProps {
   locale: Locale;
 }
 
-function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpenBody, onOpenDay, range, onRange, cap, t, locale }: WeightTrendCardProps) {
+function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpenBody, onLogWeight, onOpenDay, range, onRange, cap, t, locale }: WeightTrendCardProps) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const unit = bodyWeightUnit(unitSystem);
@@ -573,6 +584,7 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
     }),
     [t, locale, unit],
   );
+  const describeSpan = useDescribeSpan(t, unit);
 
   return (
     <View style={styles.card} testID="weight-trend-card">
@@ -612,6 +624,19 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
         // were not drawn.
         <View style={styles.emptyBox} testID="weight-trend-empty">
           <Text style={styles.emptyText}>{t('trends.chart.weightEmpty', { days: view.k.length })}</Text>
+          {onLogWeight ? (
+            <PressScale
+              style={styles.emptyAction}
+              accessibilityRole="button"
+              onPress={() => {
+                haptics.tap();
+                onLogWeight();
+              }}
+              testID="weight-trend-empty-log"
+            >
+              <Text style={styles.linkText} maxFontSizeMultiplier={1.3}>{t('body.logWeight')}</Text>
+            </PressScale>
+          ) : null}
         </View>
       ) : (
         <>
@@ -627,6 +652,7 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
             xTickLabel={xTickLabel}
             openDay={openDay}
             audioGraph={audioGraph}
+            describeSpan={describeSpan}
             testID="weight-trend-chart"
           />
           <View style={styles.legend} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -695,6 +721,9 @@ export interface ProteinTrendCardProps {
   target: number;
   milestones: Record<string, Date>;
   onOpenDay: (dateKey: string) => void;
+  /** The empty state's next action (opens the food sheet). Omit and the
+   *  empty state is text only. */
+  onLogFood?: () => void;
   /** The user's day in progress (`useTrends().todayKey`). */
   todayKey?: string;
   range?: TrendRange;
@@ -704,7 +733,7 @@ export interface ProteinTrendCardProps {
   locale: Locale;
 }
 
-function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milestones, onOpenDay, todayKey, range, onRange, cap, t, locale }: ProteinTrendCardProps) {
+function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milestones, onOpenDay, onLogFood, todayKey, range, onRange, cap, t, locale }: ProteinTrendCardProps) {
   const styles = useThemedStyles(createStyles);
   const { colors, scheme } = useTheme();
   const openDay = useOpenDay(onOpenDay, t);
@@ -823,6 +852,7 @@ function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milesto
     }),
     [t, locale, view.title, dailyLegend],
   );
+  const describeSpan = useDescribeSpan(t, t('unit.g'));
 
   return (
     <View style={styles.card} testID="protein-trend-card">
@@ -851,11 +881,26 @@ function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milesto
         />
       ) : null}
       {view.logged === 0 ? (
-        <Text style={styles.empty}>
-          {isProtein
-            ? t('trends.chart.proteinEmpty', { days: view.k.length })
-            : t('trends.chart.macroEmpty', { days: view.k.length, name: t(MACRO_NAME[macro as Exclude<MacroTab, 'protein'>]) })}
-        </Text>
+        <>
+          <Text style={styles.empty}>
+            {isProtein
+              ? t('trends.chart.proteinEmpty', { days: view.k.length })
+              : t('trends.chart.macroEmpty', { days: view.k.length, name: t(MACRO_NAME[macro as Exclude<MacroTab, 'protein'>]) })}
+          </Text>
+          {onLogFood ? (
+            <PressScale
+              style={[styles.emptyAction, styles.emptyActionStart]}
+              accessibilityRole="button"
+              onPress={() => {
+                haptics.tap();
+                onLogFood();
+              }}
+              testID="protein-trend-empty-log"
+            >
+              <Text style={styles.linkText} maxFontSizeMultiplier={1.3}>{t('log.openA11y')}</Text>
+            </PressScale>
+          ) : null}
+        </>
       ) : (
         <TrendChart
           dateKeys={view.k}
@@ -870,6 +915,7 @@ function ProteinTrendCardImpl({ keys, protein, carbs, fat, days, target, milesto
           xTickLabel={xTickLabel}
           openDay={openDay}
           audioGraph={audioGraph}
+          describeSpan={describeSpan}
           testID="protein-trend-chart"
         />
       )}
@@ -906,6 +952,9 @@ const createStyles = ({ colors }: Theme) =>
     empty: { fontSize: font.small, color: colors.muted },
     emptyBox: { minHeight: 132, borderRadius: radius.sm, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', padding: space.lg },
     emptyText: { fontSize: font.small, color: colors.muted, textAlign: 'center' },
+    // The empty state's next action, a link-styled TARGET box.
+    emptyAction: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center', alignItems: 'center', paddingHorizontal: space.sm },
+    emptyActionStart: { alignSelf: 'flex-start', paddingHorizontal: 0 },
     // The caption-as-menu: 44 dp tall like every control here, its face the
     // caption plus a chevron in the link colour.
     rangeMenu: { minHeight: TARGET, justifyContent: 'center' },

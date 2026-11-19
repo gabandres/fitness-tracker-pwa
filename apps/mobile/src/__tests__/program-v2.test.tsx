@@ -55,6 +55,23 @@ describe('sleep: hours, and an optional bedtime / wake time', () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  it('hours over 24 say the allowed range under the field, politely', async () => {
+    const save = jest.fn();
+    const view = await openSleep(save);
+    await fireEvent.changeText(view.getByTestId('sleep-input'), '25');
+    const msg = view.getByTestId('sleep-hours-invalid');
+    expect(msg.props.accessibilityLiveRegion).toBe('polite');
+    expect(msg).toHaveTextContent('Enter between 0 and 24 hours.');
+    await fireEvent.changeText(view.getByTestId('sleep-input'), '7');
+    expect(view.queryByTestId('sleep-hours-invalid')).toBeNull();
+  });
+
+  it('labels bedtime and wake time with visible text, not only placeholders', async () => {
+    const view = await openSleep(noop);
+    expect(view.getByText('Bedtime')).toBeTruthy();
+    expect(view.getByText('Wake time')).toBeTruthy();
+  });
+
   it('clearing a time it had clears it (null), hours alone leave the times blank', async () => {
     const save = jest.fn();
     const view = await openSleep(save, 7, { bedtime: '23:00', wakeTime: '06:30' });

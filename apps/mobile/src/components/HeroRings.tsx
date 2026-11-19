@@ -613,22 +613,38 @@ export function HeroRings({
           below the hero it read as something bolted on. */}
       {maintenance ? (
         <View style={styles.maintenanceFooter} testID="maintenance-line">
-          <Text style={styles.maintenanceLabel}>
-            {t('today.maintenance')}{' '}
-            <Text style={styles.maintenanceValue}>
-              {formatNumber(maintenance.maintenance, locale)}
-            </Text>
-            {maintenance.delta == null ? null : (
-              <Text style={styles.maintenanceDelta}>
-                {'   ·   '}
-                {maintenance.delta < 0
-                  ? t('today.underMaintenance', {
-                      n: formatNumber(Math.abs(maintenance.delta), locale),
-                    })
-                  : t('today.overMaintenance', { n: formatNumber(maintenance.delta, locale) })}
+          {(() => {
+            const delta =
+              maintenance.delta == null
+                ? null
+                : maintenance.delta < 0
+                  ? t('today.underMaintenance', { n: formatNumber(Math.abs(maintenance.delta), locale) })
+                  : t('today.overMaintenance', { n: formatNumber(maintenance.delta, locale) });
+            return (
+              // The unit written after the number ("2,665 kcal"; it had none),
+              // and spoken as a word, since "kcal" is read letter by letter.
+              <Text
+                style={styles.maintenanceLabel}
+                accessibilityLabel={[
+                  `${t('today.maintenance')} ${t('entry.caloriesA11y', { n: formatNumber(maintenance.maintenance, locale) })}`,
+                  delta,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+              >
+                {t('today.maintenance')}{' '}
+                <Text style={styles.maintenanceValue}>
+                  {formatNumber(maintenance.maintenance, locale)} {t('today.kcal')}
+                </Text>
+                {delta == null ? null : (
+                  <Text style={styles.maintenanceDelta}>
+                    {'   ·   '}
+                    {delta}
+                  </Text>
+                )}
               </Text>
-            )}
-          </Text>
+            );
+          })()}
           {/* The range and the days behind it (`maintenance-display.ts`). */}
           {maintenance.validDays != null ? (
             <Text style={styles.maintenanceCaveat} testID="maintenance-range" numberOfLines={1}>

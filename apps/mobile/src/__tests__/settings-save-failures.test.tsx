@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import { act, fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 
 /**
@@ -16,6 +16,7 @@ const mockSetTrainingSettings = jest.fn();
 const mockSignOut = jest.fn();
 const mockDeleteAccount = jest.fn();
 const mockShowToast = jest.fn();
+const mockSetRemindersEnabled = jest.fn();
 let mockProfile: Record<string, unknown> = {};
 
 jest.mock('@/lib/auth', () => ({
@@ -52,7 +53,7 @@ jest.mock('@/lib/connectivity', () => ({ useIsOffline: () => false, isOffline: (
 jest.mock('@/lib/reminders', () => ({
   getReminderSettings: jest.fn().mockResolvedValue({ enabled: false, meals: undefined }),
   setMealReminders: jest.fn(),
-  setRemindersEnabled: jest.fn(),
+  setRemindersEnabled: (...a: unknown[]) => mockSetRemindersEnabled(...a),
   syncReminders: jest.fn(),
 }));
 jest.mock('@/lib/subscription', () => ({
@@ -139,4 +140,30 @@ it('shows the failure when the account is still intact', async () => {
   await fireEvent.press(ui.getByTestId('settings-delete-account'));
   await waitFor(() => expect((Alert.alert as jest.Mock).mock.calls).toHaveLength(3));
   expect((Alert.alert as jest.Mock).mock.calls[2][1]).toMatch(/couldn't delete your account/i);
+});
+
+// ── A50: a refused notification permission says so (2026-11-19) ──────────
+it('says why the reminders switch fell back off, with a way to Settings', async () => {
+  // `setRemindersEnabled(true)` answers false when the OS refused.
+  mockSetRemindersEnabled.mockResolvedValue(false);
+  const open = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+  const ui = await renderSettings();
+  expect(ui.queryByTestId('reminder-denied')).toBeNull();
+  await fireEvent(ui.getByTestId('reminder-toggle'), 'valueChange', true);
+  await waitFor(() => expect(ui.getByTestId('reminder-denied')).toBeTruthy());
+  expect(ui.getByText("Notifications are off for Ignia in your phone's settings.")).toBeTruthy();
+  await fireEvent.press(ui.getByTestId('reminder-open-settings'));
+  expect(open).toHaveBeenCalledTimes(1);
+});
+
+// ── Safety floors read with their units, grouped, and spoken in words ─────
+it('the floor steppers show "1,500 kcal" / "120 g" and say them in words', async () => {
+  mockProfile = { profileCompleted: true, calorieFloor: 1500, proteinFloor: 120 };
+  const ui = await renderSettings();
+  const kcal = ui.getByTestId('calorie-floor');
+  expect(kcal).toHaveTextContent('1,500 kcal');
+  expect(kcal.props.accessibilityLabel).toBe('1,500 calories');
+  const protein = ui.getByTestId('protein-floor');
+  expect(protein).toHaveTextContent('120 g');
+  expect(protein.props.accessibilityLabel).toBe('120 grams of protein');
 });

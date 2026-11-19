@@ -147,10 +147,13 @@ describe('Body — Retry and hero value', () => {
     expect(mockUseBody.mock.calls.length).toBeGreaterThan(before);
   });
 
-  it('the hero exposes the weight as an accessibility value', async () => {
+  it('the hero is named by the weight it shows, unit spoken, then its action', async () => {
     const screen = await render(<BodyScreen />);
     // One decimal, the way the screen draws it (re-score 3, bug 7): "180.0"
-    // on screen was read as "180 lb".
-    expect(screen.getByTestId('body-hero-tap').props.accessibilityValue).toEqual({ text: '180.0 lb' });
+    // on screen was read as "180 lb". The name LEADS with the visible number
+    // (WCAG 2.5.3 label-in-name), so the value no longer repeats it.
+    const hero = screen.getByTestId('body-hero-tap');
+    expect(hero.props.accessibilityLabel).toMatch(/^180\.0 pounds\. (Log weight|Update today's weight)$/);
+    expect(hero.props.accessibilityValue?.text).toBeUndefined();
   });
 });

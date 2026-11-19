@@ -74,9 +74,11 @@ it('gives the grams field a Done, decimal input and a size cap (gaps 1, 5)', asy
   expect(grams.props.inputAccessoryViewButtonLabel).toBe('Done');
   expect(grams.props.inputMode).toBe('decimal');
   expect(grams.props.keyboardType).toBeUndefined();
-  expect(grams.props.maxFontSizeMultiplier).toBe(1.4);
-  expect(screen.getByTestId('scan-item-name-0').props.maxFontSizeMultiplier).toBe(1.4);
-  expect(screen.getByTestId('scan-name').props.maxFontSizeMultiplier).toBe(1.4);
+  // 2.0 since the OTA-1 sweep: the fields have a min height, not a fixed
+  // one, so they grow rather than clip.
+  expect(grams.props.maxFontSizeMultiplier).toBe(2);
+  expect(screen.getByTestId('scan-item-name-0').props.maxFontSizeMultiplier).toBe(2);
+  expect(screen.getByTestId('scan-name').props.maxFontSizeMultiplier).toBe(2);
 });
 
 it('an added row’s kcal and protein fields get the same', async () => {
@@ -98,7 +100,22 @@ it('reads each macro total as one item with its unit (gap 4)', async () => {
     while (node && !node.props.accessible) node = node.parent;
     return node!;
   };
-  expect(chipOf('scan-protein').props.accessibilityLabel).toBe('5 g protein');
-  expect(chipOf('scan-carbs').props.accessibilityLabel).toBe('52 g carbs');
-  expect(chipOf('scan-fat').props.accessibilityLabel).toBe('1 g fat');
+  // Spoken words, not "g", which a reader says as a letter.
+  expect(chipOf('scan-protein').props.accessibilityLabel).toBe('5 grams of protein');
+  expect(chipOf('scan-carbs').props.accessibilityLabel).toBe('52 grams of carbs');
+  expect(chipOf('scan-fat').props.accessibilityLabel).toBe('1 grams of fat');
+});
+
+it('reads the hero total as one stop with the unit as a word', async () => {
+  const screen = await openReview();
+  const total = screen.getByTestId('scan-total');
+  expect(total.props.accessible).toBe(true);
+  expect(total.props.accessibilityLabel).toMatch(/^[\d,]+ calories$/);
+});
+
+it('gives each item name a positional label under one visible header', async () => {
+  const screen = await openReview();
+  // Hidden from the reader, which hears each field's own label instead.
+  expect(screen.getByText('Item name', { includeHiddenElements: true })).toBeTruthy();
+  expect(screen.getByTestId('scan-item-name-0').props.accessibilityLabel).toBe('Item 1 name');
 });

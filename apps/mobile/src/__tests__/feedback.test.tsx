@@ -15,6 +15,21 @@ import { act, fireEvent, renderWithProviders as render } from '@/test-utils';
  */
 const mockSendFeedback = jest.fn().mockResolvedValue(undefined);
 
+// The discard guard (A31): capture what the screen hands `usePreventRemove`.
+const mockGuard: { on: boolean; cb: ((e: { data: { action: unknown } }) => void) | null } = { on: false, cb: null };
+const mockDispatch = jest.fn();
+const mockConfirm = jest.fn();
+jest.mock('@/components/ConfirmSheet', () => ({
+  ConfirmHost: () => null,
+  confirm: (o: unknown) => mockConfirm(o),
+}));
+jest.mock('expo-router/react-navigation', () => ({
+  useNavigation: () => ({ dispatch: mockDispatch }),
+  usePreventRemove: (on: boolean, cb: (e: { data: { action: unknown } }) => void) => {
+    mockGuard.on = on;
+    mockGuard.cb = cb;
+  },
+}));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: jest.fn() }),
   usePathname: () => '/feedback',
@@ -29,7 +44,7 @@ jest.mock('@/lib/feedback', () => ({
   sendFeedback: (...args: unknown[]) => mockSendFeedback(...args),
 }));
 
-import FeedbackScreen from '@/app/feedback';
+import FeedbackScreen, { feedbackDirty } from '@/app/feedback';
 
 beforeEach(() => mockSendFeedback.mockClear());
 
@@ -90,5 +105,29 @@ describe('Feedback composer', () => {
     });
     expect(getByTestId('feedback-sent')).toBeTruthy();
     expect(queryByTestId('feedback-message')).toBeNull();
+  });
+});
+
+// ── A31: an unsent note is not dropped silently (2026-11-19) ──────────────
+describe('discard guard', () => {
+  it('feedbackDirty: only an unsent, non-blank note', () => {
+    expect(feedbackDirty('', false)).toBe(false);
+    expect(feedbackDirty('   ', false)).toBe(false);
+    expect(feedbackDirty('broken', false)).toBe(true);
+    expect(feedbackDirty('broken', true)).toBe(false);
+  });
+
+  it('guards a typed note, and stops guarding once it is sent', async () => {
+    const { getByTestId } = await render(<FeedbackScreen />);
+    expect(mockGuard.on).toBe(false);
+    await fireEvent.changeText(getByTestId('feedback-message'), 'thanks');
+    expect(mockGuard.on).toBe(true);
+    mockConfirm.mockClear();
+    mockGuard.cb?.({ data: { action: { type: 'GO_BACK' } } });
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ confirmText: 'Discard', cancelText: 'Keep editing' }));
+    await act(async () => {
+      await fireEvent.press(getByTestId('feedback-send'));
+    });
+    expect(mockGuard.on).toBe(false);
   });
 });

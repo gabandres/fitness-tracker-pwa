@@ -13,7 +13,7 @@
 import React from 'react';
 import { Platform } from 'react-native';
 import type { Measurement } from '@macrolog/core';
-import { act, fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
+import { act, fireEvent, renderWithProviders as render, waitFor, within } from '@/test-utils';
 import { mergeOlderWeights } from '@/hooks/useBody';
 import { measurementSeries } from '@/components/body/MeasurementTrends';
 import { dotsPath, weightChartGeometry } from '@/components/body/weight-chart-geometry';
@@ -148,7 +148,8 @@ beforeEach(() => {
 });
 
 type Screen = Awaited<ReturnType<typeof render>>;
-const titleOf = (s: Screen) => String(s.getByTestId('weight-title').props.children);
+// The sheet's title is the header inside its `SheetHeader` row (beside Cancel).
+const titleOf = (s: Screen) => String(within(s.getByTestId('weight-title')).getByRole('header').props.children);
 
 describe('bug 1 — a goal passed in its own direction is reached', () => {
   // The arithmetic itself is core's (`computeGoalProgress`, targets.test.ts).

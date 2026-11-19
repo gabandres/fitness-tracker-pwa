@@ -28,6 +28,10 @@ const mockBack = jest.fn();
 
 let mockProfile: Record<string, unknown> = {};
 
+jest.mock('expo-router/react-navigation', () => ({
+  useNavigation: () => ({ dispatch: jest.fn() }),
+  usePreventRemove: () => {},
+}));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: mockBack, push: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
   usePathname: () => '/daily-targets',
@@ -84,7 +88,7 @@ describe('custom protein vs the protein floor', () => {
     mockProfile = { targetMode: 'custom', manualCaloriesTarget: 2000, proteinFloor: 140 };
     const screen = await render(<DailyTargetsScreen />);
     await fireEvent.changeText(screen.getByTestId('targets-protein'), '120');
-    expect(screen.getByTestId('targets-protein-note')).toHaveTextContent(/140 g protein floor/);
+    expect(screen.getByTestId('targets-protein-note')).toHaveTextContent(/140 g protein minimum/);
     await act(async () => {
       await fireEvent.press(screen.getByTestId('targets-save'));
     });

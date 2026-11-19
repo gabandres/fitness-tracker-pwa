@@ -48,7 +48,7 @@ export function GymBusyPanel({
   const rows = useMemo(() => (on ? gymBusyRows(exercises, musclesOf, new Date(now)) : []), [on, exercises, musclesOf, now]);
 
   return (
-    <View style={{ gap: space.xs }} testID="gym-busy">
+    <View style={{ gap: space.sm }} testID="gym-busy">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: font.small, color: colors.muted }}>{t('train.gymBusy.label')}</Text>
@@ -82,7 +82,7 @@ export function GymBusyPanel({
             testID={`gym-busy-row-${r.exerciseIndex}`}
           >
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: font.body, color: colors.ink }} numberOfLines={1}>{name}</Text>
+              <Text style={{ fontSize: font.body, color: colors.ink }} numberOfLines={2}>{name}</Text>
               <Text style={{ fontSize: font.small, color: r.waitSec > 0 ? colors.accent : colors.muted }}>{rest}</Text>
             </View>
             <Text style={{ fontSize: font.small, color: colors.muted }}>{t('train.gymBusy.left', { done: r.done, total: r.total })}</Text>

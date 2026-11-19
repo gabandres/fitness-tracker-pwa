@@ -78,6 +78,10 @@ jest.mock('@/lib/activity-suggestion', () => ({
     connecting: false,
   }),
 }));
+jest.mock('expo-router/react-navigation', () => ({
+  useNavigation: () => ({ dispatch: jest.fn() }),
+  usePreventRemove: () => {},
+}));
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),

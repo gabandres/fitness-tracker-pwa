@@ -363,11 +363,15 @@ export default function Settings() {
   // nudges on today meanwhile, which is the safe direction (never the past).
   const NEUTRAL_STATE = { loggedToday: false, streak: 0, daysSinceWeighIn: null, daysSinceLastLog: null };
 
+  // The OS refused notifications when the switch was turned on (A50): the
+  // switch falls back off, and this says why instead of nothing.
+  const [notifDenied, setNotifDenied] = useState(false);
   async function toggleReminder(next: boolean) {
     haptics.tap();
     try {
       const applied = await setRemindersEnabled(next);
       setReminderEnabled(applied);
+      setNotifDenied(next && !applied);
       if (applied) await syncReminders(NEUTRAL_STATE, t);
     } catch (e) {
       // Turning off could not cancel the nudges, so they are still on — and
@@ -861,6 +865,24 @@ export default function Settings() {
               testID="reminder-toggle"
             />
           </View>
+          {notifDenied ? (
+            <View testID="reminder-denied">
+              <Text style={styles.rowValue} accessibilityRole="alert" accessibilityLiveRegion="polite">
+                {t('settings.reminderDenied')}
+              </Text>
+              <TouchableOpacity
+                style={[styles.textBtn, styles.selfStart]}
+                onPress={() => {
+                  haptics.tap();
+                  void Linking.openSettings();
+                }}
+                accessibilityRole="button"
+                testID="reminder-open-settings"
+              >
+                <Text style={styles.importCancel}>{t('scan.openSettings')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {/* Per-meal rows. 1.0 exposed a single hour and quietly ran the
               default lunch nudge alongside it, so a 1:30pm notification had no
               off switch anywhere in the UI. Each window the planner can
@@ -1077,7 +1099,13 @@ export default function Settings() {
               >
                 <Text style={styles.stepText}>−</Text>
               </TouchableOpacity>
-              <Text style={styles.hourValue} testID="calorie-floor">{calorieFloor}</Text>
+              <Text
+                style={styles.hourValue}
+                accessibilityLabel={t('settings.calorieFloorA11y', { n: formatNumber(calorieFloor, locale) })}
+                testID="calorie-floor"
+              >
+                {`${formatNumber(calorieFloor, locale)} ${t('settings.kcalUnit')}`}
+              </Text>
               <TouchableOpacity
                 style={[styles.step, (offline || calorieFloor >= CALORIE_FLOOR_MAX) && { opacity: 0.4 }]}
                 disabled={offline || calorieFloor >= CALORIE_FLOOR_MAX}
@@ -1111,8 +1139,18 @@ export default function Settings() {
               >
                 <Text style={styles.stepText}>−</Text>
               </TouchableOpacity>
-              <Text style={styles.hourValue} testID="protein-floor">
-                {proteinFloor ?? t('settings.proteinFloorOff')}
+              <Text
+                style={styles.hourValue}
+                accessibilityLabel={
+                  proteinFloor == null
+                    ? undefined
+                    : t('settings.proteinFloorA11y', { n: formatNumber(proteinFloor, locale) })
+                }
+                testID="protein-floor"
+              >
+                {proteinFloor == null
+                  ? t('settings.proteinFloorOff')
+                  : `${formatNumber(proteinFloor, locale)} ${t('unit.g')}`}
               </Text>
               <TouchableOpacity
                 style={[
@@ -1535,6 +1573,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   },
   tipBtn: { marginTop: space.md, alignSelf: 'flex-start', minHeight: TARGET },
   textBtn: { minHeight: TARGET, justifyContent: 'center' },
+  selfStart: { alignSelf: 'flex-start' },
   rowLabel: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
   // 44 pt minimum (S18-15): three legal links stacked at ~34 pt each were the
   // smallest targets on the screen.

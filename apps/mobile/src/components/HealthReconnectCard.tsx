@@ -4,7 +4,7 @@ import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
 import type { useHealthReconnect } from '@/hooks/useHealthReconnect';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 /**
  * Reconnect Apple Health so Watch workouts bring their heart rate (owner,
@@ -70,7 +70,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   title: { fontSize: font.small, color: colors.ink, fontWeight: '800' },
   body: { fontSize: font.small, color: colors.muted, lineHeight: 18 },
   actions: { flexDirection: 'row', gap: space.lg, marginTop: space.xs },
-  hit: { minHeight: 44, justifyContent: 'center' },
+  hit: { minHeight: TARGET, justifyContent: 'center' },
   action: { fontSize: font.small, color: colors.accent, fontWeight: '800' },
   later: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
 });

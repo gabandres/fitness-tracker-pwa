@@ -180,7 +180,7 @@ describe('scan review', () => {
     const screen = await openReview();
 
     expect(screen.getByLabelText('Meal name')).toBeTruthy();
-    expect(screen.getByLabelText('Name of item 1')).toBeTruthy();
+    expect(screen.getByLabelText('Item 1 name')).toBeTruthy();
     expect(screen.getByLabelText('Grams of Rice')).toBeTruthy();
     expect(screen.getByLabelText('Remove Rice')).toBeTruthy();
     // A full-screen modal leaves by Cancel (iOS) / Close (Android), S21.

@@ -9,7 +9,7 @@ import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { WHATS_NEW_ITEMS, markWhatsNewSeen } from '@/lib/whatsNew';
-import { font, motion, radius, space, type } from '@/theme';
+import { font, motion, radius, space, TARGET, type } from '@/theme';
 
 /**
  * What changed, once per release — a screen, not a card.
@@ -81,7 +81,13 @@ export default function WhatsNew() {
               testID={`whats-new-item-${i}`}
             >
               <View style={styles.well}>
-                <Ionicons name={item.icon} size={22} color={colors.accent} />
+                <Ionicons
+                  name={item.icon}
+                  size={22}
+                  color={colors.accent}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
               </View>
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>{t(item.titleKey)}</Text>
@@ -178,6 +184,6 @@ const createStyles = ({ colors, shadow }: Theme) =>
       ...shadow.e2,
     },
     ctaText: { color: colors.onInk, fontSize: font.body, fontWeight: '700' },
-    feedback: { alignItems: 'center', paddingVertical: space.sm },
+    feedback: { alignItems: 'center', justifyContent: 'center', minHeight: TARGET, paddingVertical: space.sm },
     feedbackText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   });

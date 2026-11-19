@@ -178,6 +178,10 @@ import type { I18nKey } from '@/i18n';
 // (a new row on Today every user meets) and the Finish RIR check now covering
 // unticked sets with reps. The Program v2.1 items go: five days live, past
 // their second-launch window.
+// NOT bumped 2026-11-19 (the UX_AUDIT §S24 standards sweep: visible field
+// labels, units, 44/48 targets, corrected copy, the "plate #" template fix).
+// Every item is a repair to something already on screen; nothing is gained
+// that a banner could name. The activation changes that follow it are the bump.
 export const WHATS_NEW_VERSION = '2026-10-20-evening-hunger';
 
 const KEY = 'whatsNew.seen';

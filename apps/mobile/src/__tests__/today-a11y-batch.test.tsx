@@ -103,9 +103,10 @@ describe('MealEntries row', () => {
     mealLabel: 'Oatmeal',
   } as DailyLog;
 
-  it('reads "label, n kcal" and shows the unit', async () => {
+  it('reads "label, n calories" and shows the unit', async () => {
     const view = await render(<MealEntries logs={[log]} onPress={noop} />);
-    expect(view.getByTestId('entry-a').props.accessibilityLabel).toMatch(/^Oatmeal, 300 kcal/);
+    // The unit spoken as a word; "kcal" is read letter by letter.
+    expect(view.getByTestId('entry-a').props.accessibilityLabel).toMatch(/^Oatmeal, 300 calories/);
     expect(view.getByText('kcal', { exact: false })).toBeTruthy();
   });
 

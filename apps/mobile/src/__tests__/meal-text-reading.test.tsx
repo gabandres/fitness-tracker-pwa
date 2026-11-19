@@ -59,6 +59,19 @@ it('echoes what it read, and resolves the tablespoon from the food', async () =>
   getByText('≈32 g · 1 tablespoon (16 g)');
 });
 
+it('writes the gram unit on the macro captions and says it as a word', async () => {
+  mockSearchFoods.mockResolvedValue([hit('peanut butter', 'Survey (FNDDS)')]);
+  mockGetFoodDetail.mockResolvedValue({ servings: [PER_100, TBSP] });
+  const { getByTestId, getByText, getByLabelText } = await setup('2 tbsp peanut butter');
+  await act(async () => { fireEvent.press(getByTestId('mealtext-parse')); });
+  await waitFor(() => getByText('Protein (g)'));
+  getByText('Carbs (g)');
+  getByText('Fat (g)');
+  const protein = getByLabelText('Protein, grams, peanut butter');
+  expect(protein.props.inputMode).toBe('decimal');
+  expect(protein.props.keyboardType).toBeUndefined();
+});
+
 it('says nothing when echoing would only repeat the food name', async () => {
   mockSearchFoods.mockResolvedValue([hit('peanut butter', 'Survey (FNDDS)')]);
   mockGetFoodDetail.mockResolvedValue({ servings: [PER_100, TBSP] });

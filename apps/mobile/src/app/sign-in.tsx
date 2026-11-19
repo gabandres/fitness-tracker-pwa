@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Platform,
   Pressable,
   ScrollView,
@@ -8,6 +9,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -21,6 +23,7 @@ import { WelcomeIntro } from '@/components/WelcomeIntro';
 import { useAuth } from '@/lib/auth';
 import { isLinkCaptured, type PendingLink } from '@/lib/link-error';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
+import { ACCESSIBILITY_FONT_SCALE } from '@/lib/font-scale';
 import { enterUp } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, TARGET, type } from '@/theme';
@@ -80,6 +83,13 @@ export default function SignIn() {
   // the providers moved to the top (S21 #6).
   const [errorFrom, setErrorFrom] = useState<'password' | 'federated'>('password');
   const [notice, setNotice] = useState<string | null>(null);
+  // A blank first name is shown UNDER the field too, not only by the submit
+  // button: the message belongs to the field it is about (WCAG 3.3.1).
+  const [nameError, setNameError] = useState(false);
+  // The first/last name row stacks at accessibility text sizes, as the other
+  // side-by-side rows do (settings' floors) — two fields at AX5 were a few
+  // characters wide each.
+  const stackNames = useWindowDimensions().fontScale >= ACCESSIBILITY_FONT_SCALE;
 
   // MUST mirror the Identity Platform password policy exactly (ENFORCE, min 10,
   // requires upper + lower + numeric). It previously checked only "a letter",
@@ -97,8 +107,10 @@ export default function SignIn() {
     setErrorFrom('password');
     setError(null);
     setNotice(null);
+    setNameError(false);
     if (mode === 'signup') {
       if (!firstName.trim()) {
+        setNameError(true);
         setError(t('signIn.errName'));
         return;
       }
@@ -154,6 +166,7 @@ export default function SignIn() {
     if (next === mode) return;
     setError(null);
     setNotice(null);
+    setNameError(false);
     // The prompt says "sign in below and we'll link it" — meaningless once the
     // user has switched to Sign up, and it used to outlive the mode switch and
     // go on hiding every error raised there.
@@ -213,6 +226,19 @@ export default function SignIn() {
         setAppleBusy(false);
       });
   }
+
+  // Android hardware back on the FORM returns to the intro, as onboarding's
+  // back does: it left the app and lost what was typed. Registered only while
+  // the form shows; on the intro the OS keeps it (leaving is what back means).
+  // The fields' state lives here, so it survives the round trip.
+  useEffect(() => {
+    if (Platform.OS !== 'android' || step !== 'form') return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setStep('intro');
+      return true;
+    });
+    return () => sub.remove();
+  }, [step]);
 
   if (step === 'intro') {
     return (
@@ -352,40 +378,61 @@ export default function SignIn() {
             ) : null}
 
             {mode === 'signup' ? (
-              <Animated.View entering={FadeIn.duration(200)} style={styles.nameRow}>
-                <TextInput
-                  style={[styles.input, styles.nameInput]}
-                  placeholder={t('signIn.firstName')}
-                  placeholderTextColor={colors.faint}
-                  autoCapitalize="words"
-                  textContentType="givenName"
-                  autoComplete="given-name"
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  accessibilityLabel={t('signIn.firstName')}
-                  testID="firstName"
-                />
-                <TextInput
-                  style={[styles.input, styles.nameInput]}
-                  placeholder={t('signIn.lastName')}
-                  placeholderTextColor={colors.faint}
-                  autoCapitalize="words"
-                  textContentType="familyName"
-                  autoComplete="family-name"
-                  value={lastName}
-                  onChangeText={setLastName}
-                  accessibilityLabel={t('signIn.lastName')}
-                  testID="lastName"
-                />
+              <Animated.View
+                entering={FadeIn.duration(200)}
+                style={[styles.nameRow, stackNames && styles.nameRowStacked]}
+                testID="name-row"
+              >
+                <View style={[styles.field, !stackNames && styles.nameField]}>
+                  <FieldLabel text={t('signIn.firstName')} styles={styles} />
+                  <TextInput
+                    style={styles.input}
+                    placeholderTextColor={colors.faint}
+                    autoCapitalize="words"
+                    textContentType="givenName"
+                    autoComplete="given-name"
+                    value={firstName}
+                    onChangeText={(v) => {
+                      setFirstName(v);
+                      if (nameError && v.trim()) setNameError(false);
+                    }}
+                    accessibilityLabel={t('signIn.firstName')}
+                    testID="firstName"
+                  />
+                  {nameError ? (
+                    <Text style={styles.error} testID="firstName-error">
+                      {t('signIn.errName')}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={[styles.field, !stackNames && styles.nameField]}>
+                  <FieldLabel text={t('signIn.lastName')} styles={styles} />
+                  <TextInput
+                    style={styles.input}
+                    placeholderTextColor={colors.faint}
+                    autoCapitalize="words"
+                    textContentType="familyName"
+                    autoComplete="family-name"
+                    value={lastName}
+                    onChangeText={setLastName}
+                    accessibilityLabel={t('signIn.lastName')}
+                    testID="lastName"
+                  />
+                </View>
               </Animated.View>
             ) : null}
 
             {/* `username` (iOS) is what pairs this field with the password
                 below for Keychain save/fill — the email IS the account name;
-                `email` is the Android autofill hint. */}
+                `email` is the Android autofill hint. Visible labels above
+                each field (WCAG 3.3.2): a placeholder alone disappears the
+                moment the user types. The label is hidden from screen readers
+                because the field's own accessibilityLabel says the same words —
+                one focus stop, not two. */}
+            <View style={styles.field}>
+            <FieldLabel text={t('signIn.email')} styles={styles} />
             <TextInput
               style={styles.input}
-              placeholder={t('signIn.email')}
               placeholderTextColor={colors.faint}
               autoCapitalize="none"
               autoCorrect={false}
@@ -402,7 +449,10 @@ export default function SignIn() {
               submitBehavior="submit"
               onSubmitEditing={() => passwordRef.current?.focus()}
             />
+            </View>
 
+            <View style={styles.field}>
+            <FieldLabel text={t('signIn.password')} styles={styles} />
             <View style={styles.pwWrap}>
               {/* Sign-up offers a NEW password (iOS strong-password
                   suggestion, Android "new password" autofill); sign-in asks
@@ -411,7 +461,6 @@ export default function SignIn() {
               <TextInput
                 ref={passwordRef}
                 style={[styles.input, styles.pwInput]}
-                placeholder={t('signIn.password')}
                 placeholderTextColor={colors.faint}
                 secureTextEntry={!showPassword}
                 textContentType={mode === 'signup' ? 'newPassword' : 'password'}
@@ -437,6 +486,7 @@ export default function SignIn() {
                   color={colors.muted}
                 />
               </TouchableOpacity>
+            </View>
             </View>
 
             {mode === 'signup' ? (
@@ -503,11 +553,6 @@ export default function SignIn() {
  *  or config problem, and "check your password" sends the user nowhere. */
 type ErrSource = 'password' | 'federated';
 
-/**
- * User-facing message for a sign-in failure, with the raw native code appended
- * when we could not classify it. There is no crash reporter here, so that tail
- * is the only way an unclassified failure on a tester's device ever reaches us.
- */
 /** Which federated button raised a failure — the cancel copy names it. */
 type FederatedProvider = 'google' | 'apple' | 'microsoft';
 
@@ -539,15 +584,17 @@ function linkPromptKey(link: PendingLink): I18nKey {
   }
 }
 
+/** User-facing message for a sign-in failure. */
 function errorMessage(
   e: unknown,
   t: TFn,
   source: ErrSource = 'password',
   provider: FederatedProvider = 'google',
 ): string {
-  const base = t(errorKey(e, source, provider));
-  const detail = (e as { detail?: string })?.detail;
-  return detail ? `${base} (${detail})` : base;
+  // The raw native code (`detail`) is NOT appended any more: a code in brackets
+  // means nothing to the user. `auth.tsx` already reports unclassified
+  // failures to Sentry (`captureError`), which is where the code belongs.
+  return t(errorKey(e, source, provider));
 }
 
 function errorKey(e: unknown, source: ErrSource = 'password', provider: FederatedProvider = 'google'): I18nKey {
@@ -585,9 +632,17 @@ function errorKey(e: unknown, source: ErrSource = 'password', provider: Federate
 
 type Styles = ReturnType<typeof createStyles>;
 
-/** The error line. Selectable so a tester can long-press → copy the native
- *  code tail and paste it to us; without a crash reporter that copy is the
- *  whole diagnostic channel. */
+/** A form field's visible label. Hidden from screen readers: the field's own
+ *  `accessibilityLabel` carries the same words, so the pair is one stop. */
+function FieldLabel({ text, styles }: { text: string; styles: Styles }) {
+  return (
+    <Text style={styles.label} accessibilityElementsHidden importantForAccessibility="no">
+      {text}
+    </Text>
+  );
+}
+
+/** The error line. Selectable so a tester can long-press → copy it. */
 function ErrorText({ text, styles }: { text: string; styles: Styles }) {
   return (
     <Text
@@ -719,7 +774,11 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   switchTextOn: { color: colors.onInk },
   // Name row (sign-up)
   nameRow: { flexDirection: 'row', gap: space.md },
-  nameInput: { flex: 1 },
+  nameRowStacked: { flexDirection: 'column' },
+  nameField: { flex: 1 },
+  // Label + field (+ its error): the form-label style of daily-targets.
+  field: { gap: space.xs },
+  label: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   // Password field with show/hide eye
   pwWrap: { position: 'relative', justifyContent: 'center' },
   pwInput: { paddingRight: 48 },

@@ -759,7 +759,16 @@ export default function Onboarding() {
             <View style={styles.back} />
           )}
           {dotIndex >= 0 ? (
-            <View style={styles.dots}>
+            // One element for a screen reader ("Step 2 of 6, progress bar"),
+            // as the tour labels its dots; the dots are not focusable.
+            <View
+              style={styles.dots}
+              accessible
+              accessibilityRole="progressbar"
+              accessibilityLabel={t('tour.progress', { n: dotIndex + 1, total: dotTotal })}
+              accessibilityValue={{ min: 1, max: dotTotal, now: dotIndex + 1 }}
+              testID="onboarding-dots"
+            >
               {Array.from({ length: dotTotal }).map((_, i) => (
                 <View key={i} style={[styles.dot, i === dotIndex && styles.dotOn, i < dotIndex && styles.dotDone]} />
               ))}
@@ -1099,6 +1108,10 @@ export default function Onboarding() {
                     onBlur={() => setEditing(null)}
                     label={t('onboarding.calories')}
                     valueText={kcal != null ? formatNumber(kcal, locale) : null}
+                    unit={t('targets.caloriesUnit')}
+                    a11yLabel={
+                      kcal != null ? t('onboarding.planKcalA11y', { n: formatNumber(kcal, locale) }) : undefined
+                    }
                     styles={styles}
                     colors={colors}
                     testID="onboarding-kcal"
@@ -1276,6 +1289,8 @@ function PlanStat({
   onBlur,
   label,
   valueText,
+  unit,
+  a11yLabel,
   styles,
   colors,
   testID,
@@ -1291,6 +1306,12 @@ function PlanStat({
   /** The number as read aloud ("1,850", "140 g"). The button used to announce
    *  only "Calories" — the one thing on it a sighted user reads is the number. */
   valueText: string | null;
+  /** A unit shown after the number, smaller and quieter ("kcal"): a bare
+   *  1,850 did not say what it counts. */
+  unit?: string;
+  /** The button's spoken name when "label, value" reads wrong — the calorie
+   *  number is said as "1,850 calories a day", not "calories, 1,850". */
+  a11yLabel?: string;
   styles: ReturnType<typeof createStyles>;
   colors: Theme['colors'];
   testID: string;
@@ -1317,12 +1338,17 @@ function PlanStat({
           scaleTo={0.96}
           onPress={onOpen}
           accessibilityRole="button"
-          accessibilityLabel={valueText ? `${label}, ${valueText}` : label}
+          accessibilityLabel={a11yLabel ?? (valueText ? `${label}, ${valueText}` : label)}
           accessibilityHint={undefined}
           testID={testID}
         >
           <View style={styles.planValueRow}>
             <CountUpText value={value ?? 0} suffix={suffix} style={styles.planValue} />
+            {unit ? (
+              <Text style={styles.planUnit} testID={`${testID}-unit`}>
+                {unit}
+              </Text>
+            ) : null}
             <Ionicons name="pencil" size={14} color={colors.heroMuted} style={styles.planPencil} />
           </View>
         </PressScale>
@@ -1367,7 +1393,7 @@ function SkipLink({
 /**
  * The first-run unit toggle — two segments, one choice. A radio group rather
  * than a switch: "lb" vs "kg" is a pick between two named things, and each
- * segment says what it is to a screen reader (`Pounds`, not "l b").
+ * segment says what it is to a screen reader ("lb, Pounds", not "l b").
  */
 function UnitToggle({
   value,
@@ -1396,7 +1422,9 @@ function UnitToggle({
             onPress={() => onChange(o.value)}
             accessibilityRole="radio"
             accessibilityState={{ selected: on, checked: on }}
-            accessibilityLabel={o.a11y}
+            // Starts with the visible text (WCAG 2.5.3, label in name): a
+            // voice-control user says "lb", so the name must contain it.
+            accessibilityLabel={`${o.text}, ${o.a11y}`}
             testID={`${testID}-${o.value}`}
           >
             <Text style={[styles.unitSegText, on && styles.unitSegTextOn]}>{o.text}</Text>
@@ -1457,13 +1485,15 @@ const createStyles = ({ colors, shadow }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     fill: { flex: 1 },
-    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xl, paddingTop: space.md, minHeight: 44 },
+    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xl, paddingTop: space.md, minHeight: TARGET },
     back: { width: TARGET, height: TARGET, alignItems: 'flex-start', justifyContent: 'center' },
     // The right-hand button's glyph sits against the screen edge, as the
     // back chevron does on the left; the box grows inward.
     backEnd: { alignItems: 'flex-end' },
     dots: { flexDirection: 'row', gap: space.xs },
-    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.line },
+    // `lineStrong`, not `line` (~1.2:1): an inactive dot has to be visible to
+    // say how many steps there are (WCAG 1.4.11).
+    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lineStrong },
     dotOn: { width: 22, backgroundColor: colors.ink },
     dotDone: { backgroundColor: colors.accent },
     // flexGrow centres the step when it fits and scrolls it when it doesn't.
@@ -1537,7 +1567,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     unitSegText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
     unitSegTextOn: { color: colors.onInk },
     segment: { flexDirection: 'row', gap: space.sm },
-    segBtn: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center', backgroundColor: colors.inputBg },
+    segBtn: { flex: 1, minHeight: TARGET, justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center', backgroundColor: colors.inputBg },
     segBtnOn: { backgroundColor: colors.ink, borderColor: colors.ink },
     segText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
     segTextOn: { color: colors.onInk },
@@ -1565,6 +1595,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      minHeight: TARGET,
       borderWidth: 1,
       borderColor: colors.line,
       borderRadius: radius.md,
@@ -1575,7 +1606,9 @@ const createStyles = ({ colors, shadow }: Theme) =>
     activityRowOn: { backgroundColor: colors.ink, borderColor: colors.ink },
     activityText: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
     activityTextOn: { color: colors.onInk },
-    skip: { alignSelf: 'center', paddingVertical: space.sm, paddingHorizontal: space.md },
+    // minHeight TARGET on the small text buttons here (Skip, Not now, the
+    // sex and activity choices): padding alone left them under 44/48.
+    skip: { alignSelf: 'center', minHeight: TARGET, justifyContent: 'center', paddingVertical: space.sm, paddingHorizontal: space.md },
     skipText: { fontSize: font.small, color: colors.muted, textDecorationLine: 'underline' },
     // Big numeric input.
     bigInputRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.sm },
@@ -1588,6 +1621,8 @@ const createStyles = ({ colors, shadow }: Theme) =>
     planValue: { fontFamily: type.display, fontSize: 44, color: colors.heroText },
     planValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
     planPencil: { opacity: 0.7 },
+    // The kcal unit after the plan number: smaller and quieter than it.
+    planUnit: { fontSize: font.body, color: colors.heroMuted, alignSelf: 'flex-end', marginBottom: space.sm },
     planInput: {
       fontFamily: type.display,
       fontSize: 44,
@@ -1609,7 +1644,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     cta: { backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center' },
     ctaDisabled: { opacity: 0.4 },
     ctaText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
-    ctaGhost: { paddingVertical: space.md, alignItems: 'center', marginBottom: space.xs },
+    ctaGhost: { minHeight: TARGET, justifyContent: 'center', paddingVertical: space.md, alignItems: 'center', marginBottom: space.xs },
     ctaGhostText: { color: colors.muted, fontSize: font.body, fontWeight: '600' },
     // On the HERO PANEL, which is dark in BOTH themes — so `heroText`, the
     // panel's own text token. History: `colors.ink` was ink-on-ink and

@@ -582,29 +582,31 @@ export const ExerciseCard = memo(function ExerciseCard({
               </Text>
               {onSwitchUnit ? (
                 <Touchable
-                  style={styles.unitSwitch}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.unitSwitchHit}
                   onPress={() => onSwitchUnit(exerciseIndex, rowUnit === 'kg' ? 'lb' : 'kg')}
                   accessibilityRole="button"
                   accessibilityLabel={t('train.unitSwitchA11y', { unit: rowUnit === 'kg' ? 'lb' : 'kg' })}
                   testID={`unit-switch-${exerciseIndex}`}
                 >
-                  <Text style={[styles.unitSwitchText, rowUnit === 'kg' && styles.unitSwitchOn]}>kg</Text>
-                  <Text style={styles.unitSwitchSep}>|</Text>
-                  <Text style={[styles.unitSwitchText, rowUnit === 'lb' && styles.unitSwitchOn]}>lb</Text>
+                  <View style={styles.unitSwitch}>
+                    <Text style={[styles.unitSwitchText, rowUnit === 'kg' && styles.unitSwitchOn]}>kg</Text>
+                    <Text style={styles.unitSwitchSep}>|</Text>
+                    <Text style={[styles.unitSwitchText, rowUnit === 'lb' && styles.unitSwitchOn]}>lb</Text>
+                  </View>
                 </Touchable>
               ) : null}
               {ex.stackPositions ? (
                 <Touchable
-                  style={styles.unitSwitch}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.unitSwitchHit}
                   onPress={() => setPlateMode((m) => !m)}
                   accessibilityRole="switch"
                   accessibilityState={{ checked: plateOn }}
                   accessibilityLabel={t('train.plateSwitchA11y')}
                   testID={`plate-switch-${exerciseIndex}`}
                 >
-                  <Text style={[styles.unitSwitchText, plateOn && styles.unitSwitchOn]}>{t('train.plateSwitch')}</Text>
+                  <View style={styles.unitSwitch}>
+                    <Text style={[styles.unitSwitchText, plateOn && styles.unitSwitchOn]}>{t('train.plateSwitch')}</Text>
+                  </View>
                 </Touchable>
               ) : null}
             </View>
@@ -626,7 +628,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             )}
             {/* The column header IS the unit, so it stops being a fixed string. */}
             {style === 'weight-reps' ? (
-              <Text style={[styles.setHeadCell, styles.setInputCell]} maxFontSizeMultiplier={1.6}>{plateOn ? t('train.plateHead') : loadUnit(unitSystem)}</Text>
+              <Text style={[styles.setHeadCell, styles.setInputCell]} maxFontSizeMultiplier={1.6}>{plateOn ? t('train.plateColHead') : loadUnit(unitSystem)}</Text>
             ) : null}
             <Text style={[styles.setHeadCell, styles.setInputCell]} maxFontSizeMultiplier={1.6}>
               {style === 'time' ? t('train.sec') : t('train.reps')}

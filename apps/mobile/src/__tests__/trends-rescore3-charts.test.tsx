@@ -261,7 +261,8 @@ describe('the macro card (U3)', () => {
     expect(view.getByTestId('protein-trend-readout', { includeHiddenElements: true })).toHaveTextContent('Avg 120 g a day · target on 1 of 2 days');
     await fireEvent.press(view.getByTestId('macro-tab-carbs'));
     const plot = view.getByTestId('protein-trend-chart-plot');
-    expect(plot.props.accessibilityLabel).toBe('Carbs over the last 4 days, 190 g a day on average on logged days.');
+    // Then the chart type and axis span (standards sweep 2026-11-19).
+    expect(plot.props.accessibilityLabel).toMatch(/^Carbs over the last 4 days, 190 g a day on average on logged days\. Line chart, from \d+ to \d+ g\.$/);
     expect(view.getByTestId('macro-tab-carbs').props.accessibilityState).toEqual({ selected: true });
     await fireEvent.press(view.getByTestId('macro-tab-fat'));
     expect(view.getByTestId('protein-trend-chart-plot').props.accessibilityValue.text).toMatch(/today, still in progress/);

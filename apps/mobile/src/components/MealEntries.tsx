@@ -124,15 +124,17 @@ function timeOf(d: Date, locale: Locale): string {
  *  are jargon a first-time user has to decode and a screen reader spells out
  *  as letters (S18-17). Localized, since "carbs" is not "carbos" is not
  *  "carbo". */
-function macroLine(log: DailyLog, t: TFn, locale: Locale): string {
+function macroLine(log: DailyLog, t: TFn, locale: Locale, spoken = false): string {
   // Through the app locale's own number format (audit #17): a raw `12.5`
   // read as twelve-point-five in English and as twelve thousand five hundred
   // under pt-BR's grouping mark. One decimal is what the write path keeps.
   const n = (v: number) => formatNumber(v, locale, { maximumFractionDigits: 1 });
   const parts: string[] = [];
-  if (log.protein != null) parts.push(t('entry.proteinAmount', { n: n(log.protein) }));
-  if (log.carbs != null) parts.push(t('entry.carbsAmount', { n: n(log.carbs) }));
-  if (log.fat != null) parts.push(t('entry.fatAmount', { n: n(log.fat) }));
+  // `spoken`: the screen-reader label says "grams", since "g" is read as a
+  // letter. The visible line keeps the abbreviation.
+  if (log.protein != null) parts.push(t(spoken ? 'entry.proteinA11y' : 'entry.proteinAmount', { n: n(log.protein) }));
+  if (log.carbs != null) parts.push(t(spoken ? 'entry.carbsA11y' : 'entry.carbsAmount', { n: n(log.carbs) }));
+  if (log.fat != null) parts.push(t(spoken ? 'entry.fatA11y' : 'entry.fatAmount', { n: n(log.fat) }));
   return parts.join(' · ');
 }
 
@@ -238,7 +240,11 @@ const EntryRow = memo(function EntryRow({
   const contextMenu = CONTEXT_MENUS;
 
   const a11y = {
-    accessibilityLabel: [t('today.entryA11y', { label, n: kcal }), sub, log.note].filter(Boolean).join(', '),
+    accessibilityLabel: [
+      t('today.entryA11y', { label, n: kcal }),
+      [timeOf(log.date, locale), macroLine(log, t, locale, true)].filter(Boolean).join(', '),
+      log.note,
+    ].filter(Boolean).join(', '),
     accessibilityActions: actions,
     onAccessibilityAction: onAction,
   };
@@ -764,7 +770,8 @@ export function MealEntries({
 
 const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   wrap: { gap: space.md },
-  group: { gap: space.sm },
+  // 12, not 8: rows 8 dp apart read as one block and invited mis-taps.
+  group: { gap: space.md },
   slotHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm, paddingHorizontal: space.xs, minHeight: 32 },
   // Name and subtotal read as one line that may wrap at large text; the add
   // pill keeps its size beside it.

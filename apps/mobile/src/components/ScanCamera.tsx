@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import * as haptics from '@/lib/haptics';
@@ -61,6 +62,7 @@ export function ScanCamera({ photos, max, hasNote, footnote, notice, onShot, onR
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const reduce = useReducedMotion();
+  const insets = useSafeAreaInsets();
   const camera = useRef<CameraView>(null);
   /** A capture in flight. A second press while the first is still writing its
    *  file would add a duplicate of the same plate and charge a scan for it. */
@@ -108,7 +110,9 @@ export function ScanCamera({ photos, max, hasNote, footnote, notice, onShot, onR
   }
 
   return (
-    <View style={styles.wrap}>
+    // The control row clears the home indicator / gesture band: the shutter
+    // sat inside it on edge-to-edge Android and on Face ID iPhones.
+    <View style={[styles.wrap, { paddingBottom: space.lg + insets.bottom }]}>
       <View style={styles.viewport}>
         {/* The live feed means nothing to a screen reader and would otherwise
             be one large unlabelled element to swipe past on the way to the

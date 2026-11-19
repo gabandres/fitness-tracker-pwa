@@ -154,6 +154,12 @@ export interface TrendChartProps {
     xLabel: (dateKey: string) => string;
     seriesNames: Readonly<Record<string, string>>;
   };
+  /**
+   * The chart type and y-axis span, appended to `summary` in the stepper's
+   * label ("Line chart, from 2,400 to 2,900 kcal."). Receives the axis bounds
+   * already run through `formatY`. Omit and the label is `summary` alone.
+   */
+  describeSpan?: (min: string, max: string) => string;
   testID?: string;
 }
 
@@ -196,6 +202,7 @@ function TrendChartImpl({
   xTickLabel,
   openDay,
   audioGraph,
+  describeSpan,
   testID,
 }: TrendChartProps) {
   const styles = useThemedStyles(createStyles);
@@ -323,7 +330,15 @@ function TrendChartImpl({
     [audioGraph, summary, dateKeys, lines, dots, pointLabels],
   );
 
-  const stepper = useAdjustableDays(n, summary, (i) => pointLabels[i] ?? '', {
+  // Without the iOS audio graph (TalkBack, or VoiceOver off the rotor), the
+  // label alone says what kind of chart this is and what its axis spans — the
+  // gridline bounds a sighted reader sees, in the caller's own number format.
+  const spoken = useMemo(() => {
+    if (!describeSpan || !scale) return summary;
+    const span = describeSpan(formatY(scale.min), formatY(scale.max));
+    return /[.!?]$/.test(summary.trim()) ? `${summary.trim()} ${span}` : `${summary.trim()}. ${span}`;
+  }, [describeSpan, scale, formatY, summary]);
+  const stepper = useAdjustableDays(n, spoken, (i) => pointLabels[i] ?? '', {
     actions: openDay
       ? [{ name: 'openDay', label: openDay.actionLabel, run: (i) => openDay.onOpen(dateKeys[i]) }]
       : [],

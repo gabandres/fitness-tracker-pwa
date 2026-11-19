@@ -1,4 +1,4 @@
-import { fireEvent, renderWithProviders as render } from '@/test-utils';
+import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 import React from 'react';
 import type { TdeeResult } from '@macrolog/core';
 
@@ -73,6 +73,21 @@ jest.mock('@/lib/activity-suggestion', () => ({
     connecting: false,
   }),
 }));
+// The discard guard (A31): capture what the screen hands `usePreventRemove`.
+const mockGuard: { on: boolean; cb: ((e: { data: { action: unknown } }) => void) | null } = { on: false, cb: null };
+const mockDispatch = jest.fn();
+const mockConfirm = jest.fn();
+jest.mock('@/components/ConfirmSheet', () => ({
+  ConfirmHost: () => null,
+  confirm: (o: unknown) => mockConfirm(o),
+}));
+jest.mock('expo-router/react-navigation', () => ({
+  useNavigation: () => ({ dispatch: mockDispatch }),
+  usePreventRemove: (on: boolean, cb: (e: { data: { action: unknown } }) => void) => {
+    mockGuard.on = on;
+    mockGuard.cb = cb;
+  },
+}));
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
@@ -80,7 +95,7 @@ jest.mock('expo-router', () => ({
   useFocusEffect: jest.fn(),
 }));
 
-import RefineTargets from '@/app/refine-targets';
+import RefineTargets, { refineDirty } from '@/app/refine-targets';
 
 beforeEach(() => {
   mockSaveRefined.mockClear();
@@ -128,5 +143,41 @@ describe('Refine targets — the goal beside the pace', () => {
     mockTargetMode = 'auto';
     const screen = await render(<RefineTargets />);
     expect(screen.queryByTestId('refine-custom-note')).toBeNull();
+  });
+});
+
+// ── A31 + why sex is asked (2026-11-19) ───────────────────────────────────
+describe('Refine targets — discard guard and the sex reason', () => {
+  it('refineDirty: field by field against the opening values', () => {
+    const base = { sex: 'male' as const, feet: '5', inches: '8', heightCm: '173', age: '33', activity: 'moderate' as const, goal: 'maintain' as const, pace: 0 };
+    expect(refineDirty(base, base)).toBe(false);
+    expect(refineDirty(base, { ...base, age: '33 ' })).toBe(false);
+    expect(refineDirty(base, { ...base, age: '34' })).toBe(true);
+    expect(refineDirty(base, { ...base, goal: 'lose' })).toBe(true);
+    expect(refineDirty(base, { ...base, pace: 0.5 })).toBe(true);
+  });
+
+  it('clean on open, dirty after a change, and a save goes straight through', async () => {
+    mockConfirm.mockClear();
+    mockDispatch.mockClear();
+    const screen = await render(<RefineTargets />);
+    expect(mockGuard.on).toBe(false);
+    await fireEvent.press(screen.getByTestId('refine-goal-lose'));
+    expect(mockGuard.on).toBe(true);
+    mockGuard.cb?.({ data: { action: { type: 'GO_BACK' } } });
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    expect(mockDispatch).not.toHaveBeenCalled();
+    mockConfirm.mockClear();
+    await fireEvent.press(screen.getByTestId('refine-save'));
+    await waitFor(() => expect(mockSaveRefined).toHaveBeenCalled());
+    const action = { type: 'GO_BACK' };
+    mockGuard.cb?.({ data: { action } });
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockDispatch).toHaveBeenCalledWith(action);
+  });
+
+  it('says why sex is asked, under the control', async () => {
+    const screen = await render(<RefineTargets />);
+    expect(screen.getByTestId('refine-sex-why')).toHaveTextContent('Used to set your starting calorie estimate.');
   });
 });

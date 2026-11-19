@@ -221,6 +221,10 @@ const CARRIED_ROW_FIELDS = [
   'alternatives', 'optional', 'carryover',
   // Program v2.4 (2026-11-06): both sides in one superset round.
   'sideSwitchSec',
+  // Stack positions (2026-11-19): "plate #" was erased by every editor save.
+  'stackPositions',
+  // Owner-data rows (2026-11-19): set by scripts, no editor screen shows them.
+  'excludedReads', 'ladder',
 ] as const;
 
 /** The fields that make a row's PRESCRIPTION — what a change stamp is about. */

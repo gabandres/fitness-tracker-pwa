@@ -28,14 +28,17 @@ import { takeLockScreenAccepted } from '@/lib/lock-screen-ticks';
 import { noteFocusTrigger } from '@/lib/return-focus';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useUnitSystem } from '@/lib/use-unit-system';
-import { font } from '@/theme';
+import { font, TARGET } from '@/theme';
 import type { ChainField, InputChain } from './input-chain';
 import { kindLabelKey, numOrUndef } from './train-shared';
 import { createStyles } from './train-styles';
 import { useKeepAboveKeyboard } from './reveal-above-keyboard';
 
-/** The set number's extra reach, left and right — see `setNumCell`. */
-const SET_NUM_SLOP = { left: 8, right: 8 };
+/** The set number's extra reach, left and right — see `setNumCell` (30 wide).
+ *  At least `TARGET` across: 8 a side (46) on iOS, 9 (48) on Android, where
+ *  a fixed 8 left it at 46 of 48 (2026-11-19). */
+const SET_NUM_REACH = Math.max(8, (TARGET - 30) / 2);
+const SET_NUM_SLOP = { left: SET_NUM_REACH, right: SET_NUM_REACH };
 
 /** The fixed-width numeric cells stop scaling here, so the row still fits
  *  at the largest Dynamic Type sizes (Train review item 17). */
@@ -484,7 +487,10 @@ export const SetRow = memo(function SetRow({
             style={[styles.setInput, styles.setInputCell, set.done && styles.setInputDone]}
             placeholder={weightHintValue ?? NOTHING_TO_OFFER}
             placeholderTextColor={colors.faint}
-            keyboardType={plateMode ? 'number-pad' : 'numeric'}
+            // The decimal pad: `numeric` on iOS has no decimal key at all, so
+            // 102.5 could not be typed. A comma from the pad parses too
+            // (`parseLoadToLb`).
+            keyboardType={plateMode ? 'number-pad' : 'decimal-pad'}
             value={weight}
             onChangeText={writeWeight}
             onFocus={() => setFocused('weight')}

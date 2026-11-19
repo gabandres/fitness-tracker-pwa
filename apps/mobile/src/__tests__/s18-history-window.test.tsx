@@ -10,13 +10,15 @@
  * loaded" note for the failure case only.
  */
 import React from 'react';
-import { fireEvent, renderWithProviders as render } from '@/test-utils';
+import { StyleSheet } from 'react-native';
+import { fireEvent, renderWithProviders as render, within } from '@/test-utils';
 import { type DailyLog, dayBoundaryOf } from '@macrolog/core';
 
 const mockPush = jest.fn();
+const mockNavigate = jest.fn();
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
-  useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
+  useRouter: () => ({ push: mockPush, navigate: mockNavigate, replace: jest.fn(), back: jest.fn() }),
 }));
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({ user: { uid: 'u1' }, profile: null }),
@@ -147,5 +149,40 @@ describe('History calendar', () => {
     expect(cell.props.accessibilityRole).toBe('button');
     expect(cell.props.accessibilityLabel).toContain('logged');
     expect(cell.props.accessibilityLabel).toContain('weigh-in');
+  });
+
+  // Standards sweep, 2026-11-19.
+  it('draws a weigh-in as a hollow ring, not a second filled dot (WCAG 1.4.1)', async () => {
+    const now = new Date();
+    const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    (mockHistory as { days: unknown[] }).days = [
+      { dateKey: key, totalCalories: 500, totalProtein: 0, totalCarbs: 0, totalFat: 0, mealCount: 1, weightLb: 180, exercised: false },
+    ];
+    const screen = await render(<HistoryCalendar />);
+    const cell = within(screen.getByTestId(`day-${key}`));
+    const ring = StyleSheet.flatten(cell.getByTestId('mark-weighed', { includeHiddenElements: true }).props.style);
+    const dot = StyleSheet.flatten(cell.getByTestId('mark-logged', { includeHiddenElements: true }).props.style);
+    expect(ring.backgroundColor).toBe('transparent');
+    expect(ring.borderWidth).toBeGreaterThan(0);
+    expect(dot.borderWidth ?? 0).toBe(0);
+  });
+
+  it('a recent row shows its unit and says its calories in the name', async () => {
+    const now = new Date();
+    const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    (mockHistory as { days: unknown[] }).days = [
+      { dateKey: key, totalCalories: 1850, totalProtein: 0, totalCarbs: 0, totalFat: 0, mealCount: 2, weightLb: null, exercised: false },
+    ];
+    const screen = await render(<HistoryCalendar />);
+    const row = screen.getByTestId(`recent-${key}`);
+    expect(row).toHaveTextContent(/1,850 kcal/);
+    expect(row.props.accessibilityLabel).toMatch(/, 1,850 calories logged$/);
+  });
+
+  it('the empty state offers "Log food", through Today\'s openAdd route', async () => {
+    (mockHistory as { days: unknown[] }).days = [];
+    const screen = await render(<HistoryCalendar />);
+    await fireEvent.press(screen.getByTestId('history-empty-log'));
+    expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/(app)', params: { openAdd: expect.any(String) } });
   });
 });

@@ -126,7 +126,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: TARGET,
     paddingHorizontal: space.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.lineStrong,

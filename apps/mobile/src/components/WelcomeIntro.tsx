@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   FadeOut,
@@ -17,7 +17,7 @@ import { useT } from '@/i18n';
 import { heroEnter, PressScale } from '@/lib/motion';
 import { useSplashVisible } from '@/lib/splash-state';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, motion, radius, space, type } from '@/theme';
+import { font, motion, radius, space, TARGET, type } from '@/theme';
 
 /**
  * The first screen a brand-new install shows — before the sign-in form.
@@ -138,6 +138,17 @@ export function WelcomeIntro({ onContinue }: { onContinue: (mode: 'signin' | 'si
       exiting={FadeOut.duration(motion.dur.fast).reduceMotion(ReduceMotion.System)}
       testID="welcome-intro"
     >
+      {/* Scrolls rather than clips: at the largest text sizes the copy
+          pushed the buttons off the bottom with no way to reach them.
+          `flexGrow: 1` keeps the content exactly one screen tall whenever it
+          fits, so the layout (and the loader handoff) is unchanged there. The
+          twin rides inside the scroll content so the two never part. */}
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={styles.scroll}
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+      >
       {/* The real layout. The ghost marks where the hero column lands; the
           spacers centre the hero group over the actions with equal slack, and
           on a short window (the LG at 360×720 dp) collapse to nothing. */}
@@ -204,6 +215,7 @@ export function WelcomeIntro({ onContinue }: { onContinue: (mode: 'signin' | 'si
           </Animated.View>
         </View>
       </View>
+      </ScrollView>
     </Animated.View>
   );
 }
@@ -217,6 +229,8 @@ const BLOOM_SIZE = BRAND_LOADER_SIZE * 1.6;
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.paper },
+    fill: { flex: 1 },
+    scroll: { flexGrow: 1 },
     column: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: space.xl },
     spacer: { flex: 1 },
     ghost: { opacity: 0 },
@@ -243,7 +257,15 @@ const createStyles = ({ colors }: Theme) =>
       alignItems: 'center',
     },
     ctaText: { color: colors.onInk, fontSize: font.h3, fontWeight: '700' },
-    link: { alignSelf: 'center', paddingVertical: space.sm, paddingHorizontal: space.md },
+    // `minHeight: TARGET`, not padding alone: the text plus 8+8 was ~36 tall,
+    // under the 44/48 touch minimum. Centred, so the text sits where it did.
+    link: {
+      alignSelf: 'center',
+      minHeight: TARGET,
+      justifyContent: 'center',
+      paddingVertical: space.sm,
+      paddingHorizontal: space.md,
+    },
     linkText: { color: colors.muted, fontSize: font.small, fontWeight: '600' },
     twinFill: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
     flameSlot: {

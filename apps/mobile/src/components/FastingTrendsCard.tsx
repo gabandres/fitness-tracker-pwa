@@ -15,7 +15,7 @@ import { formatDate, formatNumber } from '@/lib/date-format';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { useDismissedStub } from '@/hooks/useDismissedStub';
 import { StubLabel } from '@/components/StubLabel';
-import { font, radius, space, type } from '@/theme';
+import { font, radius, space, TARGET, type } from '@/theme';
 import { PressScale } from '@/lib/motion';
 import * as haptics from '@/lib/haptics';
 import { GapMarker, MedianLine, StripDates, useStripAudioGraph } from '@/components/charts/StripParts';
@@ -406,5 +406,6 @@ const createStyles = ({ colors }: Theme) =>
     // Generous padding, small glyph: the target is 40dp tall against a
     // 16dp icon, because this is a one-way action sitting a few pixels
     // from a navigating one.
-    stubDismiss: { paddingLeft: space.md, paddingRight: space.xs, paddingVertical: space.md },
+    // A full TARGET box: padding around a 16 pt glyph came to 40 dp.
+    stubDismiss: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   });

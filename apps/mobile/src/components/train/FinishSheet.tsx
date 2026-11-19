@@ -659,6 +659,7 @@ export function FinishSheet({
             </Text>
             {lengthCall.overCap ? (
               <Touchable
+                style={styles.finishKeepLong}
                 onPress={() => setKeepLong((k) => !k)}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: keepLong }}

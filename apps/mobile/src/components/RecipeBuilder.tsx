@@ -96,6 +96,15 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
   const badProtein = ingredients.map((ing) => num(ing.protein, locale) === 'invalid');
   const badServings = servingParsed === 'invalid' || servingParsed === 0;
   const anyInvalid = badKcal.some(Boolean) || badProtein.some(Boolean) || badServings;
+  // One message per bad field, naming the row and the field: a red border
+  // alone said nothing to a screen reader or to anyone who cannot see red.
+  const kcalError = (i: number) => (badKcal[i] ? t('recipe.badKcal', { n: i + 1 }) : undefined);
+  const proteinError = (i: number) => (badProtein[i] ? t('recipe.badProtein', { n: i + 1 }) : undefined);
+  const servingsError = badServings ? t('recipe.badServings') : undefined;
+  const invalidMessages = [
+    ...ingredients.flatMap((_, i) => [kcalError(i), proteinError(i)]),
+    servingsError,
+  ].filter((m): m is string => !!m);
   // Judged on the ROUNDED serving the form will be prefilled with: a pinch of
   // something over many servings rounded to 0 kcal and still enabled "Use
   // this", which then opened the form on an empty entry (#19).
@@ -136,15 +145,18 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
         </TouchableOpacity>
       </View>
 
-      <SheetTextInput
-        style={styles.input}
-        placeholder={t('recipe.namePlaceholder')}
-        placeholderTextColor={colors.faint}
-        value={name}
-        onChangeText={setName}
-        accessibilityLabel={t('recipe.namePlaceholder')}
-        testID="recipe-name"
-      />
+      {/* A visible label (WCAG 3.3.2): the placeholder was the only one, and
+          it went the moment anything was typed. */}
+      <View style={styles.nameBox}>
+        <Text style={styles.fieldLabel}>{t('recipe.namePlaceholder')}</Text>
+        <SheetTextInput
+          style={styles.input}
+          value={name}
+          onChangeText={setName}
+          accessibilityLabel={t('recipe.namePlaceholder')}
+          testID="recipe-name"
+        />
+      </View>
 
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
         <View style={styles.colHead}>
@@ -172,22 +184,27 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
               style={[styles.input, styles.colNum, badKcal[i] && styles.inputInvalid]}
               placeholder="0"
               placeholderTextColor={colors.faint}
-              keyboardType="numeric"
+              inputMode="decimal"
               {...kbProps}
               value={ing.calories}
               onChangeText={(v) => setIng(i, 'calories', v)}
               accessibilityLabel={t('recipe.kcalA11y', { n: i + 1 })}
+              // RN 0.86 has no invalid state to set, so the field's own error
+              // is its hint: read as the field is reached.
+              accessibilityHint={kcalError(i)}
               testID={`recipe-ing-kcal-${i}`}
             />
             <SheetTextInput
               style={[styles.input, styles.colNum, badProtein[i] && styles.inputInvalid]}
               placeholder="0"
               placeholderTextColor={colors.faint}
-              keyboardType="numeric"
+              inputMode="decimal"
               {...kbProps}
               value={ing.protein}
               onChangeText={(v) => setIng(i, 'protein', v)}
               accessibilityLabel={t('recipe.proteinA11y', { n: i + 1 })}
+              accessibilityHint={proteinError(i)}
+              testID={`recipe-ing-protein-${i}`}
             />
             <TouchableOpacity
               style={[styles.colDel, styles.delBtn]}
@@ -214,11 +231,12 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
             style={[styles.input, styles.servingsInput, badServings && styles.inputInvalid]}
             placeholder="1"
             placeholderTextColor={colors.faint}
-            keyboardType="numeric"
+            inputMode="decimal"
             {...kbProps}
             value={servings}
             onChangeText={setServings}
             accessibilityLabel={t('recipe.servings')}
+            accessibilityHint={servingsError}
             testID="recipe-servings"
           />
         </View>
@@ -233,7 +251,7 @@ export function RecipeBuilder({ onApply, onCancel, onDirtyChange }: Props) {
 
       {anyInvalid || (totals.kcal > 0 && perServing.kcal <= 0) ? (
         <Text style={styles.invalidText} accessibilityLiveRegion="polite" testID="recipe-invalid">
-          {t(anyInvalid ? 'recipe.invalidNumbers' : 'recipe.roundsToZero')}
+          {anyInvalid ? invalidMessages.join('\n') : t('recipe.roundsToZero')}
         </Text>
       ) : null}
       <TouchableOpacity
@@ -288,6 +306,7 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   addIng: { paddingVertical: space.sm },
   addIngText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   footer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: space.md, marginTop: space.xs },
+  nameBox: { gap: space.xs },
   servingsBox: { gap: space.xs },
   fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   servingsInput: { width: 90, textAlign: 'center' },

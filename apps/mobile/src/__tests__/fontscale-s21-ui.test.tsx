@@ -87,30 +87,30 @@ describe('UpdateBanner at the largest sizes', () => {
     mockStore = { available: false, open: jest.fn(), dismiss: jest.fn() };
   });
 
-  it('the store card: two capped single lines and a full-size dismiss', async () => {
+  it('the store card: two capped lines that may wrap once, and a full-size dismiss', async () => {
     mockStore = { available: true, open: jest.fn(), dismiss: jest.fn() };
     const view = await render(<UpdateBanner />);
     const lines = ['New version available', 'Tap to update Ignia in the store.'].map((s) => view.getByText(s));
     for (const line of lines) {
-      expect(line.props.numberOfLines).toBe(1);
+      expect(line.props.numberOfLines).toBe(2);
       expect(line.props.maxFontSizeMultiplier).toBe(BANNER_MAX_SCALE);
     }
-    expect(BANNER_MAX_SCALE).toBeLessThanOrEqual(1.6);
+    expect(BANNER_MAX_SCALE).toBeLessThanOrEqual(2);
     const dismiss = flat(view.getByTestId('store-update-dismiss').props.style);
     expect(dismiss.minWidth).toBeGreaterThanOrEqual(44);
     expect(dismiss.minHeight).toBeGreaterThanOrEqual(44);
     expect(view.getByTestId('store-update-dismiss').props.accessibilityRole).toBe('button');
   });
 
-  it('the OTA card: every visible line is one capped line', async () => {
+  it('the OTA card: title and body wrap to two capped lines, the action stays on one', async () => {
     mockOta = { pending: true, applying: false, apply: jest.fn() };
     const view = await render(<UpdateBanner />);
     // By copy, not `/./`: the vector icons are text nodes too.
     const texts = ['Update ready', 'Ignia restarts to apply it — a few seconds.', 'Restart'].map((s) => view.getByText(s));
-    for (const line of texts) {
-      expect(line.props.numberOfLines).toBe(1);
+    texts.forEach((line, i) => {
+      expect(line.props.numberOfLines).toBe(i < 2 ? 2 : 1);
       expect(line.props.maxFontSizeMultiplier).toBe(BANNER_MAX_SCALE);
-    }
+    });
   });
 });
 

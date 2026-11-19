@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
@@ -59,6 +60,10 @@ interface Props {
 
 type Phase = 'input' | 'resolving' | 'review' | 'error';
 
+/** Past this text size the four macro fields stack one per line — the same
+ *  threshold as the add sheet's macro row (`EntrySheet`'s STACK_FONT_SCALE). */
+const STACK_FONT_SCALE = 1.35;
+
 /**
  * A row's number fields as the write will see them, or why it cannot be
  * written (audit #14). Read through `parseDecimal`, so a pt-BR `12,5` is 12.5
@@ -110,6 +115,8 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const stackMacros = fontScale > STACK_FONT_SCALE;
   const [query, setQuery] = useState(seedText ?? '');
   const [phase, setPhase] = useState<Phase>('input');
   // Opens in place of the add sheet's browse view, and swaps input ↔ review
@@ -238,7 +245,8 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
       <View style={styles.wrap}>
         <View style={styles.head}>
           <Text ref={titleRef} style={styles.title} accessibilityRole="header">{t('entry.describeMeal')}</Text>
-          <TouchableOpacity onPress={() => { setRows([]); setPhase('input'); }} hitSlop={12} accessibilityRole="button">
+          {/* A real TARGET box (cancelBtn), not a hitSlop TalkBack ignores. */}
+          <TouchableOpacity onPress={() => { setRows([]); setPhase('input'); }} style={styles.cancelBtn} accessibilityRole="button">
             <Text style={styles.back}>{t('mealText.startOver')}</Text>
           </TouchableOpacity>
         </View>
@@ -254,8 +262,9 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
                   ) : null}
                   {row.servingLabel ? <Text style={styles.cardSub}>{row.servingLabel}</Text> : null}
                 </View>
-                {/* 17dp glyph + 14dp slop each side = 45pt (S18-15). */}
-                <TouchableOpacity onPress={() => removeRow(i)} hitSlop={14} accessibilityRole="button" accessibilityLabel={t('common.remove')}>
+                {/* A real TARGET box around the 17 dp glyph: the hitSlop that
+                    carried it to 45 pt (S18-15) is invisible to TalkBack. */}
+                <TouchableOpacity onPress={() => removeRow(i)} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel={t('common.remove')}>
                   <Ionicons name="close" size={font.body} color={colors.muted} />
                 </TouchableOpacity>
               </View>
@@ -265,13 +274,16 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
                   <Text style={styles.warn}>{t(row.assumed ? 'mealText.assumed' : 'mealText.noMatch')}</Text>
                 </View>
               ) : null}
-              <View style={styles.macroRow}>
+              {/* One field per line past the add sheet's stacking scale, as its
+                  macro row does: four side by side cannot hold large text. */}
+              <View style={[styles.macroRow, stackMacros && styles.macroRowStacked]}>
                 {/* Words, not P/C/F codes (S18-17): the codes are jargon on a
-                    first read and letters to a screen reader. */}
-                <MacroField label={t('macro.kcal')} food={row.food} value={row.calories} onChange={(v) => editRow(i, 'calories', v)} />
-                <MacroField label={t('macro.protein')} food={row.food} value={row.protein} onChange={(v) => editRow(i, 'protein', v)} />
-                <MacroField label={t('macro.carbs')} food={row.food} value={row.carbs} onChange={(v) => editRow(i, 'carbs', v)} />
-                <MacroField label={t('macro.fat')} food={row.food} value={row.fat} onChange={(v) => editRow(i, 'fat', v)} />
+                    first read and letters to a screen reader. The unit in the
+                    caption; the spoken name says it as a word. */}
+                <MacroField label={t('macro.kcal')} spoken={t('entry.calories')} food={row.food} value={row.calories} onChange={(v) => editRow(i, 'calories', v)} stacked={stackMacros} />
+                <MacroField label={t('entry.proteinG')} spoken={t('mealText.proteinA11y')} food={row.food} value={row.protein} onChange={(v) => editRow(i, 'protein', v)} stacked={stackMacros} />
+                <MacroField label={t('entry.carbsG')} spoken={t('mealText.carbsA11y')} food={row.food} value={row.carbs} onChange={(v) => editRow(i, 'carbs', v)} stacked={stackMacros} />
+                <MacroField label={t('entry.fatG')} spoken={t('mealText.fatA11y')} food={row.food} value={row.fat} onChange={(v) => editRow(i, 'fat', v)} stacked={stackMacros} />
               </View>
             </View>
           ))}
@@ -335,26 +347,29 @@ export function MealText({ forDate, onAddMany, onCancel, seedText, onDirtyChange
   );
 }
 
-function MacroField({ label, food, value, onChange }: { label: string; food: string; value: string; onChange: (v: string) => void }) {
+function MacroField({ label, spoken, food, value, onChange, stacked }: { label: string; spoken: string; food: string; value: string; onChange: (v: string) => void; stacked: boolean }) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   // No return key was set, so an iPhone decimal pad offered no way to put the
   // keyboard away; this is RN's Done toolbar, localized (KeyboardBar.tsx).
   const kbProps = useDoneKeyProps();
   return (
-    <View style={styles.macroField}>
-      <Text style={styles.macroLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
+    <View style={stacked ? styles.macroFieldStacked : styles.macroField}>
+      <Text style={styles.macroLabel} numberOfLines={stacked ? undefined : 1} adjustsFontSizeToFit={!stacked} minimumFontScale={0.8}>{label}</Text>
       <SheetTextInput
         style={styles.macroInput}
         value={value}
         onChangeText={onChange}
-        keyboardType="numeric"
+        // Decimal, not `numeric`: Android's numeric pad can drop the comma a
+        // pt-BR user types (B10). `rowNumbers` reads it with `parseDecimal`.
+        inputMode="decimal"
         placeholder="0"
         placeholderTextColor={colors.faint}
         {...kbProps}
         // Which food, too: every card has the same four fields, and "kcal"
         // alone left a screen-reader user guessing which row they were in.
-        accessibilityLabel={`${label}, ${food}`}
+        // The unit as a word ("grams"), since "g" is read as a letter.
+        accessibilityLabel={`${spoken}, ${food}`}
       />
     </View>
   );
@@ -398,7 +413,13 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   warnRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   warn: { fontSize: font.tiny, color: colors.danger, fontWeight: '600' },
   macroRow: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
+  // Past STACK_FONT_SCALE: one field per line, full width (EntrySheet's row3Stacked).
+  macroRowStacked: { flexDirection: 'column', gap: space.md },
   macroField: { flex: 1, gap: 2 },
+  macroFieldStacked: { gap: 2 },
+  /** The remove ✕: a real TARGET box around the glyph; the negative margin
+   *  keeps the card head its old height. */
+  removeBtn: { minHeight: TARGET, minWidth: TARGET, alignItems: 'center', justifyContent: 'center', margin: -space.sm },
   macroLabel: { fontSize: font.tiny, color: colors.muted, textAlign: 'center' },
   // A word ("Proteína") has to fit where a letter did; the four fields split
   // the row equally, so the label shrinks before it wraps.
@@ -408,6 +429,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     borderColor: colors.lineStrong,
     borderRadius: radius.sm,
     paddingVertical: space.xs,
+    // TARGET tall (it was ~28 dp), the number centred in it.
+    minHeight: TARGET,
+    textAlignVertical: 'center',
     fontSize: font.small,
     color: colors.ink,
     textAlign: 'center',

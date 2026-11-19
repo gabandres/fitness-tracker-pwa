@@ -1764,7 +1764,7 @@ export function EntrySheet({
                         : [
                             p.name,
                             t('entry.caloriesA11y', { n: formatNumber(p.calories, locale) }),
-                            p.protein != null ? t('entry.proteinAmount', { n: formatNumber(p.protein, locale) }) : null,
+                            p.protein != null ? t('entry.proteinA11y', { n: formatNumber(p.protein, locale) }) : null,
                           ]
                             .filter(Boolean)
                             .join(', ')
@@ -1841,7 +1841,7 @@ export function EntrySheet({
                       row.name,
                       row.tag,
                       t('entry.caloriesA11y', { n: formatNumber(row.kcal, locale) }),
-                      row.protein != null ? t('entry.proteinAmount', { n: formatNumber(row.protein, locale) }) : null,
+                      row.protein != null ? t('entry.proteinA11y', { n: formatNumber(row.protein, locale) }) : null,
                     ]
                       .filter(Boolean)
                       .join(', ')
@@ -2292,7 +2292,9 @@ export function EntrySheet({
                   </Field>
 
                   <Field
-                    label={t('entry.calories')}
+                    // The unit in the caption; the field's spoken name stays
+                    // the word, since "kcal" is read letter by letter.
+                    label={t('entry.caloriesKcal')}
                     labelled
                     onLayout={(e) => (fieldBoxes.current.calories = e.nativeEvent.layout)}
                   >
@@ -2650,7 +2652,10 @@ export function EntrySheet({
                     accessibilityHint={saveBlocker ?? undefined}
                     testID="entry-save"
                   >
-                    <Text style={styles.saveText} maxFontSizeMultiplier={1.6}>{editing ? t('common.save') : t('entry.add')}</Text>
+                    {/* 2.0, not 1.6: the button has a min height, not a fixed
+                        one, and the label wraps centred, so it grows rather
+                        than clips. */}
+                    <Text style={styles.saveText} maxFontSizeMultiplier={2}>{editing ? t('common.save') : t('entry.add')}</Text>
                   </TouchableOpacity>
                 </View>
                 {/* Zero calories is the one rule nobody can guess (U7), so it
@@ -3035,6 +3040,6 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   deleteText: { color: colors.danger, fontWeight: '700', fontSize: font.body },
   save: { flex: 1, minHeight: 56, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: space.lg, alignItems: 'center', justifyContent: 'center' },
   saveDisabled: { opacity: 0.4 },
-  saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3 },
+  saveText: { color: colors.onInk, fontWeight: '700', fontSize: font.h3, textAlign: 'center' },
   saveHint: { color: colors.muted, fontSize: font.small, textAlign: 'center', paddingTop: space.xs },
 });

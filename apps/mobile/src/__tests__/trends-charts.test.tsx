@@ -26,6 +26,7 @@ import {
   rangeDays,
   rangesFor,
   trailingMean,
+  WeightTrendCard,
 } from '@/components/charts/TrendsCharts';
 import type { TdeeSeriesPoint } from '@macrolog/core';
 import { SleepTrendsCard } from '@/components/SleepTrendsCard';
@@ -150,6 +151,23 @@ describe('TrendChart accessibility', () => {
     expect(plot.props.accessibilityValue).toEqual({ text: 'Fri: 2,420' });
   });
 
+  it('appends the chart type and the axis span, in the chart\'s own number format', async () => {
+    const view = await render(
+      <TrendChart
+        dateKeys={keys}
+        lines={[{ key: 'tdee', values: [2400, 2410, 2420], color: '#f00' }]}
+        summary="Maintenance, last 3 days"
+        pointLabels={labels}
+        formatY={(v) => `#${Math.round(v)}`}
+        describeSpan={(min, max) => `Line chart, from ${min} to ${max} kcal.`}
+        testID="chart"
+      />,
+    );
+    expect(view.getByTestId('chart-plot').props.accessibilityLabel).toMatch(
+      /^Maintenance, last 3 days\. Line chart, from #\d+ to #\d+ kcal\.$/,
+    );
+  });
+
   it('steps a day at a time and stops at the ends', async () => {
     const { view } = await renderChart();
     const act = (name: string) =>
@@ -256,11 +274,68 @@ describe('the protein chart', () => {
       />,
     );
     const plot = view.getByTestId('protein-trend-chart-plot');
-    expect(plot.props.accessibilityLabel).toBe(
-      'Protein over the last 4 days, 120 g a day on average on logged days. The dotted line is your 120 g target; you reached it on 1 of 2 logged days.',
+    // The summary, then the chart type and axis span for a reader without
+    // the audio graph (standards sweep 2026-11-19).
+    expect(plot.props.accessibilityLabel).toMatch(
+      /^Protein over the last 4 days, 120 g a day on average on logged days\. The dotted line is your 120 g target; you reached it on 1 of 2 logged days\. Line chart, from \d+ to \d+ g\.$/,
     );
     // Today, the newest stop, is "in progress", not 20 g.
     expect(plot.props.accessibilityValue.text).toMatch(/today, still in progress/);
+  });
+});
+
+describe('empty charts offer the next action (standards sweep 2026-11-19)', () => {
+  const keys = ['2026-10-01', '2026-10-02', '2026-10-03'];
+
+  it('the protein empty state keeps its sentence and adds "Log food"', async () => {
+    const onLogFood = jest.fn();
+    const view = await render(
+      <ProteinTrendCard keys={keys} protein={[null, null, null]} days={3} target={0} milestones={{}} onOpenDay={jest.fn()} onLogFood={onLogFood} t={tFor(en)} locale="en" />,
+    );
+    expect(view.getByText('No food logged in the last 3 days.')).toBeTruthy();
+    const btn = view.getByTestId('protein-trend-empty-log');
+    expect(btn).toHaveTextContent('Log food');
+    await fireEvent.press(btn);
+    expect(onLogFood).toHaveBeenCalled();
+  });
+
+  it('the weight empty state keeps its sentence and adds "Log weight"', async () => {
+    const onLogWeight = jest.fn();
+    const view = await render(
+      <WeightTrendCard
+        keys={keys}
+        series={keys.map(() => ({ scale: null, trend: null }) as never)}
+        days={3}
+        unitSystem="us"
+        milestones={{}}
+        onOpenBody={jest.fn()}
+        onLogWeight={onLogWeight}
+        onOpenDay={jest.fn()}
+        t={tFor(en)}
+        locale="en"
+      />,
+    );
+    expect(view.getByTestId('weight-trend-empty')).toHaveTextContent(/No weigh-ins in the last 3 days\./);
+    await fireEvent.press(view.getByTestId('weight-trend-empty-log'));
+    expect(onLogWeight).toHaveBeenCalled();
+  });
+
+  it('the weight link\'s name starts with what it shows (WCAG 2.5.3)', async () => {
+    const view = await render(
+      <WeightTrendCard
+        keys={keys}
+        series={keys.map(() => ({ scale: 180, trend: 180 }) as never)}
+        days={3}
+        unitSystem="us"
+        milestones={{}}
+        onOpenBody={jest.fn()}
+        onOpenDay={jest.fn()}
+        t={tFor(en)}
+        locale="en"
+      />,
+    );
+    const link = view.getByTestId('weight-trend-open-body');
+    expect(String(link.props.accessibilityLabel).startsWith(en['trends.openBodyShort'])).toBe(true);
   });
 });
 

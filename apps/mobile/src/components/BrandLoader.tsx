@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Flame } from '@/components/Flame';
+import { useT } from '@/i18n';
 import { useTheme } from '@/lib/theme-context';
 import { font, space, type } from '@/theme';
 
@@ -54,6 +55,7 @@ function Ember({ x, delay, drift, dur, color }: { x: number; delay: number; drif
  */
 export function BrandLoader() {
   const { colors } = useTheme();
+  const t = useT();
   const reduce = useReducedMotion();
 
   // Wordmark rises + fades in under the flame.
@@ -67,7 +69,15 @@ export function BrandLoader() {
   }));
 
   return (
-    <View style={styles.wrap} testID="brand-loader">
+    // One element for a screen reader: "Loading, progress bar" — the flame and
+    // embers are decoration, and the wordmark alone said nothing of waiting.
+    <View
+      style={styles.wrap}
+      testID="brand-loader"
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={t('common.loading')}
+    >
       <View style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}>
         {!reduce &&
           EMBERS.map((e, i) => (

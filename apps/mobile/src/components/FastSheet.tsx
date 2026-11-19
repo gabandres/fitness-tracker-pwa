@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SheetTextInput } from '@/components/SheetTextInput';
 import {
   MAX_FAST_MS,
@@ -11,6 +11,7 @@ import {
 } from '@macrolog/core';
 import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
 import { confirmNative } from '@/components/ConfirmSheet';
+import { showToast, UNDO_TOAST_MS } from '@/components/Toast';
 import { type Locale, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import { formatDate, formatNumber, formatTime, localeTag } from '@/lib/date-format';
@@ -381,10 +382,32 @@ export function FastSheet({
     // The sheet closing is the visual receipt; this is the spoken one (A9).
     announce(t('fast.saved'));
     onClose();
+    await settleSave(written, start, effectiveEnd);
+  }
+
+  /** A late failure is a toast with Retry, not a blocking alert: the sheet is
+   *  already closed and the user has moved on. Retry writes the same interval
+   *  again, and a second failure says so the same way. */
+  async function settleSave(written: Promise<void>, from: Date, to: Date) {
     try {
       await written;
     } catch {
-      Alert.alert(t('fast.errSaveTitle'), t('fast.errSaveBody'));
+      showToast(t('fast.errSaveToast'), {
+        testID: 'fast-save-failed',
+        durationMs: UNDO_TOAST_MS,
+        action: {
+          label: t('common.retry'),
+          onPress: () => {
+            let again: Promise<void>;
+            try {
+              again = Promise.resolve(onSave(from, to));
+            } catch (e) {
+              again = Promise.reject(e);
+            }
+            void settleSave(again, from, to);
+          },
+        },
+      });
     }
   }
 

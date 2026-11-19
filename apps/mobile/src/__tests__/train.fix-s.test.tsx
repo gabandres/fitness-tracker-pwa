@@ -1,6 +1,7 @@
 import React from 'react';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { StyleSheet } from 'react-native';
 import { fireEvent, renderWithProviders as render, waitFor, within } from '@/test-utils';
 import type { WorkoutSession, WorkoutTemplate } from '@/lib/workout';
 
@@ -129,6 +130,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockRestRemaining = 0;
   mockTrain.recentSessions = [];
+  mockTrain.templates = [pushTemplate];
   mockTrain.active = live([bench([{ kind: 'working', done: false }, { kind: 'working', done: false }])]);
 });
 
@@ -349,6 +351,46 @@ describe('one-off templates (2026-11-16): stack positions and Gym busy on', () =
     await fireEvent.changeText(ui.getByTestId('set-weight-0-0'), '7');
     expect(patches()).toContainEqual({ plate: 7, weight: undefined, unit: undefined });
     expect(patches().some((p) => typeof p.weight === 'number')).toBe(false);
+  });
+
+  it('both switches: TARGET boxes with no slop, spoken names that start with the visible words (2026-11-19)', async () => {
+    const { TARGET } = jest.requireActual('@/theme') as { TARGET: number };
+    mockTrain.active = live([stackRow([{ kind: 'working', done: false }])]);
+    const ui = await render(<TrainScreen />);
+    for (const id of ['unit-switch-0', 'plate-switch-0']) {
+      const sw = ui.getByTestId(id);
+      expect(sw.props.hitSlop).toBeUndefined();
+      expect(StyleSheet.flatten(sw.props.style)).toMatchObject({ minHeight: TARGET, minWidth: TARGET });
+    }
+    expect(ui.getByTestId('unit-switch-0').props.accessibilityLabel).toMatch(/^kg or lb, /);
+    expect(ui.getByTestId('plate-switch-0').props.accessibilityLabel).toMatch(/^Plate number, /);
+  });
+
+  it('in plate mode the load column says "Plate", not a second "#"', async () => {
+    mockTrain.active = live([stackRow([{ kind: 'working', done: false }])]);
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('plate-switch-0'));
+    expect(ui.getByText('Plate', { includeHiddenElements: true })).toBeTruthy();
+    expect(ui.getAllByText('#', { includeHiddenElements: true })).toHaveLength(1);
+  });
+
+  it('the time-cap note is announced once, when the cap is crossed — not on mount, not per render', async () => {
+    const capped = (minutes: number) => ({ ...pushTemplate, timeCap: { minutes, drop: ['Row'] } }) as unknown as WorkoutTemplate;
+    const started = new Date(Date.now() - 30 * 60_000);
+    mockTrain.active = { ...live([bench([{ kind: 'working', done: false }])]), date: started } as WorkoutSession;
+    mockTrain.templates = [capped(60)];
+    mockAnnounce.mockClear();
+    const ui = await render(<TrainScreen />);
+    const capCalls = () => mockAnnounce.mock.calls.filter(([m]) => typeof m === 'string' && m.startsWith('Past 20 min'));
+    expect(ui.queryByTestId('session-time-cap')).toBeNull();
+    expect(capCalls()).toHaveLength(0);
+    // The cap moves under the session: crossed now.
+    mockTrain.templates = [capped(20)];
+    await ui.rerender(<TrainScreen />);
+    expect(ui.getByTestId('session-time-cap')).toBeTruthy();
+    expect(capCalls()).toHaveLength(1);
+    await ui.rerender(<TrainScreen />);
+    expect(capCalls()).toHaveLength(1);
   });
 
   it('kg is still the default on such a row, and a row without the flag has no plate switch', async () => {

@@ -334,6 +334,17 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   // Both are stable: they go into the `memo`'d chart cards, and a fresh
   // function per render re-rendered both charts on every Trends render.
   const openBody = useCallback(() => router.navigate('/body' as Href), [router]);
+  // The empty charts' next actions: Body's `weigh` nonce opens its weigh-in
+  // sheet (the Siri route), Today's `openAdd` nonce opens the EntrySheet (the
+  // tab bar's Log button).
+  const logWeight = useCallback(
+    () => router.navigate({ pathname: '/body', params: { weigh: String(Date.now()) } } as Href),
+    [router],
+  );
+  const logFood = useCallback(
+    () => router.navigate({ pathname: '/(app)', params: { openAdd: String(Date.now()) } } as Href),
+    [router],
+  );
   const openDay = useCallback(
     (dateKey: string) => {
       haptics.tap();
@@ -367,7 +378,6 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
           onPress={() => { haptics.tap(); setGlossaryOpen(true); }}
           accessibilityRole="button"
           accessibilityLabel={t('numbers.glossaryOpen')}
-          hitSlop={10}
           style={styles.headerHelp}
           testID="trends-glossary-open"
         >
@@ -648,6 +658,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               unitSystem={compUnits}
               milestones={milestones}
               onOpenBody={openBody}
+              onLogWeight={logWeight}
               onOpenDay={openDay}
               range={range}
               onRange={setRange}
@@ -670,6 +681,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
               target={proteinTarget}
               milestones={milestones}
               onOpenDay={openDay}
+              onLogFood={logFood}
               todayKey={todayKey}
               range={range}
               onRange={setRange}
@@ -1415,7 +1427,8 @@ const createStyles = ({ colors, shadow }: Theme) =>
     headerEdge: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, backgroundColor: colors.line, pointerEvents: 'none' },
     // Pushes the "?" up against the avatar instead of leaving it stranded in
     // the middle of the row, which `space-between` would otherwise do.
-    headerHelp: { marginLeft: 'auto', marginRight: space.md },
+    // A real TARGET box around the 24 pt glyph, not slop — Body's header button.
+    headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
     title: { fontFamily: type.display, fontSize: font.h1, color: colors.ink, paddingHorizontal: space.xl },
     // `paddingBottom` is FAB_BAND, not `space.xl`: the floating + button
     // overhangs the scroll area, and 24 dp left the last element under it.
@@ -1460,7 +1473,7 @@ const createStyles = ({ colors, shadow }: Theme) =>
     tileSub: { fontSize: font.small, color: colors.muted },
     // A locked tile: a dashed outline in `lineStrong` (3.3:1 on card) with the
     // unlock condition inside — never a filled bar that reads as loading.
-    tileLocked: { minHeight: 44, justifyContent: 'center', borderRadius: radius.sm, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.lineStrong, paddingHorizontal: space.sm, paddingVertical: space.xs, marginVertical: 2 },
+    tileLocked: { minHeight: TARGET, justifyContent: 'center', borderRadius: radius.sm, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.lineStrong, paddingHorizontal: space.sm, paddingVertical: space.xs, marginVertical: 2 },
     tileLockedText: { fontSize: font.small, color: colors.muted },
     weekNudge: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
     weekHint: { fontSize: font.small, color: colors.muted },

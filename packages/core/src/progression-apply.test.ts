@@ -137,6 +137,19 @@ describe('carryAndStampRows — who last changed a template row', () => {
     expect([out.lastModifiedAt, out.lastModifiedBy]).toEqual(['2026-10-09T04:00:00.000Z', 'prompt']);
   });
 
+  it('carries stackPositions, excludedReads and ladder across an editor save (2026-11-19)', () => {
+    const before = [row('cr', {
+      stackPositions: true,
+      excludedReads: [{ date: '2026-10-14', reason: 'position changed' }],
+      ladder: { capReps: 20, harder: 'x2' },
+    })];
+    const [out] = carryAndStampRows(before, [row('cr')], { at, by: 'user' });
+    expect(out.stackPositions).toBe(true);
+    expect(out.excludedReads).toEqual([{ date: '2026-10-14', reason: 'position changed' }]);
+    expect(out.ladder).toEqual({ capReps: 20, harder: 'x2' });
+    expect(out.lastModifiedBy).toBeUndefined();
+  });
+
   it('stamps a changed row, a moved row and a new row — and only those', () => {
     const before = [row('a'), row('b'), row('c')];
     const after = [row('b'), row('a'), row('c', { targetLoad: 25 }), row('d')];

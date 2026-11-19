@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ReactNode } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 import { openStoreListing } from '@/lib/app-update';
@@ -34,6 +34,10 @@ export function UpdateRequiredScreen() {
       accessibilityViewIsModal
       testID="update-required"
     >
+      {/* Scrolls rather than clips: at the largest text size the copy pushed
+          the one button that resolves this screen off the bottom. `flexGrow`
+          keeps the layout exactly as before whenever it fits. */}
+      <ScrollView style={styles.fill} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
       <View style={styles.body}>
         <Ionicons name="arrow-up-circle" size={56} color={colors.accent} importantForAccessibility="no" accessibilityElementsHidden />
         <Text style={styles.title} accessibilityRole="header">
@@ -53,6 +57,7 @@ export function UpdateRequiredScreen() {
       >
         <Text style={styles.buttonText}>{t('update.required.action')}</Text>
       </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
@@ -93,6 +98,8 @@ const createStyles = ({ colors }: Theme) =>
       zIndex: 1000,
       elevation: 1000,
     },
+    fill: { flex: 1 },
+    scroll: { flexGrow: 1, justifyContent: 'space-between' },
     body: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.lg },
     // Manrope carries its own weight — no `fontWeight` (ADR-0014).
     title: { fontFamily: type.heading, fontSize: font.h2, color: colors.ink, textAlign: 'center' },

@@ -61,7 +61,8 @@ it('asks "End session at last set?" on a session open over 2 h — End opens Fin
   await renderHook(() => useSessionIdle({ active: s, editingExisting: false, finishWorkout: jest.fn() }, openFinish, false));
   await waitFor(() => expect(mockConfirm).toHaveBeenCalledTimes(1));
   const ask = mockConfirm.mock.calls[0][0];
-  expect(ask.title).toMatch(/^End session at last set \(/);
+  // "workout", not "session": one word for one thing in the logger (2026-11-19).
+  expect(ask.title).toMatch(/^End workout at last set \(/);
   expect(ask.secondaryText).toBe('Enter duration');
   expect(ask.cancelText).toBe('Keep going');
   ask.onConfirm();

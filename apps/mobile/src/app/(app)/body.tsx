@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams, useScrollToTop } from 'expo-router';
 import { Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   type Measurement,
@@ -63,6 +69,9 @@ import { Touchable } from '@/components/Touchable';
  * per render.
  */
 const DAY_FORMATS = new Map<Locale, Intl.DateTimeFormat>();
+
+/** Scroll distance over which the header's bottom hairline fades in (Trends'). */
+const HEADER_EDGE_FADE = 12;
 function dayLabel(dateKey: string, locale: Locale): string {
   let f = DAY_FORMATS.get(locale);
   if (!f) {
@@ -245,6 +254,16 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   // Trends do (review 2026-10-06).
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
+  // The scroll-edge hairline Today and Trends draw under their fixed header —
+  // the cue a native large-title bar gives when content passes under it, on
+  // the UI thread so the scroll never round-trips through JS.
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+  const headerEdge = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [0, HEADER_EDGE_FADE], [0, 1], Extrapolation.CLAMP),
+  }));
   // Pull-to-refresh: the listeners are live, so this re-runs only what is not
   // — the parked queue, a Health import, the goal's start line — and the
   // spinner holds until those settle.
@@ -622,14 +641,17 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
           <Glyph ios="questionmark.circle" android="help-circle-outline" size={24} color={colors.muted} />
         </TouchableOpacity>
         <HeaderAvatar />
+        <Animated.View style={[styles.headerEdge, headerEdge]} />
       </View>
       <BodyGlossary visible={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
       {loading ? (
         <BodySkeleton />
       ) : (
-        <ScrollView
+        <Animated.ScrollView
           ref={scrollRef}
           testID="body-scroll"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           contentContainerStyle={styles.body}
           refreshControl={<RefreshControl refreshing={pulling} onRefresh={onPullRefresh} tintColor={colors.muted} colors={[colors.accent]} />}
         >
@@ -663,16 +685,20 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                   openWeighIn(null);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel={todayWeight != null ? t('body.updateWeight') : t('body.logWeight')}
                 // `CountUpText` is a TextInput under the hood, which VoiceOver
-                // reads as an edit box; the value on the button is what a reader
-                // actually gets (UX_AUDIT S18-5).
-                accessibilityValue={{
-                  text:
-                    currentWeight != null
-                      ? `${wt(currentWeight, unitSystem, locale)} ${unit}`
-                      : t('body.noWeightYet'),
-                }}
+                // reads as an edit box, so the name carries the number (UX_AUDIT
+                // S18-5). It LEADS with the visible "177.5 lb", unit spoken, so
+                // a voice-control user can say what they see (WCAG 2.5.3).
+                accessibilityLabel={
+                  currentWeight != null
+                    ? t('body.heroA11y', {
+                        weight: wt(currentWeight, unitSystem, locale),
+                        unit: t(unit === 'kg' ? 'body.unitKgLong' : 'body.unitLbLong'),
+                        action: todayWeight != null ? t('body.updateWeight') : t('body.logWeight'),
+                      })
+                    : t('body.logWeight')
+                }
+                accessibilityValue={currentWeight != null ? undefined : { text: t('body.noWeightYet') }}
                 testID="body-hero-tap"
               >
                 {currentWeight != null ? (
@@ -787,7 +813,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                 <View style={styles.goalWrap} testID="goal-card">
                   <View style={styles.goalHead}>
                     <Text style={styles.goalStart}>{wt(goalProgress.startWeight, unitSystem, locale)} {unit}</Text>
-                    <Text style={styles.goalPct}>{formatNumber(goalProgress.pct, locale)}%</Text>
+                    <Text style={styles.goalPct}>{t('body.goalPctOfWay', { pct: formatNumber(goalProgress.pct, locale) })}</Text>
                     <Text style={styles.goalEnd}>{wt(goalProgress.goalWeight, unitSystem, locale)} {unit}</Text>
                   </View>
                   {/* A real progress bar to assistive tech (A10), not two
@@ -944,7 +970,7 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
           )}
 
           <HealthFooter />
-        </ScrollView>
+        </Animated.ScrollView>
       )}
 
       <WeightSheet
@@ -1032,6 +1058,7 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   headerRow: { ...contentColumn, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: space.xl, paddingTop: space.md, paddingBottom: space.sm },
   // Pushed against the avatar, as on Trends; a real 44/48 target rather than
   // a 24 pt glyph with slop.
+  headerEdge: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, backgroundColor: colors.line, pointerEvents: 'none' },
   headerHelp: { marginLeft: 'auto', marginRight: space.xs, minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   showMore: { minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   // See FAB_BAND — the + button overhangs every tab's scroll area.

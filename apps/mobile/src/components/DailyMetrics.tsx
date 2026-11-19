@@ -789,7 +789,9 @@ function WaterModal({
               <Text style={styles.sheetTitle} accessibilityRole="header">
                 {t(mode === 'add' ? 'water.addTitle' : 'water.setTitle')}
               </Text>
-              <TouchableOpacity onPress={toggleMode} hitSlop={12} accessibilityRole="button" testID="water-mode-toggle">
+              {/* A real TARGET box (`sheetLinkBtn`), not a hitSlop TalkBack
+                  ignores; the negative margin keeps the title row's height. */}
+              <TouchableOpacity onPress={toggleMode} style={styles.sheetLinkBtn} accessibilityRole="button" testID="water-mode-toggle">
                 <Text style={styles.sheetLink}>
                   {t(mode === 'add' ? 'water.switchToSet' : 'water.switchToAdd')}
                 </Text>
@@ -879,6 +881,8 @@ function SleepModal({
   const bedTime = bed.trim() === '' ? null : normalizeClockTime(bed);
   const wakeTime = wake.trim() === '' ? null : normalizeClockTime(wake);
   const timesValid = bedTime !== undefined && wakeTime !== undefined;
+  // Said, not only enforced: past 24 Save just went grey with no reason.
+  const hoursOutOfRange = value.trim() !== '' && Number.isFinite(n) && (n < 0 || n > 24);
   const valid = value.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 24 && timesValid;
   const save = () => valid && onSave(n, { bedtime: bedTime ?? null, wakeTime: wakeTime ?? null });
 
@@ -905,30 +909,47 @@ function SleepModal({
         />
         <Text style={styles.inputUnit}>{t('metrics.hoursUnit')}</Text>
       </View>
+      {hoursOutOfRange ? (
+        <Text
+          style={[styles.sheetNote, styles.sheetNoteBad]}
+          accessibilityLiveRegion="polite"
+          testID="sleep-hours-invalid"
+        >
+          {t('metrics.sleepHoursRange')}
+        </Text>
+      ) : null}
       <Text style={styles.sheetNote}>{t('metrics.sleepActualHint')}</Text>
+      {/* Visible labels (WCAG 3.3.2): the placeholders were the only ones,
+          and they went the moment a time was typed. */}
       <View style={styles.inputRow}>
-        <SheetTextInput
-          style={styles.input}
-          placeholder={t('metrics.bedtimePlaceholder')}
-          placeholderTextColor={colors.faint}
-          keyboardType="numbers-and-punctuation"
-          value={bed}
-          onChangeText={setBed}
-          {...doneKeyProps}
-          accessibilityLabel={t('metrics.bedtime')}
-          testID="sleep-bedtime"
-        />
-        <SheetTextInput
-          style={styles.input}
-          placeholder={t('metrics.wakePlaceholder')}
-          placeholderTextColor={colors.faint}
-          keyboardType="numbers-and-punctuation"
-          value={wake}
-          onChangeText={setWake}
-          {...doneKeyProps}
-          accessibilityLabel={t('metrics.wakeTime')}
-          testID="sleep-wake"
-        />
+        <View style={styles.timeField}>
+          <Text style={styles.fieldLabel}>{t('metrics.bedtime')}</Text>
+          <SheetTextInput
+            style={styles.input}
+            placeholder={t('metrics.bedtimePlaceholder')}
+            placeholderTextColor={colors.faint}
+            keyboardType="numbers-and-punctuation"
+            value={bed}
+            onChangeText={setBed}
+            {...doneKeyProps}
+            accessibilityLabel={t('metrics.bedtime')}
+            testID="sleep-bedtime"
+          />
+        </View>
+        <View style={styles.timeField}>
+          <Text style={styles.fieldLabel}>{t('metrics.wakeTime')}</Text>
+          <SheetTextInput
+            style={styles.input}
+            placeholder={t('metrics.wakePlaceholder')}
+            placeholderTextColor={colors.faint}
+            keyboardType="numbers-and-punctuation"
+            value={wake}
+            onChangeText={setWake}
+            {...doneKeyProps}
+            accessibilityLabel={t('metrics.wakeTime')}
+            testID="sleep-wake"
+          />
+        </View>
       </View>
       {!timesValid ? <Text style={[styles.sheetNote, styles.sheetNoteBad]} testID="sleep-times-invalid">{t('metrics.clockInvalid')}</Text> : null}
       <TouchableOpacity
@@ -980,7 +1001,12 @@ function HungerModal({
               onPress={() => { haptics.selection(); setPicked(n); }}
               accessibilityRole="radio"
               accessibilityState={{ selected: on }}
-              accessibilityLabel={String(n)}
+              // "3 of 10", and the meaning at the two ends the legend below
+              // names (0 = full, 10 = starving): a bare "3" said nothing.
+              accessibilityLabel={t(
+                n === HUNGER_MIN ? 'metrics.hungerChipFullA11y' : n === HUNGER_MAX ? 'metrics.hungerChipStarvingA11y' : 'metrics.hungerChipA11y',
+                { n },
+              )}
               testID={`hunger-chip-${n}`}
             >
               <Text style={[styles.hungerChipText, on && styles.hungerChipTextOn]}>{n}</Text>
@@ -1071,6 +1097,9 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   sheetTitleRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   // Muted and small on purpose: it is a way out, not a second primary action.
   sheetLink: { fontSize: font.small, color: colors.muted, textDecorationLine: 'underline' },
+  sheetLinkBtn: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center', alignItems: 'flex-end', marginVertical: -space.sm },
+  timeField: { flex: 1, gap: space.xs },
+  fieldLabel: { fontSize: font.small, color: colors.muted, fontWeight: '600' },
   waterValue: { color: colors.teal },
   pill: {
     minWidth: TARGET,

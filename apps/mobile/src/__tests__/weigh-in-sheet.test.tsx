@@ -128,6 +128,14 @@ describe('the weigh-in sheet matches the water sheet', () => {
     expect(input.props.keyboardType).toBe('decimal-pad');
   });
 
+  it('has a leading Cancel that closes an untouched sheet (standards sweep 2026-11-19)', async () => {
+    const view = await openSheet();
+    const cancel = view.getByTestId('weight-cancel');
+    expect(cancel.props.accessibilityRole).toBe('button');
+    await fireEvent.press(cancel);
+    await waitFor(() => expect(view.queryByTestId('weight-input')).toBeNull());
+  });
+
   it('names the current weight at rest', async () => {
     const view = await openSheet();
     expect(view.getByTestId('weight-note').props.children).toContain('180.4');

@@ -208,8 +208,9 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   // was a 24×20 target (Train review item 16). minWidth so a scaled "2a"
   // grows the cell instead of clipping (item 17).
   //
-  // 30 wide plus an 8pt slop each side: 46pt of target, past HIG's 44 on
-  // the axis that was short, without taking 16pt from the number fields
+  // 30 wide plus a slop each side (`SET_NUM_REACH` in SetRow: 8pt → 46 on
+  // iOS, 9dp → 48 on Android): TARGET on the axis that was short, without
+  // taking 16pt from the number fields
   // (Train re-score 3). The slop's right edge lands on PREVIOUS, which has
   // no target of its own. Was 36: the 6pt went to the RIR cell (F13).
   setNumCell: { minWidth: 30, minHeight: TARGET, justifyContent: 'center' },
@@ -699,6 +700,10 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   optionChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: 2 },
   optionChip: { fontSize: font.tiny, color: colors.muted, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: space.sm, paddingVertical: 2, overflow: 'hidden' },
   unitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm, marginTop: 2 },
+  // The press box is TARGET square at least; the 28pt pill sits inside it.
+  // Was the pill plus 8pt of hitSlop (44 tall, short of Android's 48), and the
+  // two switches' slops met in the space.sm gap (2026-11-19).
+  unitSwitchHit: { minHeight: TARGET, minWidth: TARGET, alignItems: 'center', justifyContent: 'center' },
   unitSwitch: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 28, paddingHorizontal: space.sm, borderRadius: 999, borderWidth: 1, borderColor: colors.line },
   unitSwitchText: { fontSize: font.small, color: colors.faint, fontWeight: '600' },
   unitSwitchOn: { color: colors.ink, fontWeight: '800' },
@@ -729,6 +734,8 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
     justifyContent: 'center',
   },
   calibBtnText: { fontSize: font.small, color: colors.onFill, fontWeight: '800' },
+  /** Finish sheet's "Keep … instead" toggle: a one-line text, TARGET tall. */
+  finishKeepLong: { alignSelf: 'flex-start', minHeight: TARGET, justifyContent: 'center' },
   calibDismiss: { minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.xs },
   calibDismissText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
   // Lift settings sheet: effort standard chips + the band override field.

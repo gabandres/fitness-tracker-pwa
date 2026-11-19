@@ -15,6 +15,7 @@ import {
 } from '@macrolog/core';
 import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
+import { SheetHeader } from '@/components/SheetHeader';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { type Locale, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
@@ -272,9 +273,16 @@ export function WeightSheet({
       guarded={dirty}
       backdropTestID="weight-sheet-backdrop"
     >
-      <Text style={styles.sheetTitle} accessibilityRole="header" testID="weight-title">
-        {title}
-      </Text>
+      {/* A leading Cancel beside the title, the way every Train sheet has a
+          visible way out; it takes the same guarded path as a drag or the
+          backdrop, so a typed value still asks before it is thrown away. */}
+      <View style={styles.sheetHeader}>
+        <SheetHeader
+          title={title}
+          leading={{ label: t('common.cancel'), onPress: () => requestClose('back'), testID: 'weight-cancel' }}
+          testID="weight-title"
+        />
+      </View>
       <DayStepper
         dateKey={dateKey}
         onChange={changeDay}
@@ -344,7 +352,7 @@ export function WeightSheet({
 
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
-    sheetTitle: { fontSize: font.h2, fontWeight: '800', color: colors.ink, marginBottom: space.md },
+    sheetHeader: { marginBottom: space.md },
     inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
     input: {
       flex: 1,

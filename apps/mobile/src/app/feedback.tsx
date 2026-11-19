@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,6 +19,7 @@ import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { Touchable } from '@/components/Touchable';
+import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 
 /**
  * In-app feedback.
@@ -62,6 +64,12 @@ const CATEGORIES: { key: FeedbackCategory; labelKey: I18nKey; icon: keyof typeof
 // platforms: under <KeyboardProvider> Android does not resize the window for
 // the IME, so adjustResize alone left fields and footers behind the keyboard
 // (emulator, 2026-10-06).
+/** Would leaving now lose a draft (rule A31)? Only an unsent note with
+ *  something in it; a category tap alone is not worth a prompt. */
+export function feedbackDirty(message: string, sent: boolean): boolean {
+  return !sent && message.trim().length > 0;
+}
+
 export default function FeedbackScreen() {
   const t = useT();
   const styles = useThemedStyles(createStyles);
@@ -73,6 +81,19 @@ export default function FeedbackScreen() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Discard guard (A31). Once sent, the screen is a confirmation and back is free.
+  const navigation = useNavigation();
+  usePreventRemove(feedbackDirty(message, sent), ({ data }) => {
+    confirm({
+      title: t('train.discardChangesTitle'),
+      body: t('entry.discardBody'),
+      confirmText: t('entry.discard'),
+      cancelText: t('entry.keepEditing'),
+      destructive: true,
+      onConfirm: () => navigation.dispatch(data.action),
+    });
+  });
 
   const over = message.length - FEEDBACK_MAX_LENGTH;
   const canSend = message.trim().length > 0 && over <= 0 && !busy;
@@ -202,6 +223,9 @@ export default function FeedbackScreen() {
           </Touchable>
         </View>
       </KeyboardAvoidingView>
+      {/* A root stack route over the tabs: the tab layout's host would draw
+          the discard confirm beneath this screen (as in settings.tsx). */}
+      <ConfirmHost />
     </SafeAreaView>
   );
 }

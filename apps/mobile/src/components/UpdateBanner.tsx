@@ -4,7 +4,7 @@ import { useT } from '@/i18n';
 import { useOtaUpdate, useStoreUpdate } from '@/lib/app-update';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, radius, space } from '@/theme';
+import { font, radius, space, TARGET } from '@/theme';
 
 /** "Your app is out of date" card on Today, covering BOTH update mechanisms.
  *
@@ -29,15 +29,16 @@ export function useUpdateVisible(): boolean {
  * How far the banner's text grows with Dynamic Type / font scale. Uncapped, at
  * the largest accessibility size the two lines wrapped to a dozen and the
  * banner filled Today's whole first screen (S21-8) — a prompt that hides the
- * thing it is prompting about. 1.6× is still well past the default size, and
- * the full sentence is in the accessibility label for a screen reader.
+ * thing it is prompting about. 2.0× is well past the default size, and the
+ * full sentence is in the accessibility label for a screen reader.
  *
- * With every line held to ONE (`numberOfLines`), that bounds the card at AX5
- * to two ~22pt lines plus padding — about a tenth of the first screen
+ * With the title and body held to TWO lines each (`numberOfLines`; 1.6× and
+ * one line each truncated the body mid-sentence at large sizes), that bounds
+ * the card at AX5 to four ~28pt lines plus padding — under a fifth of the first screen
  * (`fontscale-s21-ui.test.tsx` pins the cap, the line counts and the
  * target). The icons are fixed-size glyphs and do not grow.
  */
-export const BANNER_MAX_SCALE = 1.6;
+export const BANNER_MAX_SCALE = 2.0;
 
 export function UpdateBanner({ suppressed = false }: { suppressed?: boolean }) {
   const t = useT();
@@ -66,10 +67,10 @@ export function UpdateBanner({ suppressed = false }: { suppressed?: boolean }) {
         <View style={styles.left}>
           <Ionicons name="arrow-down-circle" size={20} color={colors.accent} />
           <View style={styles.textCol}>
-            <Text style={styles.title} numberOfLines={1} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
+            <Text style={styles.title} numberOfLines={2} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
               {t('update.ota.title')}
             </Text>
-            <Text style={styles.body} numberOfLines={1} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
+            <Text style={styles.body} numberOfLines={2} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
               {t('update.ota.body')}
             </Text>
           </View>
@@ -100,19 +101,18 @@ export function UpdateBanner({ suppressed = false }: { suppressed?: boolean }) {
       >
         <Ionicons name="cloud-download-outline" size={20} color={colors.accent} />
         <View style={styles.textCol}>
-          <Text style={styles.title} numberOfLines={1} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
+          <Text style={styles.title} numberOfLines={2} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
             {t('update.store.title')}
           </Text>
-          <Text style={styles.body} numberOfLines={1} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
+          <Text style={styles.body} numberOfLines={2} maxFontSizeMultiplier={BANNER_MAX_SCALE}>
             {t('update.store.body')}
           </Text>
         </View>
       </TouchableOpacity>
       <TouchableOpacity
-        // 44×44 on its own, not by `hitSlop` — a slop overlapping the card's
-        // other button is ambiguous about which one a tap meant.
-        // (`settings-s21.test.tsx` pins the literal; moving it to `TARGET`
-        // — 48dp on Android — means updating that pin with it.)
+        // TARGET (44pt iOS / 48dp Android) on its own, not by `hitSlop` — a
+        // slop overlapping the card's other button is ambiguous about which
+        // one a tap meant. (`settings-s21.test.tsx` pins it.)
         style={styles.dismiss}
         onPress={() => {
           haptics.tap();
@@ -146,5 +146,5 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   title: { fontSize: font.small, color: colors.ink, fontWeight: '800' },
   body: { fontSize: font.small, color: colors.muted, lineHeight: 18 },
   action: { fontSize: font.small, color: colors.accent, fontWeight: '800' },
-  dismiss: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -space.sm },
+  dismiss: { minWidth: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center', marginRight: -space.sm },
 });

@@ -151,8 +151,9 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
               const logged = (summary?.totalCalories ?? 0) > 0;
               const weighed = summary?.weightLb != null;
               const isToday = cell.key === todayKey;
-              // The dots are the only cue on a sighted cell; a reader gets the
-              // date plus what each dot means (UX_AUDIT S18-5).
+              // The marks are the only cue on a sighted cell; a reader gets the
+              // date plus what each mark means (UX_AUDIT S18-5) — "logged",
+              // "weigh-in", both or neither, in words.
               const a11y = [
                 dayLabel(cell.key, locale),
                 logged ? t('history.logged') : null,
@@ -175,8 +176,8 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
                       {parseInt(cell.key.slice(8), 10)}
                     </Text>
                     <View style={styles.dotRow}>
-                      {logged ? <View style={styles.dot} /> : null}
-                      {weighed ? <View style={styles.dotWeight} /> : null}
+                      {logged ? <View style={styles.dot} testID="mark-logged" /> : null}
+                      {weighed ? <View style={styles.dotWeight} testID="mark-weighed" /> : null}
                     </View>
                   </View>
                 </Pressable>
@@ -197,8 +198,9 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
             </Text>
           ) : null}
 
-          {/* Names what the two dot colors mean — the encoding was unexplained
-              anywhere on screen (UX_AUDIT S16-4). */}
+          {/* Names what the two marks mean — the encoding was unexplained
+              anywhere on screen (UX_AUDIT S16-4). A filled dot and a hollow
+              ring, so shape tells them apart as well as colour (WCAG 1.4.1). */}
           <View style={styles.legendRow}>
             <View style={styles.legendItem}>
               <View style={styles.dot} />
@@ -214,6 +216,16 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
             <View style={styles.empty}>
               <Text style={styles.emptyText}>{t('history.emptyTitle')}</Text>
               <Text style={styles.emptyHint}>{t('history.emptyHint')}</Text>
+              {/* The next action, through the route the tab bar's Log button
+                  takes: Today with an `openAdd` nonce opens the food sheet. */}
+              <Pressable
+                onPress={() => router.navigate({ pathname: '/(app)', params: { openAdd: String(Date.now()) } })}
+                style={styles.emptyAction}
+                accessibilityRole="button"
+                testID="history-empty-log"
+              >
+                <Text style={styles.emptyActionText}>{t('log.openA11y')}</Text>
+              </Pressable>
             </View>
           ) : (
             <>
@@ -225,9 +237,13 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
                     style={styles.recentRow}
                     onPress={() => router.push(`/history/${d.dateKey}`)}
                     accessibilityRole="button"
+                    // The value is in the name ("Tue, Nov 17, 1,850 calories
+                    // logged"), the unit spoken as a word, not "kcal".
                     accessibilityLabel={[
                       dayLabel(d.dateKey, locale),
-                      d.totalCalories > 0 ? t('history.logged') : null,
+                      d.totalCalories > 0
+                        ? t('history.recentKcalA11y', { n: formatNumber(d.totalCalories, locale) })
+                        : null,
                       d.weightLb != null ? t('history.weighIn') : null,
                     ]
                       .filter(Boolean)
@@ -242,7 +258,9 @@ function HistoryCalendarScreen({ onRetry }: { onRetry: () => void }) {
                         {d.weightLb != null ? `  ·  ${formatBodyWeight(d.weightLb, unitSystem)}` : ''}
                       </Text>
                     </View>
-                    <Text style={styles.recentKcal}>{formatNumber(d.totalCalories, locale)}</Text>
+                    <Text style={styles.recentKcal}>
+                      {formatNumber(d.totalCalories, locale)} <Text style={styles.recentUnit}>{t('today.kcal')}</Text>
+                    </Text>
                     <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={16} color={colors.faint} />
                   </Pressable>
                 ))}
@@ -289,15 +307,19 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   cellNum: { fontSize: font.small, color: colors.ink, fontWeight: '600' },
   cellNumToday: { color: colors.accent, fontWeight: '800' },
   cellOut: { color: colors.faint }, // adjacent-month days: dimmer, still tappable
-  dotRow: { flexDirection: 'row', gap: 3, height: 6, alignItems: 'center' },
+  dotRow: { flexDirection: 'row', gap: 3, height: 7, alignItems: 'center' },
   legendRow: { flexDirection: 'row', justifyContent: 'center', gap: space.lg, marginTop: space.sm },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   legendText: { fontSize: font.tiny, color: colors.faint },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  dotWeight: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.teal },
+  // A hollow ring one size up, so a weigh-in differs from a logged day by
+  // SHAPE as well as colour (WCAG 1.4.1).
+  dotWeight: { width: 7, height: 7, borderRadius: 3.5, borderWidth: 1.5, borderColor: colors.teal, backgroundColor: 'transparent' },
   empty: { alignItems: 'center', gap: space.xs, paddingVertical: space.xl },
   emptyText: { fontSize: font.body, color: colors.muted, fontWeight: '600' },
   emptyHint: { fontSize: font.small, color: colors.faint },
+  emptyAction: { minHeight: TARGET, minWidth: TARGET, justifyContent: 'center', alignItems: 'center', paddingHorizontal: space.md },
+  emptyActionText: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   recentHead: {
     fontSize: font.small,
     color: colors.muted,
@@ -322,4 +344,5 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
   recentDate: { fontSize: font.body, fontWeight: '700', color: colors.ink },
   recentSub: { fontSize: font.small, color: colors.muted },
   recentKcal: { fontSize: font.body, fontWeight: '700', color: colors.ink },
+  recentUnit: { fontSize: font.small, fontWeight: '600', color: colors.muted },
 });

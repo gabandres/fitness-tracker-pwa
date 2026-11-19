@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
+import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -27,8 +28,9 @@ import { useAuth } from '@/lib/auth';
 import { saveTargetMode } from '@/lib/ledger';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { contentColumn, font, radius, space } from '@/theme';
+import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { Touchable } from '@/components/Touchable';
+import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 
 /**
  * Daily targets — Automatic, or the user's own numbers.
@@ -55,6 +57,24 @@ import { Touchable } from '@/components/Touchable';
  * your protein at whatever it happened to be the day you typed a number.
  */
 const MODES: TargetMode[] = ['auto', 'custom'];
+
+/** What the form opened with — the baseline {@link targetsDirty} compares to. */
+export interface TargetsForm {
+  mode: TargetMode;
+  kcal: string;
+  protein: string;
+}
+
+/**
+ * Would leaving now lose something (rule A31)? A mode change always counts.
+ * The two numbers count only in Custom: in Automatic the save writes the mode
+ * alone, so a value left in a hidden field is not an edit that can be lost.
+ */
+export function targetsDirty(initial: TargetsForm, now: TargetsForm): boolean {
+  if (now.mode !== initial.mode) return true;
+  if (now.mode !== 'custom') return false;
+  return now.kcal.trim() !== initial.kcal.trim() || now.protein.trim() !== initial.protein.trim();
+}
 
 function numOrNull(s: string): number | null {
   // Comma accepted as the decimal point (pt-BR keyboards) — see EntrySheet.
@@ -115,6 +135,26 @@ export default function DailyTargetsScreen() {
   const [protein, setProtein] = useState(() => String(profile?.manualProteinTarget ?? ''));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Discard guard (A31): back, swipe-back and the header's back all ask before
+  // dropping an edit. A successful save sets `saved` first, so its own
+  // `router.back()` goes straight through.
+  const [initial] = useState<TargetsForm>(() => ({ mode, kcal, protein }));
+  const saved = useRef(false);
+  const navigation = useNavigation();
+  usePreventRemove(targetsDirty(initial, { mode, kcal, protein }), ({ data }) => {
+    if (saved.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    confirm({
+      title: t('train.discardChangesTitle'),
+      confirmText: t('entry.discard'),
+      cancelText: t('entry.keepEditing'),
+      destructive: true,
+      onConfirm: () => navigation.dispatch(data.action),
+    });
+  });
 
   // The measured maintenance, when there IS one. `useDailyTargets` runs the
   // full chain, so this is the same estimate Trends shows — not a second
@@ -186,6 +226,7 @@ export default function DailyTargetsScreen() {
     )
       .then(() => {
         haptics.success();
+        saved.current = true;
         // Back to whoever opened this — Settings, since S21-1 made this a root
         // stack route (as a hidden tab, back went to Today). A cold open has
         // nothing beneath it.
@@ -275,6 +316,22 @@ export default function DailyTargetsScreen() {
                 {kcalMsg}
               </Text>
             ) : null}
+            {/* The floor is set in Settings → Safety floors, so the error that
+                names it offers the way there. Pushed, not popped back to, so
+                the number typed here survives the trip. */}
+            {custom && kcalCheck.issue?.kind === 'belowFloor' ? (
+              <TouchableOpacity
+                style={styles.textBtn}
+                onPress={() => {
+                  haptics.tap();
+                  router.push('/settings');
+                }}
+                accessibilityRole="button"
+                testID="targets-open-floors"
+              >
+                <Text style={styles.textBtnText}>{t('targets.openSafetyFloors')}</Text>
+              </TouchableOpacity>
+            ) : null}
             {/* Shown in BOTH modes on purpose: in Custom it is the honest
                 second opinion beside the user's own number, and in Automatic
                 it explains where the number above came from. */}
@@ -363,6 +420,9 @@ export default function DailyTargetsScreen() {
           </Touchable>
         </View>
       </KeyboardAvoidingView>
+      {/* A root stack route over the tabs: the tab layout's host would draw
+          the discard confirm beneath this screen (as in settings.tsx). */}
+      <ConfirmHost />
     </SafeAreaView>
   );
 }
@@ -407,6 +467,8 @@ const createStyles = ({ colors }: Theme) =>
     autoValue: { fontSize: font.h2, fontWeight: '800', color: colors.ink },
     note: { fontSize: font.small, color: colors.muted },
     noteBad: { color: colors.danger },
+    textBtn: { minHeight: TARGET, justifyContent: 'center', alignSelf: 'flex-start' },
+    textBtnText: { fontSize: font.small, color: colors.ink, fontWeight: '700', textDecorationLine: 'underline' },
     error: { color: colors.danger, fontSize: font.small },
     footer: {
       ...contentColumn,

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { QUICK_ADD_MAX, type MealPreset } from '@macrolog/core';
 import { type I18nKey, useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
@@ -114,7 +114,8 @@ export function QuickAddCard() {
   return (
     <View style={styles.card}>
       <Text style={styles.rowLabel} accessibilityRole="header">{t('settings.quickAdd')}</Text>
-      <Text style={styles.rowValue}>{t('settings.quickAddSub')}</Text>
+      {/* The Quick Settings tile is Android-only; iOS has the widget and Siri. */}
+      <Text style={styles.rowValue}>{t(Platform.OS === 'ios' ? 'settings.quickAddSubIos' : 'settings.quickAddSub')}</Text>
 
       {presets.length === 0 ? (
         // Not an error state: presets are created from the add sheet, and a user
@@ -174,7 +175,11 @@ export function QuickAddCard() {
           {t('settings.quickAddFull', { n: String(QUICK_ADD_MAX) })}
         </Text>
       ) : null}
-      {liveSlots.length > 0 ? <Text style={styles.hint}>{t('settings.quickAddWidgetHint')}</Text> : null}
+      {liveSlots.length > 0 ? (
+        <Text style={styles.hint}>
+          {t(Platform.OS === 'ios' ? 'settings.quickAddWidgetHintIos' : 'settings.quickAddWidgetHint')}
+        </Text>
+      ) : null}
 
       {/* The only place a refused tap can ever surface. See `readQuickAddOutcome`. */}
       {problem ? <Text style={styles.problem}>{t(problem)}</Text> : null}

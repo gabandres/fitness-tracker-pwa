@@ -233,6 +233,23 @@ describe('the set row', () => {
     const ui = await render(<TrainScreen />);
     expect(ui.getByTestId('set-kind-0-0').props.hitSlop).toEqual({ left: 8, right: 8 });
   });
+
+  it('the set number\'s reach is TARGET across on this platform (30 + slop)', async () => {
+    const { TARGET } = jest.requireActual('@/theme') as { TARGET: number };
+    mockTrain.active = session();
+    const ui = await render(<TrainScreen />);
+    const { left, right } = ui.getByTestId('set-kind-0-0').props.hitSlop;
+    expect(30 + left + right).toBeGreaterThanOrEqual(TARGET);
+  });
+
+  it('the load field takes decimals: the decimal pad, reps stay whole', async () => {
+    mockTrain.active = session({
+      exercises: [{ exerciseId: 'e1', name: 'Bench', logStyle: 'weight-reps', cues: [], sets: [{ kind: 'working' }] }],
+    });
+    const ui = await render(<TrainScreen />);
+    expect(ui.getByTestId('set-weight-0-0').props.keyboardType).toBe('decimal-pad');
+    expect(ui.getByTestId('set-count-0-0').props.keyboardType).toBe('number-pad');
+  });
 });
 
 describe('the exercise ⋯ — history from inside the workout', () => {

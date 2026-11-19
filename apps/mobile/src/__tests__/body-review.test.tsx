@@ -9,7 +9,7 @@
  * never answers, and the receipts that say what happened.
  */
 import React from 'react';
-import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
+import { fireEvent, renderWithProviders as render, waitFor, within } from '@/test-utils';
 
 // Body calls `useScrollToTop`, which needs a navigator's route — there is
 // none in a screen test. The rest mirrors `jest.setup.js`'s expo-router mock.
@@ -108,7 +108,8 @@ beforeEach(() => {
 
 type Screen = Awaited<ReturnType<typeof render>>;
 const noteOf = (s: Screen) => String(s.getByTestId('weight-note').props.children);
-const titleOf = (s: Screen) => String(s.getByTestId('weight-title').props.children);
+// The sheet's title is the header inside its `SheetHeader` row (beside Cancel).
+const titleOf = (s: Screen) => String(within(s.getByTestId('weight-title')).getByRole('header').props.children);
 
 describe('the weigh-in sheet names the day it writes (bug 4, C3, U2)', () => {
   it('a past row is "Edit weigh-in · Sep 20", and its note never says Today', async () => {

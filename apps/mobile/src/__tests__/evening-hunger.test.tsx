@@ -48,6 +48,15 @@ describe('Today: evening hunger row', () => {
     expect(onSetHunger).toHaveBeenCalledWith(7);
   });
 
+  it('names each chip on the scale, and the meaning at the two ends', async () => {
+    // A bare "7" said nothing; the ends follow the legend (0 = full).
+    const view = await today(null);
+    await fireEvent.press(view.getByTestId('hunger-open'));
+    expect(view.getByTestId('hunger-chip-0').props.accessibilityLabel).toBe('0 of 10, full');
+    expect(view.getByTestId('hunger-chip-7').props.accessibilityLabel).toBe('7 of 10');
+    expect(view.getByTestId('hunger-chip-10').props.accessibilityLabel).toBe('10 of 10, starving');
+  });
+
   it('will not save with nothing picked', async () => {
     const onSetHunger = jest.fn();
     const view = await today(null, onSetHunger);
@@ -92,7 +101,7 @@ describe('Trends: evening hunger card', () => {
     const view = await render(<HungerTrendsCard week={week} targetKcal={1850} />);
     expect(view.getByTestId('hunger-avg')).toHaveTextContent('7-day average: 7 / 10');
     expect(view.getByTestId('hunger-rated')).toHaveTextContent('3 of the last 7 days rated');
-    expect(view.getByTestId('hunger-rule')).toHaveTextContent('avg ≥7 → consider raising target to ~1,950');
+    expect(view.getByTestId('hunger-rule')).toHaveTextContent('If your 7-day average is 7 or higher, consider raising your target to about 1,950 kcal.');
   });
 
   it('rounds the average to one decimal', async () => {

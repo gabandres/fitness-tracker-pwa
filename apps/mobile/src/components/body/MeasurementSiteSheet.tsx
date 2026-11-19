@@ -13,7 +13,7 @@ import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
 import { useLocale, useT } from '@/i18n';
 import { formatDate, formatNumber } from '@/lib/date-format';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, space, type } from '@/theme';
+import { font, space, TARGET, type } from '@/theme';
 import { MEASURE_FIELDS, type MeasureKey } from './MeasurementSheet';
 import { measurementSeries } from './MeasurementTrends';
 import { dotsPath, weightChartGeometry } from './weight-chart-geometry';
@@ -194,7 +194,7 @@ const createStyles = ({ colors }: Theme) =>
       paddingVertical: space.sm,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.line,
-      minHeight: 44,
+      minHeight: TARGET,
     },
     rowDate: { fontSize: font.body, color: colors.muted },
     rowRight: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },

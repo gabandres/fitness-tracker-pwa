@@ -8,7 +8,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useNavigationContainerRef, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
-import { LogBox, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, LogBox, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -50,9 +50,12 @@ function Splash() {
   const t = useT();
   const [slow, setSlow] = useState(false);
   useEffect(() => {
-    const id = setTimeout(() => setSlow(true), SPLASH_EXPLAIN_AFTER_MS);
+    const id = setTimeout(() => {
+      setSlow(true);
+      if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(t('splash.stillConnecting'));
+    }, SPLASH_EXPLAIN_AFTER_MS);
     return () => clearTimeout(id);
-  }, []);
+  }, [t]);
   return (
     <View style={[styles.splash, { backgroundColor: colors.paper }]}>
       <BrandLoader />
@@ -60,9 +63,15 @@ function Splash() {
           restart, and a restart does not help when the cause is that the
           network is not answering — so a button would promise a fix it cannot
           deliver. Saying what is happening is the part that was missing. */}
-      {slow ? (
-        <Text style={[styles.splashNote, { color: colors.muted }]}>{t('splash.stillConnecting')}</Text>
-      ) : null}
+      {/* A polite live region, so a screen-reader user hears the line when
+          it appears rather than only if they go looking for it. The region is
+          rendered from the start (Android announces a CHANGE inside one); iOS
+          has no live regions, so the line is announced there when it lands. */}
+      <View accessibilityLiveRegion="polite" testID="splash-live">
+        {slow ? (
+          <Text style={[styles.splashNote, { color: colors.muted }]}>{t('splash.stillConnecting')}</Text>
+        ) : null}
+      </View>
     </View>
   );
 }

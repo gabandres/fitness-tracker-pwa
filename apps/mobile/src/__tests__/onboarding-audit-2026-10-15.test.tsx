@@ -114,9 +114,32 @@ it('the plan numbers announce their value, not just their label (#6)', async () 
   const screen = await render(<Onboarding />);
   await walkToPlan(screen);
   const kcal = screen.getByTestId('onboarding-kcal');
-  expect(kcal.props.accessibilityLabel).toMatch(/Calories/i);
-  expect(kcal.props.accessibilityLabel).toMatch(/\d/);
+  // Number first, then the word (OTA-1 sweep): "1,850 calories a day", not
+  // "calories, 1,850".
+  expect(kcal.props.accessibilityLabel).toMatch(/^\d[\d,.\s]* calories a day$/);
+  // The unit is on screen too, not only in the spoken name.
+  expect(screen.getByTestId('onboarding-kcal-unit')).toHaveTextContent('kcal');
   expect(screen.getByTestId('onboarding-protein').props.accessibilityLabel).toMatch(/\d+ g/);
+});
+
+it('the lb/kg toggle names start with the visible text (label in name)', async () => {
+  const screen = await render(<Onboarding />);
+  await fireEvent.press(screen.getByTestId('onboarding-age-attest'));
+  await fireEvent.press(screen.getByTestId('onboarding-goal-lose'));
+  await fireEvent.press(screen.getByTestId('onboarding-next'));
+  expect(screen.getByTestId('onboarding-unit-weight-us').props.accessibilityLabel).toMatch(/^lb, /);
+  expect(screen.getByTestId('onboarding-unit-weight-metric').props.accessibilityLabel).toMatch(/^kg, /);
+});
+
+it('the progress dots are one labelled progress element', async () => {
+  const screen = await render(<Onboarding />);
+  await fireEvent.press(screen.getByTestId('onboarding-age-attest'));
+  await fireEvent.press(screen.getByTestId('onboarding-goal-lose'));
+  await fireEvent.press(screen.getByTestId('onboarding-next'));
+  const dots = screen.getByTestId('onboarding-dots');
+  expect(dots.props.accessible).toBe(true);
+  expect(dots.props.accessibilityRole).toBe('progressbar');
+  expect(dots.props.accessibilityLabel).toMatch(/^Step 2 of \d+$/);
 });
 
 describe('inches above 11 (#7)', () => {

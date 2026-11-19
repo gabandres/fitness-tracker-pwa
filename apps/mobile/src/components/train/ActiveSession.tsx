@@ -469,6 +469,15 @@ export function ActiveSession({
     return () => clearInterval(id);
   }, [timeCap, train.editingExisting]);
   const overCap = !train.editingExisting && overTimeCap(timeCap, activeMinutes(segmentsOf(session), new Date(capNow)));
+  // The note's `role=alert` speaks on neither platform without a live region,
+  // so it is announced — once, when the cap is crossed while the screen is up.
+  // A mount already past it starts as heard (2026-11-19).
+  const capHeard = useRef(overCap);
+  useEffect(() => {
+    if (!overCap || !timeCap || capHeard.current) return;
+    capHeard.current = true;
+    announce(t('train.timeCap', { min: timeCap.minutes, order: timeCap.drop.join(' → ') }));
+  }, [overCap, timeCap, t]);
   // "Haven dumbbells — kg or lb?" (2026-11-05; core `UnitAsk`): asked once,
   // on the next session, from the profile.
   const { profile } = useAuth();

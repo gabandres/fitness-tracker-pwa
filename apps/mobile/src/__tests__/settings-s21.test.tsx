@@ -167,18 +167,18 @@ describe('S21-6 — the targets screens', () => {
 
 describe('S21-8 — the update banner stays compact', () => {
   const src = read('components/UpdateBanner.tsx');
-  it('caps the text scale and keeps title and body to a line each', () => {
+  it('caps the text scale and keeps title and body to two lines each', () => {
     const texts = openingTags(src, ['Text']).filter((tag) => /styles\.(title|body)/.test(tag.attrs));
     expect(texts.length).toBe(4);
     for (const tag of texts) {
-      expect(tag.attrs).toMatch(/numberOfLines=\{1\}/);
+      expect(tag.attrs).toMatch(/numberOfLines=\{2\}/);
       expect(tag.attrs).toMatch(/maxFontSizeMultiplier=\{BANNER_MAX_SCALE\}/);
     }
-    expect(src).toMatch(/const BANNER_MAX_SCALE = 1\.6;/);
+    expect(src).toMatch(/const BANNER_MAX_SCALE = 2\.0;/);
   });
 
-  it('the dismiss button is 44pt on its own and labelled', () => {
-    expect(src).toMatch(/dismiss: \{ minWidth: 44, minHeight: 44/);
+  it('the dismiss button is TARGET (44pt / 48dp) on its own and labelled', () => {
+    expect(src).toMatch(/dismiss: \{ minWidth: TARGET, minHeight: TARGET/);
     const dismiss = openingTags(src, ['TouchableOpacity']).find((tag) => tag.attrs.includes('store-update-dismiss'));
     expect(dismiss?.attrs).toMatch(/accessibilityLabel=\{t\('common\.dismiss'\)\}/);
   });

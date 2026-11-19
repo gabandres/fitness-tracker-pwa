@@ -415,7 +415,7 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
                 haptics.tap();
                 setFastSheet({ mode: 'add', fast: null });
               }}
-              hitSlop={10}
+              style={styles.fastAddBtn}
               accessibilityRole="button"
               testID="fast-add"
             >
@@ -583,6 +583,8 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink },
   fastHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   fastAdd: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
+  // A real TARGET box around the short word, not slop around it.
+  fastAddBtn: { minWidth: TARGET, minHeight: TARGET, alignItems: 'flex-end', justifyContent: 'center' },
   empty: { fontSize: font.body, color: colors.muted },
   list: { gap: space.sm },
   entry: {

@@ -9,7 +9,7 @@ import * as haptics from '@/lib/haptics';
 import { PressScale } from '@/lib/motion';
 import { markTourSeen } from '@/lib/tour';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
-import { font, motion, radius, space, type } from '@/theme';
+import { font, motion, radius, space, TARGET, type } from '@/theme';
 
 /**
  * The guided tour — F0 in `UX_AUDIT.md`, and the one thing a real user
@@ -164,7 +164,16 @@ export default function Tour() {
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       {/* Top bar: progress dots + a skip that is available on every step. */}
       <View style={styles.topBar}>
-        <View style={styles.dots}>
+        {/* One element for a screen reader ("Step 2 of 5, progress bar"); the
+            dots themselves are not focusable. */}
+        <View
+          style={styles.dots}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={t('tour.progress', { n: index + 1, total: STEPS.length })}
+          accessibilityValue={{ min: 1, max: STEPS.length, now: index + 1 }}
+          testID="tour-dots"
+        >
           {STEPS.map((s, i) => (
             <View key={s.id} style={[styles.dot, i === index && styles.dotOn, i < index && styles.dotDone]} />
           ))}
@@ -193,7 +202,13 @@ export default function Tour() {
               {step.rows.map((r) => (
                 <View key={r.labelKey} style={styles.row}>
                   <View style={styles.rowIcon}>
-                    <Ionicons name={r.icon} size={20} color={colors.ink} />
+                    <Ionicons
+                      name={r.icon}
+                      size={20}
+                      color={colors.ink}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no"
+                    />
                   </View>
                   <View style={styles.rowText}>
                     <Text style={styles.rowLabel}>{t(r.labelKey)}</Text>
@@ -256,13 +271,15 @@ const createStyles = ({ colors, shadow }: Theme) =>
       // minHeight, not height: a fixed 44 cropped the descender on "Skip" —
       // it rendered as "Skin" on the LG G6. Font scaling makes that worse,
       // never better, so the row has to be free to grow.
-      minHeight: 44,
+      minHeight: TARGET,
     },
     dots: { flexDirection: 'row', gap: space.xs },
-    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.line },
+    // `lineStrong`, not `line` (~1.2:1): an inactive dot has to be visible to
+    // say how many steps there are (WCAG 1.4.11).
+    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lineStrong },
     dotOn: { width: 22, backgroundColor: colors.ink },
     dotDone: { backgroundColor: colors.accent },
-    skip: { paddingVertical: space.sm, paddingHorizontal: space.sm },
+    skip: { minHeight: TARGET, justifyContent: 'center', paddingVertical: space.sm, paddingHorizontal: space.sm },
     skipText: { fontSize: font.body, lineHeight: font.body * 1.4, color: colors.muted },
     // flexGrow centres a short card and scrolls a tall one — the map step is
     // five rows and overflows a 360x720dp screen.

@@ -17,6 +17,7 @@ import {
 } from '@macrolog/core';
 import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
+import { SheetHeader } from '@/components/SheetHeader';
 import { KeyboardBar, useKeyboardBarProps } from '@/components/KeyboardBar';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
@@ -270,9 +271,15 @@ export function MeasurementSheet({
       guarded={dirty}
       backdropTestID="measure-sheet-backdrop"
     >
-      <Text style={styles.sheetTitle} accessibilityRole="header">
-        {initial ? t('body.editMeasurement') : t('body.addMeasurement')}
-      </Text>
+      {/* A leading Cancel, as on the weigh-in sheet — the same guarded path
+          a drag or the backdrop takes. */}
+      <View style={styles.sheetHeader}>
+        <SheetHeader
+          title={initial ? t('body.editMeasurement') : t('body.addMeasurement')}
+          leading={{ label: t('common.cancel'), onPress: () => requestClose('back'), testID: 'measure-cancel' }}
+          testID="measure-title"
+        />
+      </View>
       <DayStepper dateKey={dateKey} onChange={setDateKey} maxKey={todayKey} testIDPrefix="measure" />
       <Text style={styles.sheetHint} testID="measure-hint">
         {rangeHint ?? t('body.measureHint', { unit: measureUnit(unitSystem) })}
@@ -467,7 +474,7 @@ function MeasureField({
 
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
-    sheetTitle: { fontSize: font.h2, fontWeight: '800', color: colors.ink, marginBottom: space.md },
+    sheetHeader: { marginBottom: space.md },
     sheetHint: { fontSize: font.small, color: colors.muted, marginVertical: space.md },
     sheetNoteBad: { color: colors.danger },
     measureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },

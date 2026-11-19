@@ -23,6 +23,21 @@ const mockBack = jest.fn();
 
 let mockProfile: Record<string, unknown> = {};
 
+// The discard guard (A31): capture what the screen hands `usePreventRemove`.
+const mockGuard: { on: boolean; cb: ((e: { data: { action: unknown } }) => void) | null } = { on: false, cb: null };
+const mockDispatch = jest.fn();
+const mockConfirm = jest.fn();
+jest.mock('@/components/ConfirmSheet', () => ({
+  ConfirmHost: () => null,
+  confirm: (o: unknown) => mockConfirm(o),
+}));
+jest.mock('expo-router/react-navigation', () => ({
+  useNavigation: () => ({ dispatch: mockDispatch }),
+  usePreventRemove: (on: boolean, cb: (e: { data: { action: unknown } }) => void) => {
+    mockGuard.on = on;
+    mockGuard.cb = cb;
+  },
+}));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: mockBack, push: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
   usePathname: () => '/daily-targets',
@@ -64,7 +79,7 @@ jest.mock('@/hooks/useDailyTargets', () => ({
   }),
 }));
 
-import DailyTargetsScreen from '@/app/daily-targets';
+import DailyTargetsScreen, { targetsDirty } from '@/app/daily-targets';
 
 beforeEach(() => {
   mockSaveTargetMode.mockClear();
@@ -163,5 +178,70 @@ describe('Daily targets editor', () => {
     } as TdeeResult;
     const { getByTestId } = await render(<DailyTargetsScreen />);
     expect(getByTestId('targets-measured').props.children).toBe('Maintenance: not enough complete days (9 of 14)');
+  });
+});
+
+// ── A31: leaving with unsaved edits asks first (2026-11-19) ───────────────
+describe('discard guard', () => {
+  const base = { mode: 'auto' as const, kcal: '', protein: '' };
+
+  it('targetsDirty: a mode change counts; hidden numbers in Automatic do not', () => {
+    expect(targetsDirty(base, base)).toBe(false);
+    expect(targetsDirty(base, { ...base, mode: 'custom' })).toBe(true);
+    expect(targetsDirty(base, { ...base, kcal: '2000' })).toBe(false);
+    const custom = { mode: 'custom' as const, kcal: '2000', protein: '' };
+    expect(targetsDirty(custom, { ...custom, kcal: '2000 ' })).toBe(false);
+    expect(targetsDirty(custom, { ...custom, kcal: '2100' })).toBe(true);
+    expect(targetsDirty(custom, { ...custom, protein: '150' })).toBe(true);
+  });
+
+  it('clean on open; dirty after an edit; back asks Discard / Keep editing', async () => {
+    mockConfirm.mockClear();
+    mockDispatch.mockClear();
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    expect(mockGuard.on).toBe(false);
+    await fireEvent.press(getByTestId('targets-mode-custom'));
+    expect(mockGuard.on).toBe(true);
+    const action = { type: 'GO_BACK' };
+    mockGuard.cb?.({ data: { action } });
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Discard changes?', confirmText: 'Discard', cancelText: 'Keep editing', destructive: true }),
+    );
+    expect(mockDispatch).not.toHaveBeenCalled();
+    mockConfirm.mock.calls[0][0].onConfirm();
+    expect(mockDispatch).toHaveBeenCalledWith(action);
+  });
+
+  it('a successful save leaves without asking', async () => {
+    mockConfirm.mockClear();
+    mockDispatch.mockClear();
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    await fireEvent.press(getByTestId('targets-mode-custom'));
+    await fireEvent.changeText(getByTestId('targets-kcal'), '2000');
+    await act(async () => {
+      await fireEvent.press(getByTestId('targets-save'));
+    });
+    expect(mockBack).toHaveBeenCalled();
+    // The pop the save triggers reaches the guard while the form still differs.
+    const action = { type: 'GO_BACK' };
+    mockGuard.cb?.({ data: { action } });
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockDispatch).toHaveBeenCalledWith(action);
+  });
+});
+
+describe('below the calorie minimum', () => {
+  it('names Safety floors and offers the way there', async () => {
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    await fireEvent.press(getByTestId('targets-mode-custom'));
+    await fireEvent.changeText(getByTestId('targets-kcal'), '1300');
+    expect(getByTestId('targets-kcal-note')).toHaveTextContent(/Settings \u2192 Safety floors/);
+    expect(getByTestId('targets-open-floors').props.accessibilityRole).toBe('button');
+    expect(getByTestId('targets-open-floors')).toHaveTextContent('Open Safety floors');
+  });
+
+  it('says Ignia estimates the maintenance, not that it measures it', async () => {
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    expect(getByTestId('targets-measured')).toHaveTextContent('Ignia estimates your maintenance at 2,600 kcal.');
   });
 });

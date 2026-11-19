@@ -7,9 +7,13 @@ jest.mock('@/lib/auth', () => ({
 // The sheet is `native` since the Body review (P1); iOS-under-jest would
 // publish it to a root route this suite does not mount.
 jest.mock('@/components/BottomSheet', () => require('./js-sheet').jsSheetModule());
+const mockShowToast = jest.fn();
+jest.mock('@/components/Toast', () => ({
+  ...jest.requireActual('@/components/Toast'),
+  showToast: (...args: unknown[]) => mockShowToast(...args),
+}));
 
 import React from 'react';
-import { Alert } from 'react-native';
 import { fireEvent, renderWithProviders as render, waitFor } from '@/test-utils';
 import { FastSheet, localeUses12Hour } from '@/components/FastSheet';
 import type { Fast } from '@macrolog/core';
@@ -315,12 +319,21 @@ describe('FastSheet — correcting a stored fast', () => {
     // go back to what it was — the exact data-loss shape this feature exists
     // to end. Swallowing it would also put it on the unhandled-rejection path,
     // which has reported as a crash in this app before.
-    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    // A toast with Retry, not a blocking Alert: the sheet is already closed.
+    mockShowToast.mockClear();
     const onSave = jest.fn().mockRejectedValue(new Error('permission-denied'));
     const screen = await render(editSheet({ onSave }).ui);
 
     await tap(screen, 'fast-save');
-    await waitFor(() => expect(Alert.alert).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledTimes(1));
+    const [, opts] = mockShowToast.mock.calls[0] as [string, { action: { label: string; onPress: () => void }; testID: string }];
+    expect(opts.testID).toBe('fast-save-failed');
+    // Retry writes the same interval again; a second failure says so again.
+    const [from, to] = onSave.mock.calls[0];
+    opts.action.onPress();
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onSave.mock.calls[1]).toEqual([from, to]);
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledTimes(2));
   });
 });
 

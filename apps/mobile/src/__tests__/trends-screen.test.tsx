@@ -240,7 +240,7 @@ describe('the charts', () => {
     // v1 forces `isPro`, so the chart cap is a year, not the free 90 days.
     expect(mockTrends).toHaveBeenCalledWith(30, expect.objectContaining({ maxDays: 365, refreshKey: 0 }));
     expect(view.getByTestId('expenditure-chart-plot').props.accessibilityLabel).toMatch(
-      /Maintenance estimate over the last 30 days, from 1,990 to 2,019 kcal\. Dots are calories logged\. The dotted line is your daily target, 1,850 kcal\.$/,
+      /Maintenance estimate over the last 30 days, from 1,990 to 2,019 kcal\. Dots are calories logged\. The dotted line is your daily target, 1,850 kcal\. Line chart, from [\d,]+ to [\d,]+ kcal\.$/,
     );
     // 6M and 1Y are offered under the year cap.
     expect(view.getByTestId('trend-range-6m')).toBeTruthy();

@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -41,6 +42,7 @@ import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { Touchable } from '@/components/Touchable';
+import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 
 const ACTIVITY: { value: ActivityLevel; labelKey: I18nKey }[] = [
   { value: 'sedentary', labelKey: 'activity.sedentary' },
@@ -74,6 +76,29 @@ function paceFor(goal: GoalDirection, stored: number | null | undefined): number
   if (goal === 'maintain') return 0;
   if (stored != null && stored > 0) return stored;
   return goal === 'gain' ? GAIN_SURPLUS_LBS_PER_WEEK : DEFAULT_LOSE_PACE_LBS_PER_WEEK;
+}
+
+/** Every answer on the form, as the user can change it. */
+export interface RefineForm {
+  sex: Sex | null;
+  feet: string;
+  inches: string;
+  heightCm: string;
+  age: string;
+  activity: ActivityLevel | null;
+  goal: GoalDirection;
+  pace: number;
+}
+
+/** Would leaving now lose an answer (rule A31)? Compared field by field
+ *  against what the screen opened with — a pre-filled suggestion is part of
+ *  that baseline, not an edit. */
+export function refineDirty(initial: RefineForm, now: RefineForm): boolean {
+  return (Object.keys(initial) as (keyof RefineForm)[]).some((k) => {
+    const a = initial[k];
+    const b = now[k];
+    return typeof a === 'string' && typeof b === 'string' ? a.trim() !== b.trim() : a !== b;
+  });
 }
 
 export default function RefineTargets() {
@@ -131,6 +156,26 @@ export default function RefineTargets() {
   }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Discard guard (A31): back, swipe-back and the header's back ask before
+  // dropping an edit; a successful save sets `saved` and goes straight through.
+  const form: RefineForm = { sex, feet, inches, heightCm, age, activity, goal, pace };
+  const [initialForm] = useState<RefineForm>(form);
+  const saved = useRef(false);
+  const navigation = useNavigation();
+  usePreventRemove(refineDirty(initialForm, form), ({ data }) => {
+    if (saved.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    confirm({
+      title: t('train.discardChangesTitle'),
+      confirmText: t('entry.discard'),
+      cancelText: t('entry.keepEditing'),
+      destructive: true,
+      onConfirm: () => navigation.dispatch(data.action),
+    });
+  });
 
   const heightIn = parseHeightInput(unitSystem, { cm: heightCm, feet, inches });
   const heightTyped = metric ? heightCm.trim() !== '' : feet.trim() !== '' || inches.trim() !== '';
@@ -264,6 +309,7 @@ export default function RefineTargets() {
         // bucket again.
         if (accepting) accept();
         haptics.success();
+        saved.current = true;
         leave();
       })
       .catch(() => {
@@ -313,6 +359,8 @@ export default function RefineTargets() {
                 );
               })}
             </View>
+            {/* Why it is asked (A-series: never ask for personal data unexplained). */}
+            <Text style={styles.hint} testID="refine-sex-why">{t('refine.sexWhy')}</Text>
           </View>
 
           <View style={styles.field}>
@@ -494,6 +542,9 @@ export default function RefineTargets() {
           </Touchable>
         </View>
       </KeyboardAvoidingView>
+      {/* A root stack route over the tabs: the tab layout's host would draw
+          the discard confirm beneath this screen (as in settings.tsx). */}
+      <ConfirmHost />
     </SafeAreaView>
   );
 }

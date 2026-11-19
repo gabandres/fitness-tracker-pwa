@@ -22,6 +22,17 @@ it('marks a typo invalid and holds "Use this" rather than summing around it', as
   expect(onApply).not.toHaveBeenCalled();
 });
 
+it('names the row and the field that is wrong, on the field too', async () => {
+  const view = await render(<RecipeBuilder onApply={jest.fn()} onCancel={jest.fn()} />);
+  await act(async () => { fireEvent.changeText(view.getByTestId('recipe-ing-kcal-1'), 'abc'); });
+  expect(view.getByTestId('recipe-invalid')).toHaveTextContent('Ingredient 2: calories must be a number.');
+  expect(view.getByTestId('recipe-ing-kcal-1').props.accessibilityHint).toBe('Ingredient 2: calories must be a number.');
+  expect(view.getByTestId('recipe-ing-kcal-0').props.accessibilityHint).toBeUndefined();
+  // Fractions are typed on the decimal pad (a pt-BR comma survives).
+  expect(view.getByTestId('recipe-ing-kcal-0').props.inputMode).toBe('decimal');
+  expect(view.getByTestId('recipe-ing-kcal-0').props.keyboardType).toBeUndefined();
+});
+
 it('does not enable "Use this" for a serving that rounds to 0 kcal', async () => {
   const view = await render(<RecipeBuilder onApply={jest.fn()} onCancel={jest.fn()} />);
   await act(async () => { fireEvent.changeText(view.getByTestId('recipe-ing-kcal-0'), '1'); });

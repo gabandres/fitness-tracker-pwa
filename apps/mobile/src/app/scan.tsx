@@ -1423,13 +1423,20 @@ export default function Scan() {
 
             {/* Hero total (the reward moment), on the shared dark panel. */}
             <Animated.View style={styles.heroPanel} entering={enterUp(lowConf ? 1 : 0)}>
-              <View style={styles.hero}>
+              {/* One stop, one label: the number and "kcal" were two, and the
+                  unit was spelled out letter by letter. */}
+              <View
+                style={styles.hero}
+                accessible
+                accessibilityLabel={t('entry.caloriesA11y', { n: formatNumber(Math.round(total.calories), locale) })}
+                testID="scan-total"
+              >
                 <CountUpText value={Math.round(total.calories)} style={styles.heroValue} testID="scan-calories" />
                 <Text style={styles.heroUnit} maxFontSizeMultiplier={1.6}>{t('today.kcal')}</Text>
               </View>
               <TextInput
                 style={styles.nameInput}
-                maxFontSizeMultiplier={1.4}
+                maxFontSizeMultiplier={2}
                 keyboardAppearance={scheme}
                 value={mealName}
                 onChangeText={setMealName}
@@ -1451,21 +1458,21 @@ export default function Scan() {
               <TotalChip
                 label={t('history.protein')}
                 value={total.protein}
-                a11yLabel={t('entry.proteinAmount', { n: formatNumber(Math.round(total.protein), locale) })}
+                a11yLabel={t('entry.proteinA11y', { n: formatNumber(Math.round(total.protein), locale) })}
                 styles={styles}
                 testID="scan-protein"
               />
               <TotalChip
                 label={t('today.carbs')}
                 value={total.carbs}
-                a11yLabel={t('entry.carbsAmount', { n: formatNumber(Math.round(total.carbs), locale) })}
+                a11yLabel={t('entry.carbsA11y', { n: formatNumber(Math.round(total.carbs), locale) })}
                 styles={styles}
                 testID="scan-carbs"
               />
               <TotalChip
                 label={t('today.fat')}
                 value={total.fat}
-                a11yLabel={t('entry.fatAmount', { n: formatNumber(Math.round(total.fat), locale) })}
+                a11yLabel={t('entry.fatA11y', { n: formatNumber(Math.round(total.fat), locale) })}
                 styles={styles}
                 testID="scan-fat"
               />
@@ -1474,6 +1481,12 @@ export default function Scan() {
             {/* Items */}
             <Animated.View entering={enterUp(3)} style={styles.itemsBlock}>
               <Text style={styles.section} accessibilityRole="header">{t('scan.items')}</Text>
+              {/* The name fields' visible label (WCAG 3.3.2): one column header
+                  rather than a label per row. Each field's spoken name is
+                  "Item 2 name". Hidden from the reader, which hears that. */}
+              <Text style={styles.colHeader} importantForAccessibility="no" accessibilityElementsHidden>
+                {t('scan.itemNameHeader')}
+              </Text>
               {items.map((it, i) => (
                 <ItemRow
                   key={it.key ?? String(i)}
@@ -1578,7 +1591,9 @@ export default function Scan() {
               {addError}
             </Text>
           ) : null}
-          <View style={styles.footer}>
+          {/* Clears the home indicator / gesture band (the top inset alone
+              was padded, so Add sat inside it). */}
+          <View style={[styles.footer, { paddingBottom: space.lg + insets.bottom }]}>
             <PressScale
               style={styles.retake}
               scaleTo={0.96}
@@ -1602,7 +1617,7 @@ export default function Scan() {
           </View>
         </KeyboardAvoidingView>
       ) : (
-        <View style={styles.body}>
+        <View style={[styles.body, { paddingBottom: space.xl + insets.bottom }]}>
           {error ? (
             <Text
               style={styles.error}
@@ -1721,11 +1736,12 @@ function ItemRow({
   // has no Return key, and without a `returnKeyType` iOS drew no toolbar.
   const doneKeyProps = useDoneKeyProps();
   // Shared by the three number fields: decimal (B10 — Android's numeric pad
-  // can drop a pt-BR comma), capped where the row stops fitting (gap 5).
+  // can drop a pt-BR comma), capped at 2.0 — the fields have a min height,
+  // not a fixed one, and the row wraps, so they grow rather than clip.
   const numProps = {
     ...doneKeyProps,
     inputMode: 'decimal' as const,
-    maxFontSizeMultiplier: 1.4,
+    maxFontSizeMultiplier: 2,
     keyboardAppearance: scheme,
   };
   const estimated = item.source === 'model';
@@ -1742,8 +1758,9 @@ function ItemRow({
           onChangeText={(v) => onName(index, v)}
           placeholder={item.added ? t('scan.itemNamePlaceholder') : undefined}
           placeholderTextColor={colors.faint}
-          maxFontSizeMultiplier={1.4}
+          maxFontSizeMultiplier={2}
           keyboardAppearance={scheme}
+          // The list's visible "Item name" header, with this row's position.
           accessibilityLabel={t('scan.itemNameLabel', { n: index + 1 })}
           testID={`scan-item-name-${index}`}
         />
@@ -2003,7 +2020,9 @@ function createStyles({ colors, shadow }: Theme) {
     itemsBlock: { gap: space.sm },
     itemRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
     itemMain: { flex: 1, gap: 2 },
-    itemName: { fontSize: font.body, fontWeight: '700', color: colors.ink, paddingVertical: 2 },
+    colHeader: { fontSize: font.small, color: colors.muted, fontWeight: '600', paddingHorizontal: space.md },
+    // TARGET tall (it was ~26 dp with 2 dp padding), text centred in it.
+    itemName: { fontSize: font.body, fontWeight: '700', color: colors.ink, paddingVertical: 2, minHeight: TARGET, textAlignVertical: 'center' },
     itemMacros: { fontSize: font.small, color: colors.muted },
     // No `opacity`: muted at 0.8 on `card` measured 4.22:1 in light at 13pt,
     // under the 4.5 floor. Plain `muted` passes, and the smaller size alone
@@ -2011,7 +2030,9 @@ function createStyles({ colors, shadow }: Theme) {
     itemMatched: { fontSize: font.small - 1, color: colors.muted },
     itemEstimate: { fontSize: font.small - 1, color: colors.accent, fontWeight: '700' },
     itemGramsWrap: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-    itemGrams: { minWidth: 52, textAlign: 'right', backgroundColor: colors.inputBg, borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: space.xs, fontSize: font.body, color: colors.ink },
+    // TARGET tall, and bordered like the app's other inputs: `inputBg` alone
+    // on a card left the field's edge invisible.
+    itemGrams: { minWidth: 52, minHeight: TARGET, textAlign: 'right', textAlignVertical: 'center', backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: space.xs, fontSize: font.body, color: colors.ink },
     itemGramsUnit: { fontSize: font.small, color: colors.muted },
     itemRemove: { padding: 4 },
     addedMacros: { flexDirection: 'row', alignItems: 'center', gap: space.xs, flexWrap: 'wrap', paddingVertical: 2 },
