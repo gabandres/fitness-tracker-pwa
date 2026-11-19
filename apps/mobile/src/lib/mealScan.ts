@@ -304,6 +304,11 @@ export function scanErrorMessage(e: unknown): ScanErrorMessage {
       return { key: 'scan.errOff' };
     case 'UNAUTHENTICATED':
       return { key: 'scan.errAuth' };
+    case 'EMAIL_NOT_VERIFIED':
+      // `scan.tsx` turns this into its locked state with a Verify action
+      // (`isEmailNotVerified`); this is the sentence for anywhere that cannot.
+      // Never "try another angle": the photo is not the problem.
+      return { key: 'scan.errVerify' };
     case 'PHOTO_ESTIMATE_FAILED':
     case 'PHOTO_ANALYZE_FAILED':
       // Named explicitly rather than left to `default`, because these two are

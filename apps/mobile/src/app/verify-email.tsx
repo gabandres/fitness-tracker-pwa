@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,18 +13,41 @@ import { captureError } from '@/lib/sentry';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, TARGET, type } from '@/theme';
 
-/** Email-verification gate for email/password signups (parity with the web
- *  app's verify screen). The rules block every write until the email is
- *  verified, so this stands between sign-up and onboarding. Federated providers
- *  return verified emails and never land here. The root AuthGate mounts this
- *  whenever a signed-in user is not yet verified, and routes onward the moment
- *  reloadUser() reports success. */
+/** Email verification for email/password signups — a screen the user OPENS
+ *  (from Today's `VerifyEmailBanner`, or a locked photo scan / coach), not a
+ *  wall. Until 2026-11-19 the root AuthGate forced every unverified signup
+ *  here before onboarding; now an unverified account onboards and logs
+ *  everything, and only the AI features that cost money wait for a confirmed
+ *  email. Federated providers return verified emails and never need it.
+ *
+ *  It has its own way back (Close, top left), and when verification succeeds
+ *  it returns the user to where they came from — on a cold open with nothing
+ *  beneath it, to Today — instead of re-running the routing from scratch.
+ *  `reloadUser()` forces a fresh ID token on success, so the scan or coach
+ *  call the user goes back to already carries `email_verified: true`. */
 export default function VerifyEmail() {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const router = useRouter();
   const { user, reloadUser, resendVerification, verificationSendFailed, signOut } = useAuth();
+
+  /** Back to where the user opened this from; Today when nothing is beneath
+   *  it (a cold deep link). Once: the foreground re-check, the manual check
+   *  and the mount check can all report success for the same verification. */
+  const left = useRef(false);
+  function leave() {
+    if (left.current) return;
+    left.current = true;
+    // `?.`: screen tests hand it a router with replace/back/push only.
+    if (router.canGoBack?.()) router.back();
+    else router.replace('/(app)');
+  }
+  function onVerified() {
+    haptics.success();
+    leave();
+  }
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
   // A COOLDOWN, not a latch. `resent` was a one-way boolean: the first
@@ -38,22 +62,26 @@ export default function VerifyEmail() {
   const [error, setError] = useState<string | null>(null);
 
   // The branded ignia.fit/auth/action page verifies the email in the browser
-  // and its "Open Ignia" deep-links back here — so re-check on foreground,
-  // making the return itself enough to resume onboarding. Quiet on failure:
-  // the manual button owns the error copy, and a network blip on foreground
-  // must not paint an error over a screen the user did nothing on.
+  // and its "Open Ignia" deep-links back — so re-check on open and on every
+  // foreground, making the return itself enough to go back to what the user
+  // was doing. Quiet on failure: the manual button owns the error copy, and a
+  // network blip on foreground must not paint an error over a screen the user
+  // did nothing on. An Effect Event, so a new `reloadUser` identity per auth
+  // render does not re-subscribe (and re-check) on every render.
+  const quietCheck = useEffectEvent(() => {
+    reloadUser()
+      .then((verified) => {
+        if (verified) onVerified();
+      })
+      .catch(() => {});
+  });
   useEffect(() => {
+    quietCheck();
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') return;
-      reloadUser()
-        .then((verified) => {
-          // The AuthGate observes emailVerified flipping true and navigates.
-          if (verified) haptics.success();
-        })
-        .catch(() => {});
+      if (state === 'active') quietCheck();
     });
     return () => sub.remove();
-  }, [reloadUser]);
+  }, []);
 
   async function onCheck() {
     if (checking) return;
@@ -64,8 +92,7 @@ export default function VerifyEmail() {
     await (async () => {
       const verified = await reloadUser();
       if (verified) {
-        haptics.success();
-        // The AuthGate observes emailVerified flipping true and navigates.
+        onVerified();
       } else {
         setError(t('verify.notYet'));
       }
@@ -119,6 +146,21 @@ export default function VerifyEmail() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      {/* The way back. This screen used to be a wall with no exit but
+          sign-out; it is now opened on purpose, so it closes like any other
+          screen the user chose to open. */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.close}
+          onPress={leave}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.close')}
+          testID="verify-close"
+        >
+          <Ionicons name="close" size={24} color={colors.ink} />
+        </TouchableOpacity>
+      </View>
       {/* Scrolls rather than clips (S21 #9): at the largest text sizes the
           title, the card copy and three buttons outgrow a phone, and a
           non-scrolling centred box pushed the buttons off the bottom with no
@@ -147,6 +189,7 @@ export default function VerifyEmail() {
             {t('verify.bodySuffix')}
           </Text>
           <Text style={styles.hint}>{t('verify.hint')}</Text>
+          <Text style={styles.hint}>{t('verify.why')}</Text>
 
           {/* The sign-up send can fail; then "we sent a link" above is not
               true, and the user is owed that before they wait on it. Shown
@@ -226,6 +269,8 @@ const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.paper },
     fill: { flex: 1 },
+    topBar: { flexDirection: 'row', paddingHorizontal: space.md },
+    close: { minWidth: TARGET, minHeight: TARGET, justifyContent: 'center', alignItems: 'center' },
     scroll: { flexGrow: 1, justifyContent: 'center', paddingVertical: space.xl },
     body: {
       paddingHorizontal: space.xl,

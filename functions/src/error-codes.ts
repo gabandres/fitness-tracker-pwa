@@ -37,6 +37,14 @@ export const enum ErrorCode {
   PHOTO_RATE_LIMITED = "PHOTO_RATE_LIMITED",
   CONSULTATION_RATE_LIMITED = "CONSULTATION_RATE_LIMITED",
   RATE_LIMITED = "RATE_LIMITED",
+  /** The caller's ID token says `email_verified !== true` and the call would
+      spend money (an AI model) on their behalf. Thrown as `failed-precondition`
+      by `withCostGuards` (cost-guards.ts) BEFORE the ceiling check and the
+      quota reserve, so it consumes nothing. Since 2026-11-19 an unverified
+      account may log data (firestore.rules `isOwnerWriter`); what costs money
+      still needs a verified address. The mobile client tests
+      `details.code === 'EMAIL_NOT_VERIFIED'` and routes to the verify screen. */
+  EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED",
   VERIFY_EMAIL_FAILED = "VERIFY_EMAIL_FAILED",
   // Food database (USDA FDC proxy).
   FOOD_API_NOT_CONFIGURED = "FOOD_API_NOT_CONFIGURED",

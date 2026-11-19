@@ -36,6 +36,24 @@ export function isRateLimited(e: unknown): boolean {
 }
 
 /**
+ * The server refused an AI call because the caller's email is not verified
+ * (`ErrorCode.EMAIL_NOT_VERIFIED`, decided from the ID token's
+ * `email_verified` claim). Since 2026-11-19 an unverified account can log
+ * everything; only the AI features that cost money stay locked until the email
+ * is confirmed, and the server is the authority on that.
+ *
+ * Two shapes carry the code: a callable rejection puts it in `details.code`
+ * (the `isRateLimited` convention), and the coach's HTTP stream rejects with a
+ * `CoachError` whose own `code` is the server's JSON `{ code }`. A callable's
+ * own `code` is always `functions/<status>`, so reading both cannot misfire.
+ */
+export function isEmailNotVerified(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false;
+  const { code, details } = e as { code?: unknown; details?: { code?: unknown } | null };
+  return details?.code === 'EMAIL_NOT_VERIFIED' || code === 'EMAIL_NOT_VERIFIED';
+}
+
+/**
  * Runs a send whose outcome can be lost in transit, retrying ONCE when it is.
  *
  * A retry that comes back `RATE_LIMITED` counts as success: the verification

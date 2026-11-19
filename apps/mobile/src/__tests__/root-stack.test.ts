@@ -55,12 +55,20 @@ describe('reconcileRootRoutes — the <Slot> contract on a native stack', () => 
     expect(reconcileRootRoutes([stale, fresh, coach], 2)).toEqual([fresh, coach]);
   });
 
-  it('never keeps the app shell under the sign-in or verify-email screens', () => {
+  it('never keeps the app shell under the sign-in screen', () => {
     const signIn = r('sign-in');
     expect(reconcileRootRoutes([r(APP_ROUTE), r('coach'), signIn], 2)).toEqual([signIn]);
-    const verify = r('verify-email');
-    expect(reconcileRootRoutes([r(APP_ROUTE), verify], 1)).toEqual([verify]);
     expect(reconcileRootRoutes([signIn], 0)).toBeNull();
+  });
+
+  it('verify-email is pushed over the app and keeps it underneath (2026-11-19)', () => {
+    // It was a forced, stand-alone stop until the verification wall came down;
+    // now Close has to have something to go back to.
+    const app = r(APP_ROUTE);
+    const verify = r('verify-email');
+    expect(reconcileRootRoutes([app, verify], 1)).toBeNull();
+    const coach = r('coach');
+    expect(reconcileRootRoutes([app, coach, verify], 2)).toBeNull();
   });
 
   it('Settings → Daily targets: back lands on Settings, not Today (S21-1)', () => {

@@ -26,10 +26,10 @@
  *      Routes pushed over it (`tour`, `whats-new`, `coach`, `milestones`,
  *      `onboarding` opened from Settings) keep it beneath them, which is what
  *      hardware back and swipe-back return to.
- *   2. **Signed-out routes stand alone.** `sign-in` and `verify-email` never
- *      keep an `(app)` under them: nothing should be reachable by going back
- *      from the sign-in screen, and a mounted tab shell with no user would
- *      run its hooks for nobody.
+ *   2. **Signed-out routes stand alone.** `sign-in` never keeps an `(app)`
+ *      under it: nothing should be reachable by going back from the sign-in
+ *      screen, and a mounted tab shell with no user would run its hooks for
+ *      nobody.
  *   3. **One copy of a pushed route.** A focused route whose name is already
  *      on the stack beneath it replaces that copy and everything above it.
  *      Settings → Redo setup pushes `onboarding` over Settings, and onboarding
@@ -79,8 +79,11 @@ export const HEADER_ROUTES: ReadonlySet<string> = new Set([
   'feedback',
 ]);
 
-/** Root routes that never keep an `(app)` beneath them. */
-export const STANDALONE_ROUTES: ReadonlySet<string> = new Set(['sign-in', 'verify-email']);
+/** Root routes that never keep an `(app)` beneath them. `verify-email` left
+ *  this set 2026-11-19: it is no longer the forced stop before the app but a
+ *  screen pushed over it (Today's banner, a locked scan or coach), and its
+ *  Close goes back to what is underneath. */
+export const STANDALONE_ROUTES: ReadonlySet<string> = new Set(['sign-in']);
 
 /** The root screen every pushed route sits on. */
 export const APP_ROUTE = '(app)';

@@ -303,6 +303,11 @@ interface Props {
   onShare?: () => void;
   /** A share is being captured — the button is busy. */
   sharing?: boolean;
+  /** Hide the footer status line (the measure-progress / maintenance line).
+   *  Today sets it for an account that has never logged (2026-11-19): "Log N
+   *  more days and Ignia measures…" means nothing before the first entry, and
+   *  the first-meal card right below says the one thing to do. Default false. */
+  hideStatusLine?: boolean;
 }
 
 /**
@@ -324,6 +329,7 @@ export function HeroRings({
   onPress,
   onShare,
   sharing = false,
+  hideStatusLine = false,
 }: Props) {
   const t = useT();
   const locale = useLocale();
@@ -573,7 +579,7 @@ export function HeroRings({
           slot the maintenance line will take over: a state readout (asks for
           nothing, cannot be dismissed), never a Nudge. `progress` and
           `maintenance` are mutually exclusive by construction in core. */}
-      {progress && !maintenance ? (
+      {progress && !maintenance && !hideStatusLine ? (
         <View style={styles.maintenanceFooter} testID="measure-progress">
           {/* The complete-day rule (2026-10-24) left days out: the count is
               COMPLETE days, and the line says so in place of a maintenance
@@ -611,7 +617,7 @@ export function HeroRings({
       {/* Maintenance sits INSIDE the panel, under a hairline — it is a second
           reading of the same day, not a separate concern. As its own pale card
           below the hero it read as something bolted on. */}
-      {maintenance ? (
+      {maintenance && !hideStatusLine ? (
         <View style={styles.maintenanceFooter} testID="maintenance-line">
           {(() => {
             const delta =

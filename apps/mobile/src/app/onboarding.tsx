@@ -46,9 +46,8 @@ import { db } from '@/lib/firebase';
 import { getAllDailyWeights, getLatestDailyWeight, getRecentLogs, saveOnboardingV2, setUnitSystem } from '@/lib/ledger';
 import { writeDailyMetric } from '@/lib/ledger-ops';
 import { useCalendarToday } from '@/hooks/useDayKey';
-import { setRemindersEnabled } from '@/lib/reminders';
 import { holdTour } from '@/lib/tour';
-import { DEFAULT_MEAL_REMINDERS, STREAK_RISK_HOUR, STREAK_RISK_MINUTE } from '@macrolog/core';
+import { initTrackerPrefsForNewAccount } from '@/lib/tracker-prefs';
 import { track } from '@/lib/analytics';
 import { type I18nKey, useLocale, useT } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
@@ -63,19 +62,36 @@ import { font, motion, radius, space, TARGET, type } from '@/theme';
  *  already greets everyone in front of sign-in, so a second greeting here was
  *  a screen whose only job was the 16+ checkbox. That attestation now sits on
  *  the goal step — the first one a first run cannot skip. */
-type StepId = 'goal' | 'weight' | 'goalWeight' | 'body' | 'activity' | 'plan' | 'reminders' | 'firstLog';
+/** No 'reminders' step since 2026-11-19: it asked for notification permission
+ *  before the app had done anything (0 of 43 users said yes). The ask moved to
+ *  a card on Today after the first logged food. Plan → first log now. */
+type StepId = 'goal' | 'weight' | 'goalWeight' | 'body' | 'activity' | 'plan' | 'firstLog';
 const ORDER: StepId[] = ['goal', 'weight', 'goalWeight', 'body', 'activity', 'plan'];
-/** Steps that get a progress dot. */
-const DOT_STEPS: StepId[] = ['goal', 'weight', 'goalWeight', 'body', 'activity', 'plan'];
+/** Steps that get a progress dot. `firstLog` is the last one on a first run;
+ *  a redo never reaches it, so it gets no dot there. */
+const DOT_STEPS: StepId[] = ['goal', 'weight', 'goalWeight', 'body', 'activity', 'plan', 'firstLog'];
 
-/** Same five buckets, same order, as Settings -> Refine targets. */
-const ACTIVITY: { value: ActivityLevel; labelKey: I18nKey }[] = [
-  { value: 'sedentary', labelKey: 'activity.sedentary' },
-  { value: 'light', labelKey: 'activity.light' },
-  { value: 'moderate', labelKey: 'activity.moderate' },
-  { value: 'active', labelKey: 'activity.active' },
-  { value: 'very_active', labelKey: 'activity.very_active' },
+/** Same five buckets, same order, as Settings -> Refine targets. The labels are
+ *  shared with that screen; the example lines are this screen's own. Each
+ *  example follows the bucket's multiplier in `ACTIVITY_MULTIPLIERS`
+ *  (packages/core/src/tdee.ts, the standard 1.2 / 1.375 / 1.55 / 1.725 / 1.9
+ *  ladder): little exercise · 1–3 days a week · 3–5 days · hard 6–7 days ·
+ *  hard training plus a physical job. */
+const ACTIVITY: { value: ActivityLevel; labelKey: I18nKey; hintKey: I18nKey }[] = [
+  { value: 'sedentary', labelKey: 'activity.sedentary', hintKey: 'onboarding.activitySedentaryHint' },
+  { value: 'light', labelKey: 'activity.light', hintKey: 'onboarding.activityLightHint' },
+  { value: 'moderate', labelKey: 'activity.moderate', hintKey: 'onboarding.activityModerateHint' },
+  { value: 'active', labelKey: 'activity.active', hintKey: 'onboarding.activityActiveHint' },
+  { value: 'very_active', labelKey: 'activity.very_active', hintKey: 'onboarding.activityVeryActiveHint' },
 ];
+
+/** The plan step's line beside the calorie number: what the number is FOR,
+ *  in the words of the goal the user picked. */
+const PLAN_KCAL_LINE: Record<GoalDirection, I18nKey> = {
+  lose: 'onboarding.planKcalLose',
+  maintain: 'onboarding.planKcalMaintain',
+  gain: 'onboarding.planKcalGain',
+};
 
 const GOALS: { key: GoalDirection; labelKey: I18nKey; hintKey: I18nKey; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'lose', labelKey: 'goal.lose', hintKey: 'goal.loseHint', icon: 'trending-down-outline' },
@@ -191,8 +207,8 @@ export default function Onboarding() {
   // LATCHED at mount, not derived. The first run's own save flips
   // `profileCompleted`, and a derived flag turned the rest of that run into a
   // redo: a failed age stamp after a good save was never retried (the stamp is
-  // first-run only), `onboarding_complete` never fired, reminders and the
-  // first log were skipped, and the sign-out control became the redo's Cancel
+  // first-run only), `onboarding_complete` never fired, the first log
+  // was skipped, and the sign-out control became the redo's Cancel
   // X (audit 2026-10-15). Whether this run is a redo is decided by how it
   // STARTED; the gate only ever opens a first run on a confirmed profile, so
   // the value at mount is the right one.
@@ -428,8 +444,8 @@ export default function Onboarding() {
   // BOTH numbers are validated. Protein used to be unchecked here on the
   // reasoning that "the estimator's own clamp catches anything wild on the way
   // out" — it does not, because the clamp is server-side: `firestore.rules`
-  // rejects a protein target >= 1000, `onFinish` maps permission-denied to
-  // "verify your email first", and a verified user on the last step of
+  // rejects a protein target >= 1000, `onFinish` then mapped permission-denied
+  // to "verify your email first" (until 2026-11-19), and a verified user on the last step of
   // onboarding was told to go and check their inbox with no way forward.
   // Clearing the field was the other half: protein went null, `canAdvance`
   // still read true because only kcal was checked, and the CTA rendered fully
@@ -496,7 +512,6 @@ export default function Onboarding() {
     // otherwise `dailyTargets` clamps it on the way out and hands the user a
     // number they did not choose, which is the exact defect being fixed.
     (step === 'plan' && (!kcalEdited || kcalCheck.ok) && (!proteinEdited || proteinCheck.ok)) ||
-    step === 'reminders' ||
     step === 'firstLog';
 
   function go(delta: 1 | -1) {
@@ -594,6 +609,11 @@ export default function Onboarding() {
     // the body, and any failure in it still lands in the same handler.
     await (async () => {
       await saveOnboardingV2(user.uid, submission);
+      // First run only: a new account starts with three secondary trackers
+      // hidden. Fired, never awaited — it never throws and never overwrites
+      // prefs that exist, and a miss must not block the flow; the `.catch` is
+      // only so no rejection can escape unhandled.
+      if (!isRedo) void initTrackerPrefsForNewAccount(user.uid).catch(() => {});
       // The weight answer as a real weigh-in — see `writesWeighIn`. After the
       // profile write, and not fatal: the plan is saved either way, and Body
       // is where a missed weigh-in gets entered.
@@ -622,31 +642,18 @@ export default function Onboarding() {
         router.replace('/settings');
         return;
       }
-      // First run only: the plan is saved; the one thing left to ask is
-      // whether Ignia may nudge at meal times. Measured 2026-08-30: two of
-      // the four organic installs that week logged 10 and 22 meals on day 0
-      // and never came back on day 1 — and nobody had reminders on, because
-      // the switch lived in Settings. This is the day-1 lever, asked once,
-      // with the OS permission prompt only after a yes.
+      // First run only: the plan is saved; the one thing left is the first
+      // log. The reminders ask that sat here until 2026-11-19 now waits for a
+      // card on Today after the first logged food.
       setBusy(false);
-      setDir(1);
-      setStep('reminders');
-    })().catch((e: unknown) => {
-      // A permission-denied here means the email isn't verified (the rules
-      // block the write) — surface that instead of blaming the connection.
-      // With the verify-email gate in place this is a rare fallback, but the
-      // token can lag verification by up to an hour.
-      const code = (e as { code?: string })?.code;
-      setError(t(code === 'permission-denied' ? 'onboarding.saveErrVerify' : 'onboarding.saveErr'));
+      goFirstLog();
+    })().catch(() => {
+      // Every failure is the generic save error. An unverified email no longer
+      // blocks this write (verification was relaxed 2026-11-19), so a
+      // permission-denied is not a "verify your email" case any more.
+      setError(t('onboarding.saveErr'));
       setBusy(false);
     });
-  }
-
-  /** Locale-formatted wall-clock time for the reminder preview rows. */
-  function clock(hour: number, minute: number): string {
-    const d = new Date();
-    d.setHours(hour, minute, 0, 0);
-    return d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
   }
 
   function leaveOnboarding(): void {
@@ -656,29 +663,11 @@ export default function Onboarding() {
   /** The last step (retention lever 1, `STATUS.md` §3): offer the first log
    *  before Today is ever seen empty. Measured 2026-09-02: 19 of 30 signups
    *  never reached three logs, and the research is one-sided — a meaningful
-   *  action in session one is worth 2–3× at D30. Reminders stay BEFORE this
-   *  step because the first-log CTA leaves onboarding for Today. */
+   *  action in session one is worth 2–3× at D30. It follows the plan step
+   *  directly; the reminders ask moved to Today, after the first log. */
   function goFirstLog(): void {
     setDir(1);
     setStep('firstLog');
-  }
-
-  /** Yes to reminders: ask the OS, and whatever it says, move on. A denied
-   *  permission leaves the switch off (setRemindersEnabled handles that) and
-   *  the user lands where they were going anyway. */
-  async function onEnableReminders(): Promise<void> {
-    setBusy(true);
-    await setRemindersEnabled(true)
-      .then((granted) => {
-        if (granted) haptics.success();
-      })
-      .catch(() => {
-        // Permission prompt failing must never trap someone in onboarding.
-      })
-      .finally(() => {
-        setBusy(false);
-        goFirstLog();
-      });
   }
 
   /** Land on Today with the add sheet already open (the `openAdd` nonce the
@@ -693,12 +682,12 @@ export default function Onboarding() {
 
   const entering = (dir === 1 ? FadeInRight : FadeInLeft).duration(motion.dur.base).reduceMotion(ReduceMotion.System);
   // Goal is the first step for everyone now, so nothing sits behind it.
-  const showBack = step !== 'goal' && step !== 'reminders' && step !== 'firstLog';
+  const showBack = step !== 'goal' && step !== 'firstLog';
 
   // Android hardware back follows the on-screen controls (09-22 item): it
   // quit the app from the middle of the wizard, losing every answer. Where
   // the back chevron shows, it steps back; on a redo's first step it is the
-  // Cancel X; after the save (reminders, first log) there is nothing to go
+  // Cancel X; after the save (the first log) there is nothing to go
   // back to, so it is consumed. Only a first run's first step lets the OS
   // have it — leaving the app there is what back means.
   useEffect(() => {
@@ -708,7 +697,7 @@ export default function Onboarding() {
         go(-1);
         return true;
       }
-      if (step === 'reminders' || step === 'firstLog') return true;
+      if (step === 'firstLog') return true;
       if (isRedo) {
         router.replace('/settings');
         return true;
@@ -720,7 +709,7 @@ export default function Onboarding() {
   // The unit toggle: a first-run choice. A redo keeps the profile's unit and
   // sees the screen exactly as before (Settings owns the unit for them).
   const unitToggle = !isRedo;
-  const dots = DOT_STEPS.filter((s) => !isSkipped(s));
+  const dots = DOT_STEPS.filter((s) => !isSkipped(s) && !(isRedo && s === 'firstLog'));
   const dotIndex = dots.indexOf(step);
   const dotTotal = dots.length;
 
@@ -1084,7 +1073,10 @@ export default function Onboarding() {
                       accessibilityState={{ selected: on }}
                       testID={`onboarding-activity-${a.value}`}
                     >
-                      <Text style={[styles.activityText, on && styles.activityTextOn]}>{t(a.labelKey)}</Text>
+                      <View style={styles.activityTextCol}>
+                        <Text style={[styles.activityText, on && styles.activityTextOn]}>{t(a.labelKey)}</Text>
+                        <Text style={[styles.activityHint, on && styles.activityHintOn]} testID={`onboarding-activity-hint-${a.value}`}>{t(a.hintKey)}</Text>
+                      </View>
                       {on ? <Ionicons name="checkmark" size={18} color={colors.onInk} /> : null}
                     </PressScale>
                   );
@@ -1140,6 +1132,15 @@ export default function Onboarding() {
                   calorie target is owed the basis of it — and the skipped case
                   has to say plainly that it is the rougher of the two, or the
                   skip becomes a silent downgrade. */}
+              {/* What the calorie number is for, in the goal's own words — a
+                  first run on the suggested numbers only: a typed number is the
+                  user's own and is not adjusted, and a redo has its own basis
+                  line below. */}
+              {!isRedo && !edited && goal && kcal != null ? (
+                <Text style={styles.planSub} testID="onboarding-plan-kcal-line">
+                  {t(PLAN_KCAL_LINE[goal], { n: formatNumber(kcal, locale) })}
+                </Text>
+              ) : null}
               <Text style={styles.planSub} testID="onboarding-plan-basis">
                 {isRedo && redoBasis != null
                   ? redoBasis
@@ -1152,6 +1153,9 @@ export default function Onboarding() {
                   {t('onboarding.planFloor', { n: formatNumber((kcal ?? 0), locale) })}
                 </Text>
               ) : null}
+              <Text style={styles.planSub} testID="onboarding-plan-protein-why">
+                {t('onboarding.planProteinWhy')}
+              </Text>
               <Text style={styles.planSub}>
                 {t('onboarding.planSub')} {t('targets.editHint')}
               </Text>
@@ -1179,19 +1183,6 @@ export default function Onboarding() {
             </View>
           ) : null}
 
-          {step === 'reminders' ? (
-            <View style={styles.step} testID="onboarding-reminders">
-              <Text style={styles.question} accessibilityRole="header">{t('onboarding.remindersQ')}</Text>
-              <Text style={styles.planSub}>{t('onboarding.remindersBody')}</Text>
-              <View style={styles.planPanel}>
-                <Text style={styles.reminderRow}>{t('onboarding.remindersLunch', { t: clock(DEFAULT_MEAL_REMINDERS.lunch.hour, DEFAULT_MEAL_REMINDERS.lunch.minute) })}</Text>
-                <Text style={styles.reminderRow}>{t('onboarding.remindersDinner', { t: clock(DEFAULT_MEAL_REMINDERS.dinner.hour, DEFAULT_MEAL_REMINDERS.dinner.minute) })}</Text>
-                <Text style={styles.reminderRow}>{t('onboarding.remindersStreak', { t: clock(STREAK_RISK_HOUR, STREAK_RISK_MINUTE) })}</Text>
-              </View>
-              <Text style={styles.planSub}>{t('onboarding.remindersNote')}</Text>
-            </View>
-          ) : null}
-
           {step === 'firstLog' ? (
             <View style={styles.step} testID="onboarding-first-log">
               <Text style={styles.question} accessibilityRole="header">{t('onboarding.firstLogQ')}</Text>
@@ -1214,11 +1205,6 @@ export default function Onboarding() {
         </ScrollView>
 
         <View style={styles.footer}>
-          {step === 'reminders' ? (
-            <PressScale style={styles.ctaGhost} scaleTo={0.98} disabled={busy} onPress={goFirstLog} accessibilityRole="button" accessibilityState={{ disabled: busy }} testID="onboarding-reminders-skip">
-              <Text style={styles.ctaGhostText}>{t('onboarding.remindersNotNow')}</Text>
-            </PressScale>
-          ) : null}
           {step === 'firstLog' ? (
             <PressScale style={styles.ctaGhost} scaleTo={0.98} disabled={busy} onPress={leaveOnboarding} accessibilityRole="button" accessibilityState={{ disabled: busy }} testID="onboarding-first-log-later">
               <Text style={styles.ctaGhostText}>{t('onboarding.firstLogLater')}</Text>
@@ -1232,13 +1218,11 @@ export default function Onboarding() {
             accessibilityState={{ disabled: !canAdvance || busy, busy }}
             onPress={
               step === 'firstLog' ? onFirstLog
-              : step === 'reminders' ? onEnableReminders
               : step === 'plan' ? onFinish
               : () => go(1)
             }
             testID={
               step === 'firstLog' ? 'onboarding-first-log-cta'
-              : step === 'reminders' ? 'onboarding-reminders-on'
               : step === 'plan' ? 'onboarding-save'
               : 'onboarding-next'
             }
@@ -1249,8 +1233,6 @@ export default function Onboarding() {
               <Text style={styles.ctaText}>
                 {step === 'firstLog'
                     ? t('onboarding.firstLogCta')
-                  : step === 'reminders'
-                    ? t('onboarding.remindersOn')
                   : step === 'plan'
                     ? isRedo
                       ? t('onboarding.saveEdit')
@@ -1606,6 +1588,11 @@ const createStyles = ({ colors, shadow }: Theme) =>
     activityRowOn: { backgroundColor: colors.ink, borderColor: colors.ink },
     activityText: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
     activityTextOn: { color: colors.onInk },
+    // The example line under each level; the column flexes so a long line
+    // wraps beside the checkmark instead of pushing it off the row.
+    activityTextCol: { flex: 1, gap: 2, paddingRight: space.sm },
+    activityHint: { fontSize: font.small, color: colors.muted },
+    activityHintOn: { color: colors.onInk },
     // minHeight TARGET on the small text buttons here (Skip, Not now, the
     // sex and activity choices): padding alone left them under 44/48.
     skip: { alignSelf: 'center', minHeight: TARGET, justifyContent: 'center', paddingVertical: space.sm, paddingHorizontal: space.md },

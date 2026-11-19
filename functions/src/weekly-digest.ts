@@ -1,6 +1,7 @@
 import { FieldPath, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
+import { lifecycleRecipient } from "./lifecycle-recipient";
 import { emailLocale } from "./locales";
 import { weeklyDigestEmail } from "./email-templates";
 import { unsubscribeUrl } from "./unsubscribe";
@@ -484,8 +485,10 @@ async function sendDigestTo(
   // point their weekly digest (and its Resend quota) at an arbitrary
   // inbox (2026-10-15 audit). Unverified or disabled accounts get no mail.
   const user = await getAuth().getUser(uid).catch(() => null);
-  const email = user?.email;
-  if (!user || !email || !user.emailVerified || user.disabled) return "skipped";
+  // Verified, enabled, Auth-record address only (lifecycle-recipient.ts) —
+  // load-bearing since 2026-11-19, when unverified accounts got profiles.
+  const email = lifecycleRecipient(user);
+  if (!user || !email) return "skipped";
 
   const stats = await computeStatsForUser(uid, nowMs, tzOffset ?? 0);
   // Skip users who haven't logged anything this week. Sending a

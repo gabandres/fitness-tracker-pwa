@@ -10,8 +10,8 @@ import type { Profile } from '@macrolog/core';
  * onboarding now ends by offering the first log before Today is ever seen
  * empty.
  *
- * Pinned here: the step is LAST (after reminders, because its CTA leaves
- * onboarding), it never appears on a redo, "Log my last meal" lands on Today
+ * Pinned here: the step is LAST, straight after the saved plan (the
+ * reminders step that sat between them was removed 2026-11-19), it never appears on a redo, "Log my last meal" lands on Today
  * with the add sheet open AND holds the guided tour so the tour cannot push
  * itself over the sheet, and "I'll do it later" lands on plain Today with the
  * tour untouched.
@@ -52,7 +52,7 @@ jest.mock('firebase/firestore', () => ({
   updateDoc: (...a: unknown[]) => mockUpdateDoc(...(a as [])),
   serverTimestamp: () => ({ __serverTimestamp: true }),
 }));
-jest.mock('@/lib/reminders', () => ({ setRemindersEnabled: jest.fn().mockResolvedValue(true) }));
+jest.mock('@/lib/tracker-prefs', () => ({ initTrackerPrefsForNewAccount: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('@/lib/tour', () => ({ holdTour: (...args: unknown[]) => mockHoldTour(...args) }));
 jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
@@ -71,7 +71,7 @@ beforeEach(() => {
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
-/** goal → weight → goalWeight → body (skipped) → plan → save → reminders (not now). */
+/** goal → weight → goalWeight → body (skipped) → plan → save. */
 async function walkToFirstLog(screen: Screen) {
   const { getByTestId } = screen;
   await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9), on the goal step
@@ -83,11 +83,10 @@ async function walkToFirstLog(screen: Screen) {
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.press(getByTestId('onboarding-skip-body'));
   await fireEvent.press(getByTestId('onboarding-save'));
-  await fireEvent.press(getByTestId('onboarding-reminders-skip'));
 }
 
 describe('onboarding ends by offering the first log', () => {
-  it('is the last step, reached from the reminders step, and does not leave yet', async () => {
+  it('is the last step, reached straight from the saved plan, and does not leave yet', async () => {
     const screen = await render(<Onboarding />);
     await walkToFirstLog(screen);
     expect(mockSave).toHaveBeenCalledTimes(1);

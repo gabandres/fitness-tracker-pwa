@@ -41,6 +41,8 @@ import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
 import { MealSlotChips, TimeOfDayRow } from '@/components/EntryWhen';
 import { ScanCamera } from '@/components/ScanCamera';
+import { useAiLock, VerifyEmailLocked } from '@/components/VerifyEmailBanner';
+import { isEmailNotVerified } from '@/lib/callable-errors';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
 import { useToday } from '@/hooks/useToday';
 import { announce } from '@/lib/a11y';
@@ -219,6 +221,15 @@ export default function Scan() {
   const receipt = useAddReceipt();
   const { user } = useAuth();
   const uid = user?.uid ?? null;
+  /**
+   * Photo scan is an AI call that costs money, so it waits for a confirmed
+   * email (2026-11-19: everything else works unverified). While locked the
+   * screen shows `VerifyEmailLocked` in place of the camera and the describe
+   * step: no auto-open, no warm-up, no encode, no upload. Barcode scanning is
+   * not AI and is not on this screen. The server repeats the check; its
+   * `EMAIL_NOT_VERIFIED` lands in the same state (`onAnalyze`'s catch).
+   */
+  const { locked: aiLocked, lockFromServer } = useAiLock();
 
   // Seconds-per-log stopwatch (`lib/log-timer.ts`): the scan screen is a
   // logging surface, so the clock runs from the intro to the review's Add —
@@ -233,8 +244,8 @@ export default function Scan() {
   // wait after the shutter (`warmUpPhotoScan`). Once per open and per account;
   // nothing is charged for it, and it is not sent when known to be offline.
   useEffect(() => {
-    if (uid && !isOffline()) warmUpPhotoScan();
-  }, [uid]);
+    if (uid && !aiLocked && !isOffline()) warmUpPhotoScan();
+  }, [uid, aiLocked]);
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [error, setError] = useState<string | null>(null);
@@ -390,10 +401,12 @@ export default function Scan() {
   const autoOpened = useRef(false);
   const draftChecked = restored || !uid;
   useEffect(() => {
-    if (autoOpened.current || !draftChecked || !camPerm) return;
+    // Locked: not yet — once the email is verified (the lock lifts in place),
+    // this runs and opens the camera the user came for.
+    if (autoOpened.current || !draftChecked || !camPerm || aiLocked) return;
     autoOpened.current = true;
     if (camGranted && phase === 'intro' && !error) setPhase('camera');
-  }, [draftChecked, camPerm, camGranted, phase, error]);
+  }, [draftChecked, camPerm, camGranted, phase, error, aiLocked]);
 
   /**
    * Park every edit to the review, debounced.
@@ -613,7 +626,7 @@ export default function Scan() {
    */
   async function onAnalyze(shot?: string[]) {
     const uris = shot ?? pendingUris;
-    if (!uris.length) return;
+    if (!uris.length || aiLocked) return;
     haptics.tap();
 
     // Known offline: stop before the encode and the call (U9). The photos stay
@@ -671,6 +684,18 @@ export default function Scan() {
     })()
       .catch((e: unknown) => {
         if (run !== analyzeRun.current) return;
+        // The server says the email is unverified: the locked state, not a
+        // failure line. The photos stay in the strip for after verification.
+        // If Firebase now says verified, the token was stale and `reloadUser`
+        // has just replaced it — say so; Analyze works on the next tap.
+        if (isEmailNotVerified(e)) {
+          setPendingUris(uris);
+          setPhase(camGranted ? 'camera' : 'describe');
+          void lockFromServer().then((nowVerified) => {
+            if (nowVerified) setError(t('verify.nowConfirmed'));
+          });
+          return;
+        }
         // Say what actually went wrong. This used to be a bare `catch {}` that
         // rendered "Couldn't read that photo" for every failure — including the
         // daily quota, which is not about the photo and which retaking it can
@@ -1168,7 +1193,19 @@ export default function Scan() {
         <Text style={styles.title} accessibilityRole="header">{t('scan.title')}</Text>
       </View>
 
-      {phase === 'camera' ? (
+      {aiLocked && phase !== 'review' ? (
+        // `review` is exempt: a review on screen is a scan already paid for
+        // (a restored draft), and logging it is not an AI call.
+        <ScrollView contentContainerStyle={styles.body}>
+          <VerifyEmailLocked
+            title={t('scan.lockedTitle')}
+            body={t('scan.lockedBody')}
+            secondaryLabel={t('scan.lockedSearch')}
+            onSecondary={searchInstead}
+            testID="scan-locked"
+          />
+        </ScrollView>
+      ) : phase === 'camera' ? (
         <ScanCamera
           photos={pendingUris}
           max={MAX_PHOTOS}

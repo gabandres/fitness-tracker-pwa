@@ -58,12 +58,12 @@ function fakeCeiling(trace: Trace, opts: { checkThrows?: HttpsError } = {}) {
   return { ceiling, calls };
 }
 
-const FREE: GuardedCaller = { uid: "u-free", tier: "free", unlimited: false, quotaExempt: false };
+const FREE: GuardedCaller = { uid: "u-free", tier: "free", unlimited: false, quotaExempt: false, emailVerified: true };
 /** Admin is `unlimited` but NOT `quotaExempt` — the two flags are not the same
     flag, and 2026-08-12 is the day that mattered (see `Caller.quotaExempt`). */
-const ADMIN: GuardedCaller = { uid: "u-admin", tier: "admin", unlimited: true, quotaExempt: false };
-const COMPED: GuardedCaller = { uid: "u-comped", tier: "comped", unlimited: true, quotaExempt: true };
-const PAID: GuardedCaller = { uid: "u-paid", tier: "paid", unlimited: false, quotaExempt: false };
+const ADMIN: GuardedCaller = { uid: "u-admin", tier: "admin", unlimited: true, quotaExempt: false, emailVerified: true };
+const COMPED: GuardedCaller = { uid: "u-comped", tier: "comped", unlimited: true, quotaExempt: true, emailVerified: true };
+const PAID: GuardedCaller = { uid: "u-paid", tier: "paid", unlimited: false, quotaExempt: false, emailVerified: true };
 
 const ceilingReached = new HttpsError("resource-exhausted", "spent", { code: "SERVICE_CEILING_REACHED" });
 const quotaExceeded = new HttpsError("resource-exhausted", "over", { code: "PHOTO_QUOTA_EXCEEDED" });
@@ -288,5 +288,58 @@ describe("the two exemption flags are not one flag", () => {
     expect(
       await guards({ kind: "photo", caller: COMPED }, async ({ reservation }) => reservation?.remaining ?? null),
     ).toBeNull();
+  });
+});
+
+describe("step 0: a verified email (2026-11-19)", () => {
+  // Since 2026-11-19 an unverified account may own a profile and log data, so
+  // the guards now meet callers who have never proved an address. They are
+  // free to mint in bulk; each would be a fresh daily quota draining one
+  // shared ceiling. The rejection must therefore consume NOTHING.
+  const kinds = ["photo", "consultation", "weeklyReport"] as const;
+  const unverified = (c: GuardedCaller): GuardedCaller => ({ ...c, emailVerified: false });
+
+  for (const kind of kinds) {
+    for (const [name, caller] of [["free", FREE], ["paid", PAID], ["admin", ADMIN], ["comped", COMPED]] as const) {
+      it(`${kind}: an unverified ${name} caller is refused before the ceiling, the reserve and the work`, async () => {
+        const trace: Trace = [];
+        const { quota, calls: q } = fakeQuota(trace);
+        const { ceiling, calls: c } = fakeCeiling(trace);
+        let ran = false;
+
+        const err = await makeCostGuards(quota, ceiling)({ kind, caller: unverified(caller) }, async () => {
+          ran = true;
+        }).catch((e: unknown) => e);
+
+        expect(err).toBeInstanceOf(HttpsError);
+        expect((err as HttpsError).code).toBe("failed-precondition");
+        expect((err as HttpsError).details).toEqual({ code: "EMAIL_NOT_VERIFIED" });
+        expect(ran).toBe(false); // no model call
+        expect(trace).toEqual([]); // no ceiling check, no reserve, no record
+        expect(q.reserve).toEqual([]);
+        expect(q.release).toEqual([]);
+        expect(c.check).toBe(0);
+        expect(c.record).toEqual([]);
+      });
+    }
+  }
+
+  it("treats a missing flag as unverified (only `true` passes)", async () => {
+    const trace: Trace = [];
+    const { quota } = fakeQuota(trace);
+    const { ceiling } = fakeCeiling(trace);
+    const loose = { uid: "u-x", tier: "free", unlimited: false, quotaExempt: false } as unknown as GuardedCaller;
+    await expect(
+      makeCostGuards(quota, ceiling)({ kind: "photo", caller: loose }, async () => "x"),
+    ).rejects.toMatchObject({ details: { code: "EMAIL_NOT_VERIFIED" } });
+    expect(trace).toEqual([]);
+  });
+
+  it("a verified caller is unaffected", async () => {
+    const trace: Trace = [];
+    const { quota } = fakeQuota(trace);
+    const { ceiling } = fakeCeiling(trace);
+    expect(await makeCostGuards(quota, ceiling)({ kind: "photo", caller: FREE }, async () => "ok")).toBe("ok");
+    expect(trace[0]).toBe("check:photo");
   });
 });

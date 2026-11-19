@@ -1,5 +1,7 @@
+import { HttpsError } from "firebase-functions/v2/https";
 import type { Caller } from "./caller-access";
 import type { QuotaKind } from "./daily-quota";
+import { ErrorCode } from "./error-codes";
 
 /**
  * The two AI-cost guards, in the one order that is correct, as a callable
@@ -62,11 +64,36 @@ import type { QuotaKind } from "./daily-quota";
  * every failed call free to the ceiling, which is the unbounded case: a stream
  * of unreadable photos running up a real bill while every individual request
  * looks free.
+ *
+ * ## Step 0: a verified email (2026-11-19)
+ *
+ * The owner relaxed the verification wall that day: an unverified account may
+ * now own a profile and log data (firestore.rules `isOwnerWriter`). It may NOT
+ * spend money. An unverified account is free to mint in bulk, so it is exactly
+ * the caller both guards below would otherwise have to absorb: N fresh uids are
+ * N fresh daily quotas, all draining one org ceiling. The check therefore runs
+ * HERE, before the ceiling check and the reserve, and it is the one place every
+ * AI-cost callable passes through (`analyzePhoto`, `consultationStream`,
+ * `generateWeeklyReport`). Rejecting consumes nothing: no ceiling read, no
+ * slot, no record. Admins are not exempt — an admin's address is verified by
+ * definition (`bootstrapAdmin` refuses otherwise).
  */
 
 /** The half of `Caller` that decides guard behaviour. Narrow on purpose so a
     test can fabricate one without a Firestore-backed `CallerAccess`. */
-export type GuardedCaller = Pick<Caller, "uid" | "tier" | "unlimited" | "quotaExempt">;
+export type GuardedCaller = Pick<Caller, "uid" | "tier" | "unlimited" | "quotaExempt" | "emailVerified">;
+
+/** Throws the typed EMAIL_NOT_VERIFIED rejection unless `emailVerified` is
+    exactly true. Exported so a spec can pin the error shape on its own. */
+export function assertEmailVerified(caller: Pick<GuardedCaller, "emailVerified">): void {
+  if (caller.emailVerified !== true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Verify your email to use this feature.",
+      { code: ErrorCode.EMAIL_NOT_VERIFIED },
+    );
+  }
+}
 
 /** What `DailyQuota.reserve` hands back. Non-null means this request is
     holding a slot that the failure path has to give back — and `day` is what
@@ -138,6 +165,9 @@ export function makeCostGuards(quota: QuotaLedgerLike, ceiling: SpendCeilingLike
     const { kind, caller } = spec;
     const reserveUnits = spec.reserveUnits ?? 1;
     const recordUnits = spec.recordUnits ?? 1;
+
+    // 0. A verified email, before anything is read or charged (see header).
+    assertEmailVerified(caller);
 
     // 1. Solvency, read-only, BEFORE the reserve. Unlimited callers are
     //    metered but never blocked — see the header.

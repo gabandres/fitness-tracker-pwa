@@ -94,18 +94,20 @@ describe('first run stays a first run after the save (#3, #4)', () => {
     expect(mockTrack.mock.calls.map((c) => c[0])).not.toContain('onboarding_complete');
 
     await fireEvent.press(screen.getByTestId('onboarding-save'));
-    await waitFor(() => expect(screen.getByTestId('onboarding-reminders')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('onboarding-first-log')).toBeTruthy());
     expect(mockUpdateDoc).toHaveBeenCalledTimes(2);
     expect(mockUpdateDoc.mock.calls[1][1]).toEqual({ ageConfirmedAt: { __serverTimestamp: true } });
     expect(mockTrack.mock.calls.filter((c) => c[0] === 'onboarding_complete')).toHaveLength(1);
     expect(mockReplace).not.toHaveBeenCalledWith('/settings');
   });
 
-  it('a successful first run reaches reminders without a redo Cancel X', async () => {
+  // The reminders step this used to land on was removed 2026-11-19; the
+  // saved plan goes straight to the first-log step.
+  it('a successful first run reaches the first-log step without a redo Cancel X', async () => {
     const screen = await render(<Onboarding />);
     await walkToPlan(screen);
     await fireEvent.press(screen.getByTestId('onboarding-save'));
-    await waitFor(() => expect(screen.getByTestId('onboarding-reminders')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('onboarding-first-log')).toBeTruthy());
     expect(screen.queryByTestId('onboarding-cancel')).toBeNull();
   });
 });

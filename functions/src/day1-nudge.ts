@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { day1NudgeEmail, type Day1Variant } from "./email-templates";
 import { emailLocale } from "./locales";
 import { baseSendOptions, getResend, resendApiKey } from "./resend-client";
+import { lifecycleRecipient } from "./lifecycle-recipient";
 import { unsubscribeUrl } from "./unsubscribe";
 
 /**
@@ -86,8 +87,10 @@ async function nudgeOne(
 
   // Auth record only — never the client-writable profile `email` field.
   const user = await getAuth().getUser(uid).catch(() => null);
-  const email = user?.email;
-  if (!user || !email || !user.emailVerified || user.disabled) return "skipped";
+  // Verified, enabled, Auth-record address only (lifecycle-recipient.ts) —
+  // load-bearing since 2026-11-19, when unverified accounts got profiles.
+  const email = lifecycleRecipient(user);
+  if (!user || !email) return "skipped";
 
   // Latch first. A second worker in the same hour sees the stamp and stops.
   const ref = db.doc(`users/${uid}`);

@@ -80,22 +80,36 @@ beforeEach(async () => {
   await env.clearFirestore();
 });
 
+// The email_verified claim an owner's token carries when a test does not say.
+// Since 2026-11-19 (firestore.rules `isOwnerWriter`) a user's own subtree is
+// writable verified or not, so the WHOLE suite runs twice, once per value:
+// every positive case is then proof that an unverified owner can write that
+// collection, and every negative case that it still cannot write anything
+// the verified owner could not. Tests that are about verification pass it
+// explicitly.
+let defaultOwnerVerified = true;
+
 function authed(uid: string, opts: { emailVerified?: boolean } = {}) {
-  return env.authenticatedContext(uid, { email_verified: opts.emailVerified ?? true }).firestore();
+  return env.authenticatedContext(uid, { email_verified: opts.emailVerified ?? defaultOwnerVerified }).firestore();
 }
 function unauthed() {
   return env.unauthenticatedContext().firestore();
 }
 
-describe('firestore.rules', () => {
+function rulesSuite(ownerVerified: boolean) {
+describe(`firestore.rules (owner token email_verified=${ownerVerified})`, () => {
+  beforeAll(() => {
+    defaultOwnerVerified = ownerVerified;
+  });
+
   it('owner can create their own verified profile', async () => {
     const db = authed('alice');
     await assertSucceeds(setDoc(doc(db, 'users', 'alice'), baseProfile()));
   });
 
-  it('rejects profile creation when email is not verified', async () => {
+  it('allows profile creation when email is not verified (2026-11-19 policy)', async () => {
     const db = authed('alice', { emailVerified: false });
-    await assertFails(setDoc(doc(db, 'users', 'alice'), baseProfile()));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), baseProfile()));
   });
 
   it('allows profile creation WITHOUT an email field (PII minimization)', async () => {
@@ -311,13 +325,13 @@ describe('firestore.rules', () => {
     await assertSucceeds(updateDoc(ref, { bodyFatPct: deleteField(), bodyFatMethod: deleteField() }));
   });
 
-  it('rejects a dailyLog write from an unverified email', async () => {
-    // The /dailyLogs rules gate on isOwner only, but the parent profile
-    // write path is gated on isVerifiedUser, so an unverified user who
-    // never owned a profile is the real-world case. Assert the /users
-    // gate denies unverified writes — covers the verify-email gap.
+  it('an unverified owner can create a profile and then a dailyLog (2026-11-19 policy)', async () => {
+    // Until 2026-11-19 both writes were denied to an unverified token. The
+    // owner relaxed it: own data is writable before verification; AI spend,
+    // lifecycle mail and public pages stay verified-only, server-side.
     const db = authed('alice', { emailVerified: false });
-    await assertFails(setDoc(doc(db, 'users', 'alice'), baseProfile()));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), baseProfile()));
+    await assertSucceeds(addDoc(collection(db, 'users', 'alice', 'dailyLogs'), validLog()));
   });
 
   it('blocks client writes to users/{uid}/reports (server-only collection)', async () => {
@@ -2788,25 +2802,116 @@ describe('firestore.rules', () => {
     });
   });
 
-  describe('verified email is required for every user-subtree write', () => {
-    it('rejects feedback from an unverified token (it emails the owner)', async () => {
+  // ─── 2026-11-19: own data is writable before verification ─────────────
+  // Replaces the 2026-10-15 'verified email is required for every user-
+  // subtree write' block. The rest of the suite also runs with an unverified
+  // owner by default (see `rulesSuite`); these pin the policy by name.
+  describe('an unverified owner writes its own data, and nothing more', () => {
+    it('creates a profile with a valid shape', async () => {
       const db = authed('alice', { emailVerified: false });
-      await assertFails(
+      const now = Timestamp.now();
+      await assertSucceeds(
+        setDoc(doc(db, 'users', 'alice'), { createdAt: now, lastSeenAt: now, profileCompleted: false }),
+      );
+    });
+
+    it('still cannot create a profile with an invalid shape', async () => {
+      const db = authed('alice', { emailVerified: false });
+      await assertFails(setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), profileCompleted: 'yes' }));
+    });
+
+    for (const [field, value] of Object.entries({
+      compedUntil: Timestamp.fromMillis(Date.now() + 365 * 86_400_000),
+      referralRewardGrantedAt: Timestamp.now(),
+      publicSlug: 'someone-else',
+      publicProfileEnabled: true,
+      lastWeeklyDigestSentAt: Timestamp.now(),
+      day1NudgeSentAt: Timestamp.now(),
+      welcomeEmailSentAt: Timestamp.now(),
+      dayThreeCoachPushSent: true,
+      firstEntryAt: Timestamp.now(),
+      syntheticAccount: true,
+      webhookApiKey: 'k'.repeat(32),
+    } as Record<string, unknown>)) {
+      it(`cannot set server-only ${field} at create`, async () => {
+        const db = authed('alice', { emailVerified: false });
+        await assertFails(setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), [field]: value }));
+      });
+    }
+
+    it('cannot flip a server-only latch on update', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'alice'), baseProfile());
+      });
+      const db = authed('alice', { emailVerified: false });
+      await assertFails(updateDoc(doc(db, 'users', 'alice'), { publicProfileEnabled: true }));
+      await assertFails(updateDoc(doc(db, 'users', 'alice'), { compedUntil: Timestamp.now() }));
+    });
+
+    it('writes a dailyLog, a weigh-in, a profile update and its push token', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', 'alice'), baseProfile());
+      });
+      const db = authed('alice', { emailVerified: false });
+      await assertSucceeds(addDoc(collection(db, 'users', 'alice', 'dailyLogs'), validLog()));
+      await assertSucceeds(setDoc(doc(db, 'users', 'alice', 'dailyWeights', '2026-01-15'), { weight: 180 }));
+      await assertSucceeds(updateDoc(doc(db, 'users', 'alice'), { lastSeenAt: Timestamp.now() }));
+      await assertSucceeds(updateDoc(doc(db, 'users', 'alice'), { expoPushToken: 'ExponentPushToken[abc]' }));
+    });
+
+    it('files feedback (it pings the owner, under the function send budget)', async () => {
+      const db = authed('alice', { emailVerified: false });
+      await assertSucceeds(
         addDoc(collection(db, 'users', 'alice', 'feedback'), {
-          message: 'spam',
+          message: 'I am stuck on the verify screen',
           createdAt: Timestamp.now(),
         }),
       );
     });
 
-    it('rejects a dailyLog, a weigh-in and a profile update from an unverified token', async () => {
+    it("cannot write another uid's log, weigh-in or profile", async () => {
       await env.withSecurityRulesDisabled(async (ctx) => {
-        await setDoc(doc(ctx.firestore(), 'users', 'alice'), baseProfile());
+        await setDoc(doc(ctx.firestore(), 'users', 'bob'), baseProfile());
       });
+      for (const verified of [false, true]) {
+        const db = authed('alice', { emailVerified: verified });
+        await assertFails(addDoc(collection(db, 'users', 'bob', 'dailyLogs'), validLog()));
+        await assertFails(setDoc(doc(db, 'users', 'bob', 'dailyLogs', 'l1'), validLog()));
+        await assertFails(setDoc(doc(db, 'users', 'bob', 'dailyWeights', '2026-01-15'), { weight: 180 }));
+        await assertFails(updateDoc(doc(db, 'users', 'bob'), { lastSeenAt: Timestamp.now() }));
+        await assertFails(
+          addDoc(collection(db, 'users', 'bob', 'feedback'), { message: 'x', createdAt: Timestamp.now() }),
+        );
+      }
+    });
+
+    it('server-only and public paths stay closed to it', async () => {
       const db = authed('alice', { emailVerified: false });
-      await assertFails(addDoc(collection(db, 'users', 'alice', 'dailyLogs'), validLog()));
-      await assertFails(setDoc(doc(db, 'users', 'alice', 'dailyWeights', '2026-01-15'), { weight: 180 }));
-      await assertFails(updateDoc(doc(db, 'users', 'alice'), { lastSeenAt: Timestamp.now() }));
+      await assertFails(setDoc(doc(db, 'users', 'alice', 'private', 'oura'), { refreshToken: 'x' }));
+      await assertFails(getDoc(doc(db, 'users', 'alice', 'private', 'oura')));
+      await assertFails(setDoc(doc(db, 'users', 'alice', 'reports', 'r1'), { markdown: 'x' }));
+      await assertFails(setDoc(doc(db, 'users', 'alice', 'integrations', 'oura'), { connectedAt: Timestamp.now() }));
+      await assertFails(setDoc(doc(db, 'users', 'alice', 'healthTombstones', 't1'), { at: Timestamp.now() }));
+      await assertFails(setDoc(doc(db, 'publicProfiles', 'alice'), { slug: 'alice', displayName: 'A' }));
+      await assertFails(setDoc(doc(db, 'publicSlugs', 'alice'), { uid: 'alice' }));
+      await assertFails(setDoc(doc(db, 'consultationQuota', 'alice_2026-11-19'), { count: 0 }));
+      await assertFails(setDoc(doc(db, 'opsBudget', 'photo'), { units: 0 }));
+    });
+
+    it('users/{uid}/private/** is denied to everyone, verified or not', async () => {
+      for (const verified of [false, true]) {
+        const db = authed('alice', { emailVerified: verified });
+        await assertFails(setDoc(doc(db, 'users', 'alice', 'private', 'appleAuth'), { t: 'x' }));
+        await assertFails(getDoc(doc(db, 'users', 'alice', 'private', 'appleAuth')));
+      }
+    });
+
+    it('verified behaviour is unchanged', async () => {
+      const db = authed('alice', { emailVerified: true });
+      await assertSucceeds(setDoc(doc(db, 'users', 'alice'), baseProfile()));
+      await assertSucceeds(addDoc(collection(db, 'users', 'alice', 'dailyLogs'), validLog()));
+      await assertFails(setDoc(doc(db, 'users', 'alice', 'dailyLogs', 'bad'), { ...validLog(), calories: 999999 }));
+      await assertFails(updateDoc(doc(db, 'users', 'alice'), { publicSlug: 'mine' }));
     });
 
     it('still lets an unverified owner DELETE their own data', async () => {
@@ -2919,3 +3024,7 @@ describe('firestore.rules', () => {
   });
 
 });
+}
+
+rulesSuite(true);
+rulesSuite(false);

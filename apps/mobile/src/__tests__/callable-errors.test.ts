@@ -5,6 +5,7 @@
  * is told apart from a real refusal, and that a lost one is retried once.
  */
 import {
+  isEmailNotVerified,
   isLostCallableResponse,
   isRateLimited,
   sendWithLostResponseRetry,
@@ -83,5 +84,24 @@ describe('sendWithLostResponseRetry', () => {
     const send = jest.fn().mockRejectedValue(rateLimited);
     await expect(sendWithLostResponseRetry(send)).rejects.toBe(rateLimited);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('isEmailNotVerified', () => {
+  it('matches a callable refusal carrying EMAIL_NOT_VERIFIED in details', () => {
+    expect(
+      isEmailNotVerified({ code: 'functions/failed-precondition', details: { code: 'EMAIL_NOT_VERIFIED' } }),
+    ).toBe(true);
+  });
+  it("matches the coach stream's CoachError, whose own code is the server's", () => {
+    expect(isEmailNotVerified(Object.assign(new Error('EMAIL_NOT_VERIFIED'), { code: 'EMAIL_NOT_VERIFIED' }))).toBe(true);
+  });
+  it('matches nothing else', () => {
+    expect(isEmailNotVerified(rateLimited)).toBe(false);
+    expect(isEmailNotVerified(serverInternal)).toBe(false);
+    expect(isEmailNotVerified(lost)).toBe(false);
+    expect(isEmailNotVerified({ code: 'functions/unauthenticated' })).toBe(false);
+    expect(isEmailNotVerified(null)).toBe(false);
+    expect(isEmailNotVerified('EMAIL_NOT_VERIFIED')).toBe(false);
   });
 });

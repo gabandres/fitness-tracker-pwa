@@ -23,7 +23,7 @@ import { Flame } from '@/components/Flame';
 import { useToast } from '@/components/Toast';
 import { useAddReceipt } from '@/hooks/useAddReceipt';
 import { useSetParamsWhenReady } from '@/lib/route-params';
-import { DailyMetrics } from '@/components/DailyMetrics';
+import { DailyMetrics, metricRows } from '@/components/DailyMetrics';
 import { SkeletonMetricsCard, SkeletonRows } from '@/components/DaySkeleton';
 import { HeaderAvatar } from '@/components/HeaderAvatar';
 import { NumbersGlossary } from '@/components/NumbersGlossary';
@@ -45,6 +45,12 @@ import { useHealthReconnect } from '@/hooks/useHealthReconnect';
 import { TargetChangeNotice } from '@/components/TargetChangeNotice';
 import { ShareCard } from '@/components/ShareCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
+import { VerifyEmailBanner } from '@/components/VerifyEmailBanner';
+import { FirstMealCard } from '@/components/FirstMealCard';
+import { ReminderAskCard, useReminderAsk } from '@/components/ReminderAskCard';
+import { everLoggedFood, showFirstMealCard, wantsReminderAsk } from '@/lib/today-gate';
+import { ALL_TRACKERS_ON, useTrackerPrefs } from '@/lib/tracker-prefs';
+import { syncReminders } from '@/lib/reminders';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { capitalizeFirst } from '@/i18n/grammar';
 import { remainingAfterAdd, willCelebrate } from '@/lib/celebration';
@@ -264,7 +270,31 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
     measurement,
     targetsAuthoritative,
     profile: todayProfile,
+    hasPriorLogs,
   } = useToday();
+  // Activation (2026-11-19). "Never logged" is keyed on the log window this
+  // screen already holds — a food row today or on an earlier day — and is
+  // unknown (null) until the rows are in, so neither card below can flash for
+  // a returning user while the feed loads (`lib/today-gate.ts`). This screen
+  // only ever shows today; History owns past days.
+  const isToday = true;
+  const everLogged = everLoggedFood({
+    dataReady: !loading && hasData,
+    todayEntries: todayLogs.length,
+    hasPriorEntries: hasPriorLogs,
+  });
+  const firstMeal = showFirstMealCard({ isToday, todayEntries: todayLogs.length, everLogged });
+  const reminderAsk = useReminderAsk(user?.uid);
+  const reminderAskWanted = wantsReminderAsk({
+    isToday,
+    everLogged,
+    remindersOn: reminderAsk.remindersOn,
+    answered: reminderAsk.answered,
+  });
+  // Which secondary trackers the metrics card draws. Until the device read
+  // lands, everything — what Today drew before the switches existed.
+  const trackers = useTrackerPrefs();
+  const shownTrackers = trackers.ready ? trackers.prefs : ALL_TRACKERS_ON;
   // What the targets were each day and why they moved: records today's, and
   // surfaces any automatic change the user has not dismissed (2026-10-08).
   const targetHistory = useTargetHistory({
@@ -277,7 +307,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // the slot and the card (`RecalibrationCard`).
   const recalibration = useRecalibration();
   const healthReconnect = useHealthReconnect(user?.uid);
-  const nudge = useTodayNudge(recalibration.digest.shouldSurface, healthReconnect.visible);
+  const nudge = useTodayNudge(recalibration.digest.shouldSurface, healthReconnect.visible, reminderAskWanted);
   // Milestones are evaluated here because this is where the streak already
   // exists. Deliberately NOT part of `useTodayNudge`'s union — the note asks
   // for nothing, so it is a state readout and does not compete for that slot.
@@ -1011,6 +1041,10 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           contentContainerStyle={styles.body}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.muted} />}
         >
+          {/* First inside the scroll, above everything: renders nothing for a
+              verified account. */}
+          <VerifyEmailBanner />
+
           {errorRow}
 
           {/* A state readout, not a Nudge — above the banners that are, and
@@ -1079,8 +1113,21 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               }}
               onShare={onShare}
               sharing={sharing}
+              // Before the first entry the measure/maintenance line has nothing
+              // to say; the card below says the one thing to do.
+              hideStatusLine={firstMeal}
             />
           </Animated.View>
+
+          {/* Directly under the hero and above everything else, for an account
+              that has never logged (`showFirstMealCard`). Goes by itself once
+              an entry exists. Opens the add sheet exactly as the + button's
+              `openAdd` nonce does. */}
+          {firstMeal ? (
+            <FirstMealCard
+              onLog={() => router.navigate({ pathname: '/(app)', params: { openAdd: String(Date.now()) } } as Href)}
+            />
+          ) : null}
 
           {/* Directly under the number it explains — not a Nudge: an automatic
               move of the target is announced, never queued behind another. */}
@@ -1103,7 +1150,29 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
           />
 
           <RecalibrationCard recalibration={recalibration} suppressed={nudge !== 'recalibration'} />
+          {/* The reminders ask, after a first log — LOWEST in the Nudge queue. */}
+          <ReminderAskCard
+            ask={reminderAsk}
+            suppressed={nudge !== 'reminderAsk'}
+            onEnabled={() =>
+              // Re-plan now: `useReminderSync` only re-plans when its inputs
+              // move, and the master switch is not one of them. The same call
+              // Settings makes after its switch, with what this screen knows;
+              // the next snapshot re-plans with the full live state.
+              void syncReminders(
+                {
+                  loggedToday: todayLogs.length > 0,
+                  streak,
+                  daysSinceWeighIn: null,
+                  daysSinceLastLog: todayLogs.length > 0 ? 0 : null,
+                },
+                t,
+              )
+            }
+          />
 
+          {/* Every tracker switched off and nothing live: no empty frame. */}
+          {metricRows({ shown: shownTrackers, fastStartedAt, activity, hasHunger: true, hasDayLogged: true }).any ? (
           <Animated.View entering={enterUp(1)}>
             <DailyMetrics
               water={water}
@@ -1124,8 +1193,10 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               // write was an unhandled rejection with no word to the user.
               onStartFast={() => void startFast().catch((e) => metricFailed(e, 'today.startFast'))}
               onBreakFast={onBreakFast}
+              shown={shownTrackers}
             />
           </Animated.View>
+          ) : null}
 
           <Animated.Text
             style={styles.sectionTitle}

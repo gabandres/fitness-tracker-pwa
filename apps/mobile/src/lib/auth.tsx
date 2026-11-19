@@ -891,12 +891,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * read still sees any claim the profile create implies.
    */
   async function bootstrapUser(u: User): Promise<void> {
-    // Only attempt the create once verified — the rules reject a create from an
-    // unverified user, so for an email/password signup the doc is created later
-    // by reloadUser() the moment verification completes.
-    if (u.emailVerified) {
-      await ensureProfile(u.uid).catch((e: unknown) => console.warn('ensureProfile failed', e));
-    }
+    // Verified or not since 2026-11-19: an unverified signup goes straight to onboarding and the rules accept its own profile.
+    await ensureProfile(u.uid).catch((e: unknown) => console.warn('ensureProfile failed', e));
     await u
       .getIdTokenResult()
       .then((token) => {

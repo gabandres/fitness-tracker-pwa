@@ -75,6 +75,7 @@ import {
   setRemindersEnabled,
   syncReminders,
 } from '@/lib/reminders';
+import { TRACKER_KEYS, type TrackerKey, useTrackerPrefs } from '@/lib/tracker-prefs';
 import { LOCALES, LOCALE_DEFS, type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { formatNumber, formatTime } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
@@ -104,6 +105,16 @@ const LANGUAGES: { value: Locale; label: string }[] = LOCALES.map((value) => ({
 }));
 
 // Calorie-floor stepper bounds (kcal). Kept in sync with the PWA settings.
+/** Today's secondary trackers, in Today's order, with their switch labels
+ *  (`lib/tracker-prefs.ts`, 2026-11-19). */
+const TRACKER_LABEL: Record<TrackerKey, I18nKey> = {
+  fasting: 'settings.trackerFasting',
+  water: 'settings.trackerWater',
+  sleep: 'settings.trackerSleep',
+  hunger: 'settings.trackerHunger',
+  dayLogged: 'settings.trackerDayLogged',
+};
+
 /** The meal windows `planReminders` can schedule, in the order they occur.
  *  Every entry here is user-controllable — that's the point of the row. */
 const MEAL_ROWS: { key: MealKey; labelKey: I18nKey }[] = [
@@ -241,6 +252,8 @@ export default function Settings() {
   const [savingDayStart, setSavingDayStart] = useState(false);
   const doneKey = useDoneKeyProps();
   const [reminderEnabled, setReminderEnabled] = useState(false);
+  // Which trackers Today shows — device-local, live across screens.
+  const trackers = useTrackerPrefs();
   const [meals, setMealsState] = useState<MealReminderSettings>(DEFAULT_MEAL_REMINDERS);
   // The current value, readable OUTSIDE the render closure. `bumpMealHour`
   // used to read `meals` from the closure it was created in, so two taps
@@ -826,6 +839,29 @@ export default function Settings() {
             dimmed={offline}
             stacked={stackFloors}
           />
+        </View>
+
+        {/* What Today shows (2026-11-19): one switch per secondary tracker.
+            Hiding a row deletes nothing. */}
+        <View style={styles.card} testID="settings-trackers">
+          <Text style={styles.rowLabel} accessibilityRole="header">{t('settings.trackersTitle')}</Text>
+          <Text style={styles.rowValue}>{t('settings.trackersCaption')}</Text>
+          {TRACKER_KEYS.map((key) => (
+            <View key={key} style={[styles.rowBetween, styles.trackerRow]}>
+              <Text style={[styles.rowLabel, styles.trackerLabel]}>{t(TRACKER_LABEL[key])}</Text>
+              <Switch
+                value={trackers.prefs[key]}
+                disabled={!trackers.ready}
+                onValueChange={(on) => {
+                  haptics.tap();
+                  trackers.setTracker(key, on);
+                }}
+                trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+                accessibilityLabel={t(TRACKER_LABEL[key])}
+                testID={`settings-tracker-${key}`}
+              />
+            </View>
+          ))}
         </View>
 
         {/* Day start sits last in Preferences: it is the rarest change here,
@@ -1554,6 +1590,9 @@ const createStyles = ({ colors }: Theme) => StyleSheet.create({
     gap: space.md,
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  // A switch row: a full platform target tall, the label free to wrap at large text.
+  trackerRow: { minHeight: TARGET, gap: space.md },
+  trackerLabel: { flex: 1 },
   /** Text column beside a trailing control: yields width to it, and keeps a
    *  gap once it does (the same shoving `digestRowText` below describes). */
   rowText: { flex: 1, marginRight: space.md },

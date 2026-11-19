@@ -156,12 +156,10 @@ function OrphanBack({ testID }: { testID: string }) {
 function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   const {
     sessionUid,
-    sessionPresumed,
     initializing,
     profile,
     profileLoading,
     profileConfirmed,
-    emailVerified,
     accountDeleting,
   } = useAuth();
   const t = useT();
@@ -195,15 +193,15 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
   // are the same question and used to be asked twice, which is how they drifted
   // apart in the first place.
   const serverGaveUp = useGaveUpWaiting(!!sessionUid && (profileLoading || !profileConfirmed));
-  // `'app'` when there is nobody to route: signed out (or unverified) there is
-  // no profile to wait for, and letting `assessRoute` answer `'wait'` off a null
-  // profile would pin the splash over the sign-in screen.
-  const decision =
-    sessionUid && emailVerified
-      ? // `accountDeleting`: the server erases the profile before sign-out
-        // lands, and that window must not read as "never onboarded".
-        assessRoute({ profile, profileConfirmed, offline, serverGaveUp, accountDeleting })
-      : 'app';
+  // `'app'` when there is nobody to route: signed out there is no profile to
+  // wait for, and letting `assessRoute` answer `'wait'` off a null profile
+  // would pin the splash over the sign-in screen. Verified or not makes no
+  // difference here since 2026-11-19 (see the effect below).
+  const decision = sessionUid
+    ? // `accountDeleting`: the server erases the profile before sign-out
+      // lands, and that window must not read as "never onboarded".
+      assessRoute({ profile, profileConfirmed, offline, serverGaveUp, accountDeleting })
+    : 'app';
 
   useEffect(() => {
     if (initializing) return;
@@ -236,23 +234,17 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
       if (inApp || onOnboarding || onVerify || onTour || onWhatsNew) router.replace('/sign-in');
       return;
     }
-    // Email/password signups must verify before they can write anything
-    // (firestore.rules gate every create/update on email_verified). Federated
-    // providers return verified emails, so they fall straight through. Once
-    // verified, the routing below (which sees onVerify as neither inApp nor
-    // onOnboarding) sends them to onboarding or the app.
-    // A PRESUMED session never routes to verify-email (#83). The flag comes
-    // off a disk blob that can be stale — Firebase updates it on reload — and
-    // telling an already-verified user to go and verify their email is worse
-    // than the second or two it costs to wait for the real answer. Once
-    // Firebase has spoken, `sessionPresumed` is false and this behaves exactly
-    // as it always did.
-    if (!emailVerified && !sessionPresumed) {
-      if (!onVerify) router.replace('/verify-email');
-      return;
-    }
-    if (!emailVerified) return;
-    // Signed in and verified. Where to go is decided by `assessRoute`, which
+    // No verification wall (owner's call, 2026-11-19). Until then an
+    // email/password signup was replaced onto /verify-email here and could do
+    // nothing until they left the app, found the mail and came back — 33% of
+    // signups ever logged, median 34 min to the first log. An unverified
+    // account now routes exactly like a verified one; only the AI features
+    // that cost money (photo scan, the coach) wait for a confirmed email, and
+    // the server enforces that. /verify-email is a screen the user OPENS (the
+    // Today banner, a locked AI screen), so it counts as "in the app" below
+    // and is never replaced away.
+    //
+    // Signed in. Where to go is decided by `assessRoute`, which
     // carries the reasoning and is tested on its own — this effect only
     // performs the navigation.
     //
@@ -269,9 +261,10 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
       return;
     }
     // Completed users live in (app); leave them on /onboarding when they open
-    // it deliberately (Settings → Edit goals / redo).
-    if (!inApp && !onOnboarding && !onTour && !onWhatsNew) router.replace('/(app)');
-  }, [sessionUid, sessionPresumed, initializing, emailVerified, decision, segments, router]);
+    // it deliberately (Settings → Edit goals / redo), and on /verify-email
+    // when they open it.
+    if (!inApp && !onOnboarding && !onTour && !onWhatsNew && !onVerify) router.replace('/(app)');
+  }, [sessionUid, initializing, decision, segments, router]);
 
   // The root is a native stack so Coach and Milestones can push over the tabs
   // with swipe-back (S18-14), but every other root navigation in this app was
@@ -369,6 +362,9 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
         {/* `BottomSheet native` (UX_AUDIT S20, `lib/sheet-portal.ts`): the
             system sheet — detents, grabber, swipe-down, Liquid Glass on iOS 26. */}
         <Stack.Screen name="sheet" options={sheetOptions} />
+        {/* Opened on purpose since 2026-11-19 (it was the forced wall before),
+            so it arrives with a push and leaves with a swipe or its Close. */}
+        <Stack.Screen name="verify-email" options={{ animation: 'default', gestureEnabled: true }} />
       </Stack>
       </ToastProvider>
       {showSplash ? <Splash /> : null}

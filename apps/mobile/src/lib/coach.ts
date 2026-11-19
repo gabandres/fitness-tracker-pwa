@@ -29,6 +29,9 @@ export const CoachErrorCode = {
   GENERATE_FAILED: 'REPORT_GENERATE_FAILED',
   /** The server no longer serves this request shape — only an app update helps. */
   CLIENT_UPDATE_REQUIRED: 'CLIENT_UPDATE_REQUIRED',
+  /** The token says the email is not verified; the coach costs money, so it
+   *  waits for a confirmed email (`isEmailNotVerified`). */
+  EMAIL_NOT_VERIFIED: 'EMAIL_NOT_VERIFIED',
 } as const;
 
 export interface CoachError extends Error {

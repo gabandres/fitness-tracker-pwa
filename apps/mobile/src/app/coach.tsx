@@ -13,6 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { buildCoachRequest } from '@macrolog/core';
 import { CoachMarkdown } from '@/components/CoachMarkdown';
+import { useAiLock, VerifyEmailLocked } from '@/components/VerifyEmailBanner';
+import { useRouter } from 'expo-router';
+import { isEmailNotVerified } from '@/lib/callable-errors';
 import { useCoach } from '@/hooks/useCoach';
 import { useAuth } from '@/lib/auth';
 import { CoachErrorCode, type CoachError, streamCoach } from '@/lib/coach';
@@ -53,6 +56,8 @@ function errorKey(code: string | undefined): I18nKey {
       return 'coach.errAuth';
     case CoachErrorCode.CLIENT_UPDATE_REQUIRED:
       return 'coach.errUpdate';
+    case CoachErrorCode.EMAIL_NOT_VERIFIED:
+      return 'coach.errVerify';
     default:
       return 'coach.errGeneric';
   }
@@ -81,6 +86,10 @@ export default function Coach() {
   const { colors } = useTheme();
   const locale = useLocale();
   const { user } = useAuth();
+  const router = useRouter();
+  // An unverified email locks the coach (it costs money per answer); the
+  // check sits BEFORE the composer renders, and the server repeats it.
+  const { locked, lockFromServer } = useAiLock();
   const { logs, tdee, profile, dailyWeights } = useCoach();
   // Every ask is a network call; offline it can only fail. Say so up front and
   // keep Ask off, rather than letting the generic "Something went wrong" stand
@@ -109,7 +118,7 @@ export default function Coach() {
   // count is a courtesy, and the server remains the authority that refuses
   // the ask.
   useEffect(() => {
-    if (!user || unlimited) return;
+    if (!user || unlimited || locked) return;
     let alive = true;
     getConsultationQuota(user.uid)
       .then((q) => {
@@ -122,7 +131,7 @@ export default function Coach() {
     return () => {
       alive = false;
     };
-  }, [user, unlimited]);
+  }, [user, unlimited, locked]);
 
   const streaming = status === 'streaming';
   // The answer streams BELOW the composer, which is below the fold on most
@@ -137,7 +146,7 @@ export default function Coach() {
 
   const ask = async (raw?: string) => {
     const q = (raw ?? question).trim();
-    if (!q || streaming || asking.current || offline) return;
+    if (!q || streaming || asking.current || offline || locked) return;
     asking.current = true;
     haptics.tap();
     // The keyboard covers the reply that is about to stream in.
@@ -197,6 +206,21 @@ export default function Coach() {
     })()
       .catch((err: unknown) => {
         const code = (err as CoachError)?.code;
+        // The server's own verdict on the email (defence in depth). Show the
+        // locked state, not a failure — unless Firebase now says verified, in
+        // which case the token was stale, `reloadUser` has just minted a fresh
+        // one, and asking again works.
+        if (isEmailNotVerified(err)) {
+          setStatus('idle');
+          void lockFromServer().then((nowVerified) => {
+            if (!nowVerified) return;
+            const retry = t('verify.nowConfirmed');
+            setErrorMsg(retry);
+            setStatus('error');
+            announce(retry);
+          });
+          return;
+        }
         if (code === CoachErrorCode.CONSULTATION_QUOTA_EXCEEDED) setOverLimit(true);
         // Whatever arrived before the failure stays on screen.
         if (streamed) setAnswer(buffer);
@@ -221,6 +245,26 @@ export default function Coach() {
         asking.current = false;
       });
   };
+
+  if (locked) {
+    return (
+      <SafeAreaView style={styles.screen} edges={['bottom']}>
+        <ScrollView contentContainerStyle={styles.body}>
+          <VerifyEmailLocked
+            title={t('coach.lockedTitle')}
+            body={t('coach.lockedBody')}
+            secondaryLabel={t('common.back')}
+            onSecondary={() => {
+              // Same destination as the header's back; Today on a cold open.
+              if (router.canGoBack?.()) router.back();
+              else router.replace('/(app)');
+            }}
+            testID="coach-locked"
+          />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>

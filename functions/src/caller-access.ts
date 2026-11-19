@@ -38,6 +38,10 @@ export interface Caller {
       (admin/comped outrank paid), so an unlimited caller who ALSO pays
       needs this to keep seeing paid-cap numbers in decorative UI. */
   paidClaim: boolean;
+  /** The ID token's `email_verified === true`, nothing looser. Resolving a
+      caller never rejects on it (export / delete must work for anyone);
+      `withCostGuards` does, before any spend (2026-11-19). */
+  emailVerified: boolean;
 }
 
 /** Per-uid minimum-interval rate limit, run before tier resolution so a
@@ -118,6 +122,7 @@ export class CallerAccess {
       unlimited: tier === "admin" || tier === "comped",
       quotaExempt: tier === "comped",
       paidClaim: stripeRole === "paid",
+      emailVerified: request.auth.token["email_verified"] === true,
     };
   }
 

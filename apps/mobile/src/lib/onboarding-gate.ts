@@ -1,7 +1,11 @@
 import type { Profile } from '@macrolog/core';
 
 /**
- * Where to send a signed-in, email-verified user on launch.
+ * Where to send a signed-in user on launch — verified email or not. Until
+ * 2026-11-19 an unverified email/password signup was held on /verify-email
+ * before this was ever asked; now it onboards and logs like anyone else, and
+ * only the AI features that cost money wait for verification
+ * (`components/VerifyEmailBanner.tsx`).
  *
  * Extracted from `_layout.tsx`'s effect so the decision can be tested without
  * a router, a navigator or a Firebase session. The effect keeps the

@@ -19,9 +19,17 @@ import { useUpdateVisible } from '@/components/UpdateBanner';
  *    user already has on disk and is not running; a store update may be the
  *    reason something else is broken. Answering it takes one tap and it does
  *    not come back.
- * 2. **recalibration** — a real change to their targets that the app has
+ * 2. **healthReconnect** — one tap that does not come back (see below).
+ * 3. **recalibration** — a real change to their targets that the app has
  *    already applied. It is the only Nudge carrying information the user would
  *    want even if they never act on it.
+ * 4. **reminderAsk** (2026-11-19) — "Want a nudge at meal times?", asked on
+ *    Today once the user has logged at least once, instead of during
+ *    onboarding (0 of 43 users turned reminders on there). LOWEST: it is a
+ *    preference, it waits a day without costing anything, and it must never
+ *    stack on top of another ask. It cannot coincide with the first-meal card
+ *    either — that one is for accounts with no entry, this one needs one
+ *    (`wantsReminderAsk` in `lib/today-gate.ts`).
  * What's-new used to be third here. Since 2026-09-15 it is a full screen
  * (`app/whats-new.tsx`) opened once per release from the tab layout, so it
  * never competes for the slot — a card at caption size under a dismiss cross
@@ -40,14 +48,15 @@ import { useUpdateVisible } from '@/components/UpdateBanner';
  * reclassified it as. Neither competes for this slot, so the worst-case Today
  * is rings + repeat-yesterday + one Nudge — the shape the audit specified.
  */
-export type TodayNudge = 'update' | 'healthReconnect' | 'recalibration' | null;
+export type TodayNudge = 'update' | 'healthReconnect' | 'recalibration' | 'reminderAsk' | null;
 
 /** `recalibration` is `digest.shouldSurface` from the screen's own
  *  `useRecalibration()`, passed in so the digest is subscribed once.
  *  `healthReconnect` (2026-10-20) ranks second: like `update` it is one tap
  *  that does not come back, and until it is answered every Watch workout
- *  arrives without its heart rate. */
-export function useTodayNudge(recalibration: boolean, healthReconnect = false): TodayNudge {
+ *  arrives without its heart rate. `reminderAsk` is `wantsReminderAsk(...)`
+ *  and ranks last. */
+export function useTodayNudge(recalibration: boolean, healthReconnect = false, reminderAsk = false): TodayNudge {
   // Called before any return — it is a hook, and skipping it behind an early
   // return would break the rules of hooks the moment the priority changed.
   const update = useUpdateVisible();
@@ -55,5 +64,6 @@ export function useTodayNudge(recalibration: boolean, healthReconnect = false): 
   if (update) return 'update';
   if (healthReconnect) return 'healthReconnect';
   if (recalibration) return 'recalibration';
+  if (reminderAsk) return 'reminderAsk';
   return null;
 }

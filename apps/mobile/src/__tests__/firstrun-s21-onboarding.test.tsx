@@ -9,7 +9,7 @@ import { en } from '@/i18n/en';
 /**
  * First-run UX review S21 (2026-10-06), onboarding half.
  *
- *  #1 The reminders and first-log panels were BLANK in dark mode: their rows
+ *  #1 The reminders (step removed 2026-11-19) and first-log panels were BLANK in dark mode: their rows
  *     sat on `heroPanel` (dark in both themes) in `onInk`, which is the
  *     near-black canvas in dark mode — 1.02:1. The previous fix (ink → onInk,
  *     2026-09-02) was right for light only; the failure flipped themes.
@@ -51,7 +51,7 @@ jest.mock('@/lib/use-unit-system', () => ({
   deviceUnitSystem: () => mockDeviceUnit,
 }));
 jest.mock('@/lib/analytics', () => ({ track: jest.fn() }));
-jest.mock('@/lib/reminders', () => ({ setRemindersEnabled: jest.fn().mockResolvedValue(false) }));
+jest.mock('@/lib/tracker-prefs', () => ({ initTrackerPrefsForNewAccount: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('@/lib/firebase', () => ({ db: {} }));
 jest.mock('firebase/firestore', () => ({
   doc: (...a: unknown[]) => ({ path: (a as unknown[]).slice(1).map(String).join('/') }),
@@ -103,7 +103,7 @@ async function renderDark() {
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
-async function walkToReminders(screen: Screen) {
+async function walkToFirstLog(screen: Screen) {
   const { getByTestId } = screen;
   await fireEvent.press(getByTestId('onboarding-age-attest'));
   await fireEvent.press(getByTestId('onboarding-goal-lose'));
@@ -114,7 +114,7 @@ async function walkToReminders(screen: Screen) {
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.press(getByTestId('onboarding-skip-body'));
   await fireEvent.press(getByTestId('onboarding-save'));
-  await waitFor(() => expect(getByTestId('onboarding-reminders')).toBeTruthy());
+  await waitFor(() => expect(getByTestId('onboarding-first-log')).toBeTruthy());
 }
 
 describe('#1 hero-panel rows are legible in DARK mode', () => {
@@ -125,24 +125,14 @@ describe('#1 hero-panel rows are legible in DARK mode', () => {
     for (const p of [light, dark]) expect(contrast(p.heroText, p.heroPanel)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('reminders and first-log rows render in heroText in the dark palette', async () => {
+  // The reminders panel this also covered went with the reminders step
+  // (removed 2026-11-19); the first-log panel is the one left on heroPanel.
+  it('first-log rows render in heroText in the dark palette', async () => {
     const screen = await renderDark();
-    await walkToReminders(screen);
+    await walkToFirstLog(screen);
     await waitFor(() =>
-      expect(color(screen.getByText(en['onboarding.remindersBody']))).toBe(dark.muted),
+      expect(color(screen.getByText(en['onboarding.firstLogBody']))).toBe(dark.muted),
     );
-
-    const rows = [
-      screen.getByText(/^Lunch · /),
-      screen.getByText(/^Dinner · /),
-      screen.getByText(/^Only if a day is about to go unlogged · /),
-    ];
-    for (const r of rows) {
-      expect(color(r)).toBe(dark.heroText);
-      expect(contrast(color(r)!, dark.heroPanel)).toBeGreaterThanOrEqual(4.5);
-    }
-
-    await fireEvent.press(screen.getByTestId('onboarding-reminders-skip'));
     for (const k of ['onboarding.firstLogSearch', 'onboarding.firstLogPhoto', 'onboarding.firstLogType'] as const) {
       const r = screen.getByText(en[k]);
       expect(color(r)).toBe(dark.heroText);
@@ -230,7 +220,7 @@ describe('#3 the unit a new user is asked in', () => {
 
   it('a US phone that keeps lb writes no unit at all (absent already reads us)', async () => {
     const screen = await render(<Onboarding />);
-    await walkToReminders(screen);
+    await walkToFirstLog(screen);
     expect(mockSetUnitSystem).not.toHaveBeenCalled();
   });
 

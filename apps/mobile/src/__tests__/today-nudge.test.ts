@@ -52,6 +52,21 @@ describe('useTodayNudge', () => {
     expect(await activeNudge()).toBeNull();
   });
 
+  it('the reminder ask takes an empty slot', async () => {
+    const { result } = await renderHook(() => useTodayNudge(false, false, true));
+    expect(result.current).toBe('reminderAsk');
+  });
+
+  it('ranks the reminder ask LAST — below update, health reconnect and recalibration', async () => {
+    const recal = await renderHook(() => useTodayNudge(true, false, true));
+    expect(recal.result.current).toBe('recalibration');
+    const health = await renderHook(() => useTodayNudge(false, true, true));
+    expect(health.result.current).toBe('healthReconnect');
+    mockUpdate.value = true;
+    const update = await renderHook(() => useTodayNudge(false, false, true));
+    expect(update.result.current).toBe('update');
+  });
+
   it('never returns more than one — the whole point', async () => {
     // Guards against a future refactor that returns a list "for flexibility".
     mockUpdate.value = true;

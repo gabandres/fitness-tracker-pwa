@@ -8,7 +8,7 @@ import { freshUid, testDb } from "./helpers";
 const db = testDb();
 const access = new CallerAccess(db);
 
-function req(uid: string, token: { email?: string; stripeRole?: string } = {}): CallerRequestLike {
+function req(uid: string, token: { email?: string; stripeRole?: string; email_verified?: boolean } = {}): CallerRequestLike {
   return { auth: { uid, token } };
 }
 
@@ -145,5 +145,20 @@ describe("resolveCaller — rate limit", () => {
     const uid = freshUid();
     await access.resolveCaller(req(uid, {}));
     await access.resolveCaller(req(uid, {})); // no throw
+  });
+});
+
+describe("resolveCaller — emailVerified (2026-11-19)", () => {
+  // Resolving never REJECTS an unverified caller (export / delete must work
+  // for anyone); it only reports the flag, and `withCostGuards` refuses on it.
+  it("is true only when the token says email_verified === true", async () => {
+    expect((await access.resolveCaller(req(freshUid(), { email: "v@example.com", email_verified: true }))).emailVerified).toBe(true);
+    expect((await access.resolveCaller(req(freshUid(), { email: "u@example.com", email_verified: false }))).emailVerified).toBe(false);
+    expect((await access.resolveCaller(req(freshUid(), { email: "m@example.com" }))).emailVerified).toBe(false);
+  });
+
+  it("an unverified token carrying the admin email still resolves (the guard, not the tier, refuses it)", async () => {
+    const caller = await access.resolveCaller(req(freshUid(), { email: "gabrielandresbermudez@gmail.com", email_verified: false }));
+    expect(caller.emailVerified).toBe(false);
   });
 });

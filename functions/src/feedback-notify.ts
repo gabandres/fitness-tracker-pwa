@@ -200,6 +200,9 @@ export const onFeedbackCreated = onDocumentCreated(
     try {
       const user = await getAuth().getUser(uid);
       who = user.email ? `${user.email} (${uid})` : uid;
+      // Since 2026-11-19 an unverified account may file feedback: the address
+      // is unproven, so say so before anyone replies to it.
+      if (user.email && user.emailVerified !== true) who += " [email not verified]";
     } catch {
       // Leave `who` as the uid.
     }

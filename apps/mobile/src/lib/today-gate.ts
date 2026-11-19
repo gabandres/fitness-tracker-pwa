@@ -43,3 +43,55 @@ export function isTodayLoading(input: {
   if (input.failed) return false;
   return !input.logsReady || !input.profileReady;
 }
+
+/**
+ * Whether this account has logged a food, ever — as far as Today can tell.
+ *
+ * Keyed on the log window Today already holds (`subscribeRecentLogs`, the
+ * newest `LOG_WINDOW_ROWS` rows of ALL time, not a date range): a food row
+ * (`calories > 0`) today, or on any earlier day in it. There is no lifetime
+ * "first entry" field on the profile, and none is needed — the window is the
+ * newest 400 rows, so for an account to have logged food and show none here it
+ * would need 400 newer non-food rows. `null` while the rows are not in yet
+ * (`dataReady` false): unknown is neither answer, so no card keyed on it can
+ * flash for a returning user while the feed loads.
+ */
+export function everLoggedFood(input: {
+  dataReady: boolean;
+  todayEntries: number;
+  hasPriorEntries: boolean;
+}): boolean | null {
+  if (!input.dataReady) return null;
+  return input.todayEntries > 0 || input.hasPriorEntries;
+}
+
+/**
+ * The first-meal card (2026-11-19): only on today, only on an empty day, only
+ * for an account that has never logged — and only once that is KNOWN
+ * (`everLogged === false`, never `null`).
+ */
+export function showFirstMealCard(input: {
+  isToday: boolean;
+  todayEntries: number;
+  everLogged: boolean | null;
+}): boolean {
+  return input.isToday && input.todayEntries === 0 && input.everLogged === false;
+}
+
+/**
+ * Whether Today wants to ask about meal reminders (2026-11-19: the ask moved
+ * here from onboarding, after the first log). It only CLAIMS the Nudge slot;
+ * `useTodayNudge` decides whether it gets it. `remindersOn` / `answered` are
+ * `null` until their device reads land, and unknown never asks.
+ *
+ * Exclusive with {@link showFirstMealCard} by construction: this needs
+ * `everLogged === true`, that needs `false`.
+ */
+export function wantsReminderAsk(input: {
+  isToday: boolean;
+  everLogged: boolean | null;
+  remindersOn: boolean | null;
+  answered: boolean | null;
+}): boolean {
+  return input.isToday && input.everLogged === true && input.remindersOn === false && input.answered === false;
+}

@@ -32,6 +32,7 @@ import {
 } from '@/components/water-display';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { font, radius, space, TARGET } from '@/theme';
+import { ALL_TRACKERS_ON, type TrackerPrefs } from '@/lib/tracker-prefs';
 
 interface Props {
   water: number;
@@ -75,6 +76,12 @@ interface Props {
    * state of a two-state thing is a row that lies by omission.
    */
   fastedTodayHours?: number | null;
+  /** Which tracker rows to draw (`lib/tracker-prefs.ts`, 2026-11-19). Absent =
+   *  all of them, the behaviour before the switches existed. A running fast
+   *  shows its row whatever this says, so nothing live is ever orphaned; the
+   *  activity row is not a tracker pref and keeps its own condition. When no
+   *  row is left the card renders nothing at all. */
+  shown?: TrackerPrefs;
 }
 
 /**
@@ -285,10 +292,35 @@ export function nextPendingWater(
   return { stale, latest: next, at: now };
 }
 
+/**
+ * Which rows of the metrics card draw (2026-11-19, `lib/tracker-prefs.ts`).
+ * Pure and exported so Today can drop the card's wrapper when nothing is left.
+ * A running fast always shows its row: a hidden switch must never orphan
+ * something live. The activity row is not a tracker pref.
+ */
+export function metricRows(input: {
+  shown: TrackerPrefs;
+  fastStartedAt: Date | null;
+  activity?: DailyActivity;
+  hasHunger: boolean;
+  hasDayLogged: boolean;
+}): { fast: boolean; water: boolean; sleep: boolean; hunger: boolean; dayLogged: boolean; activity: boolean; any: boolean } {
+  const { shown, activity } = input;
+  const r = {
+    fast: shown.fasting || !!input.fastStartedAt,
+    water: shown.water,
+    sleep: shown.sleep,
+    hunger: input.hasHunger && shown.hunger,
+    dayLogged: input.hasDayLogged && shown.dayLogged,
+    activity: !!activity && (activity.steps != null || activity.activeKcal != null),
+  };
+  return { ...r, any: Object.values(r).some(Boolean) };
+}
+
 /** Today's daily-metric strip: fasting timer, water quick-add, sleep. The
  *  fasting row re-renders every 30s while a fast is running so the elapsed
  *  clock stays live without a global timer. */
-export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHunger, dayLogged = null, onSetDayLogged, activity, usualSteps, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours }: Props) {
+export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHunger, dayLogged = null, onSetDayLogged, activity, usualSteps, fastStartedAt, onAddWater, onSetSleep, onStartFast, onBreakFast, onEditFast, fastedTodayHours, shown = ALL_TRACKERS_ON }: Props) {
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -360,8 +392,17 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
     return () => clearInterval(id);
   }, [fastStartedAt]);
 
+  // Which rows draw, in order; a divider goes above every row but the first
+  // one drawn. All hooks above run first — this may return null.
+  const rows = metricRows({ shown, fastStartedAt, activity, hasHunger: !!onSetHunger, hasDayLogged: !!onSetDayLogged });
+  const { fast: showFast, water: showWater, sleep: showSleep, hunger: showHunger, dayLogged: showDayLogged, activity: showActivity } = rows;
+  const order = [showFast, showWater, showSleep, showHunger, showDayLogged, showActivity];
+  const firstShown = order.indexOf(true);
+  if (firstShown === -1) return null;
+  const divider = (i: number) => (firstShown < i ? <View style={styles.divider} /> : null);
+
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID="daily-metrics">
       {/* Fasting. The VALUE is the way in to the editor and the button stays
           the timer — the same split the Water row below uses, and for the same
           reason: starting and ending a fast is the daily action, correcting one
@@ -370,7 +411,9 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
           touchable at all; without it this row looks inert. Wraps like the
           Water row: at large text "Fasting · 14 h 03 min" and the End button
           cannot share a line at 360dp (review A1). */}
-      <View style={[styles.row, styles.rowWrap]}>
+      {showFast ? (
+      <>
+      <View style={[styles.row, styles.rowWrap]} testID="fast-row">
         <View style={styles.leadGroup}>
           <HabitIcon metric="fasting" />
           <PressScale
@@ -424,8 +467,8 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
           {t('metrics.fastCheck')}
         </Text>
       ) : null}
-
-      <View style={styles.divider} />
+      </>
+      ) : null}
 
       {/* Water. The quick pills are the fast path and stay; the VALUE is the
           way in to an exact amount. A user asked for this in as many words —
@@ -442,7 +485,10 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
           their own line, which still read as a stray fragment (owner, 10/07).
           −8 is always in its slot and disabled at 0, so no pill moves or
           resizes under a repeat tap — +8 cannot become −8 on the second tap. */}
-      <View style={styles.waterRow}>
+      {showWater ? (
+      <>
+      {divider(1)}
+      <View style={styles.waterRow} testID="water-row">
         <View style={styles.waterHead}>
           <View style={styles.leadGroup}>
             <HabitIcon metric="water" />
@@ -499,14 +545,17 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
           ))}
         </View>
       </View>
-
-      <View style={styles.divider} />
+      </>
+      ) : null}
 
       {/* Sleep. The value opens the editor like Fasting's and Water's do —
           it was the one row whose number did nothing when tapped (review U5),
           and one label/value node for a reader: "Sleep, not logged" rather
           than "Sleep" then a bare dash (review A4). */}
-      <View style={[styles.row, styles.rowWrap]}>
+      {showSleep ? (
+      <>
+      {divider(2)}
+      <View style={[styles.row, styles.rowWrap]} testID="sleep-row">
         <View style={styles.leadGroup}>
           <HabitIcon metric="sleep" />
           <PressScale
@@ -540,14 +589,16 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
           <HabitShortcut metric="sleep" />
         </View>
       </View>
+      </>
+      ) : null}
 
       {/* Evening hunger, beside Sleep: one 0–10 rating per day (0 = full,
           10 = starving), editable. Display only — Trends averages it over 7
           days and nothing reads it into a target. */}
-      {onSetHunger ? (
+      {showHunger ? (
         <>
-          <View style={styles.divider} />
-          <View style={[styles.row, styles.rowWrap]}>
+          {divider(3)}
+          <View style={[styles.row, styles.rowWrap]} testID="hunger-row">
             <View style={styles.leadGroup}>
               <View style={styles.habitIcon} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                 <Ionicons name="restaurant-outline" size={16} color={colors.muted} />
@@ -591,9 +642,9 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
           1,000 kcal rule. Two chips, the chosen one filled; tapping the chosen
           one again takes the answer back. Lives with the other one-per-day
           answers rather than in the diary, which is a list of entries. */}
-      {onSetDayLogged ? (
+      {showDayLogged && onSetDayLogged ? (
         <>
-          <View style={styles.divider} />
+          {divider(4)}
           <View style={[styles.row, styles.rowWrap]} testID="day-logged-row">
             <View style={styles.leadGroup}>
               <View style={styles.habitIcon} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
@@ -644,9 +695,9 @@ export function DailyMetrics({ water, sleep, sleepTimes, hunger = null, onSetHun
           action button: the app can't produce these and never writes them back.
           The whole row is hidden unless a value actually arrived, so anyone
           without Health connected sees no permanently-empty strip. */}
-      {activity && (activity.steps != null || activity.activeKcal != null) ? (
+      {showActivity ? (
         <>
-          <View style={styles.divider} />
+          {divider(5)}
           <View style={styles.row}>
             {/* One node, label and value together (review A4). */}
             <View

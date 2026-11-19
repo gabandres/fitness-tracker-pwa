@@ -32,14 +32,15 @@ import { font, motion, radius, space, TARGET, type } from '@/theme';
  * cautious person from trying anything, and the shape comes from GenderMag's
  * facets rather than from taste:
  *
- *  - `map` — comprehensive information processing: the WHOLE app before the
- *    first step, so it can be understood as a shape rather than met one
- *    surprise at a time.
- *  - `numbers` — the two most-viewed numbers in the app are `kcal` and
- *    `maintenance`, and neither is defined anywhere else (UX_AUDIT F6).
- *  - `log` — the food search is labelled "Manual entry" on the speed dial,
- *    which is the most discouraging possible name for the easiest path
- *    (UX_AUDIT F4). Until that is renamed, this card is what says it exists.
+ *  - `numbers` — FIRST since 2026-11-19: the tour opens after the first log,
+ *    and what that person is looking at is Today's big "kcal left". The
+ *    most-viewed numbers in the app are `kcal left`, `kcal` and
+ *    `maintenance`, and none is defined anywhere else (UX_AUDIT F6).
+ *  - `map` — comprehensive information processing: the WHOLE app, so it can
+ *    be understood as a shape rather than met one surprise at a time.
+ *  - `log` — the other ways to log, kept as a reference near the end: the
+ *    person has just logged once, so this answers "what else can I do", not
+ *    "how do I start".
  *  - `body`, `targets` — what the app does on its own, and how to overrule it.
  *  - `done` — reversibility, stated plainly. Low computer self-efficacy and
  *    risk aversion are two more facets, and "can I undo this?" is the question
@@ -67,7 +68,21 @@ interface Step {
   noteKeys?: I18nKey[];
 }
 
+// Order (2026-11-19): the tour opens right after the first add sheet closes,
+// so the person has just logged. The first thing they need is what the numbers
+// on Today now say — above all the big "kcal left" — not "ways to log" a meal
+// they have just logged; that card moves near the end as a reference.
 const STEPS: Step[] = [
+  {
+    id: 'numbers',
+    titleKey: 'tour.numbers.title',
+    rows: [
+      { icon: 'flame', labelKey: 'tour.numbers.left', subKey: 'tour.numbers.leftSub' },
+      { icon: 'flame-outline', labelKey: 'tour.numbers.calories', subKey: 'tour.numbers.caloriesSub' },
+      { icon: 'egg-outline', labelKey: 'tour.numbers.protein', subKey: 'tour.numbers.proteinSub' },
+      { icon: 'speedometer-outline', labelKey: 'tour.numbers.maintenance', subKey: 'tour.numbers.maintenanceSub' },
+    ],
+  },
   {
     id: 'map',
     titleKey: 'tour.map.title',
@@ -84,25 +99,6 @@ const STEPS: Step[] = [
     ],
   },
   {
-    id: 'numbers',
-    titleKey: 'tour.numbers.title',
-    rows: [
-      { icon: 'flame-outline', labelKey: 'tour.numbers.calories', subKey: 'tour.numbers.caloriesSub' },
-      { icon: 'egg-outline', labelKey: 'tour.numbers.protein', subKey: 'tour.numbers.proteinSub' },
-      { icon: 'speedometer-outline', labelKey: 'tour.numbers.maintenance', subKey: 'tour.numbers.maintenanceSub' },
-    ],
-  },
-  {
-    id: 'log',
-    titleKey: 'tour.log.title',
-    rows: [
-      { icon: 'search-outline', labelKey: 'tour.log.search', subKey: 'tour.log.searchSub' },
-      { icon: 'camera-outline', labelKey: 'tour.log.photo', subKey: 'tour.log.photoSub' },
-      { icon: 'create-outline', labelKey: 'tour.log.manual', subKey: 'tour.log.manualSub' },
-    ],
-    noteKeys: ['tour.log.undo'],
-  },
-  {
     id: 'body',
     titleKey: 'tour.body.title',
     bodyKey: 'tour.body.body',
@@ -113,6 +109,16 @@ const STEPS: Step[] = [
     titleKey: 'tour.targets.title',
     bodyKey: 'tour.targets.body',
     noteKeys: ['tour.targets.custom', 'tour.targets.refine'],
+  },
+  {
+    id: 'log',
+    titleKey: 'tour.log.title',
+    rows: [
+      { icon: 'search-outline', labelKey: 'tour.log.search', subKey: 'tour.log.searchSub' },
+      { icon: 'camera-outline', labelKey: 'tour.log.photo', subKey: 'tour.log.photoSub' },
+      { icon: 'create-outline', labelKey: 'tour.log.manual', subKey: 'tour.log.manualSub' },
+    ],
+    noteKeys: ['tour.log.undo'],
   },
   {
     id: 'done',

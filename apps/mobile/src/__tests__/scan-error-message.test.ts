@@ -44,6 +44,8 @@ describe('scanErrorMessage', () => {
     ['SERVICE_CEILING_REACHED', 'scan.errBusy'],
     ['FEATURE_DISABLED', 'scan.errOff'],
     ['UNAUTHENTICATED', 'scan.errAuth'],
+    // 2026-11-19: the server's verdict on an unverified email — never "the photo".
+    ['EMAIL_NOT_VERIFIED', 'scan.errVerify'],
   ])('maps %s to %s', (code, key) => {
     expect(scanErrorMessage(err(code)).key).toBe(key);
   });

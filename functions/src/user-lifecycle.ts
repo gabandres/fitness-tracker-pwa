@@ -5,6 +5,7 @@ import { getResend, baseSendOptions, resendApiKey } from "./resend-client";
 import { emailLocale } from "./locales";
 import { welcomeEmail } from "./email-templates";
 import { unsubscribeUrl } from "./unsubscribe";
+import { lifecycleRecipient } from "./lifecycle-recipient";
 import { db } from "./init";
 
 // ─── Welcome email on profile completion ────────────────────────────
@@ -44,10 +45,15 @@ export const sendWelcomeEmail = onDocumentUpdated(
     // docs may still carry an `email` field, but the profile is client-
     // writable, and preferring it let a user aim this mail (and the shared
     // Resend quota) at any inbox they liked (2026-10-15 audit).
+    //
+    // Unverified addresses are skipped (2026-11-19, lifecycle-recipient.ts):
+    // an unverified account can now finish onboarding. The latch is NOT set
+    // on a skip, but this trigger only fires on the completion flip, so an
+    // account that verifies later does not get a welcome mail retroactively.
     const authUser = await getAuth().getUser(uid).catch(() => null);
-    const email = authUser?.email;
-    if (!authUser || !email || authUser.disabled) {
-      console.warn(`sendWelcomeEmail: user ${uid} has no usable Auth email — skipping.`);
+    const email = lifecycleRecipient(authUser);
+    if (!authUser || !email) {
+      console.warn(`sendWelcomeEmail: user ${uid} has no usable verified Auth email — skipping.`);
       return;
     }
 
