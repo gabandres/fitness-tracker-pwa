@@ -93,10 +93,20 @@ Findings, the score table and the OTA batches: `UX_AUDIT.md` §S24; the market r
 screen before publishing — **owed: the owner opens the app on the iPhone**
 (sign-in form labels, the scan screen's bottom edge, Daily targets back prompt,
 History calendar) and says if anything looks wrong; rollback is one republish
-(groups in the ledger). **Next: batch 1, activation** — owner said yes
-(2026-11-19) to relaxing the email-verification wall (AI callables stay
-verified-only; rules deploy before the OTA) and to hiding fasting, hunger and
-"Day fully logged?" by default for new accounts.
+(groups in the ledger).
+
+**Batch 1, activation, is BUILT and NOT RELEASED: branch
+`feat/ota2-activation`** (S24-1…4 + tracker switches; owner said yes to both
+calls 2026-11-19). mobile jest 337 suites / 3,462, functions + rules 1,309,
+both green. It waits on the phone check above, so two unseen batches are
+never stacked. **Release order, all three or none:**
+1. `npm --prefix functions run build && firebase deploy --only functions`
+   (the AI guard and the lifecycle-mail skip go live first);
+2. `firebase deploy --only firestore:rules` (unverified owners may write);
+3. merge the branch, gate, publish the OTA to build 75 + vc 53.
+Steps 1–2 change nothing for installed apps, which still hold unverified
+users at the wall client-side. Decide at step 3 whether the what's-new banner
+bumps (tracker switches and the reminder card are visible to existing users).
 
 ### Blocked on a Mac
 
