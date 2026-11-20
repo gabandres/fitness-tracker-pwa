@@ -4,6 +4,19 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — audit leftovers (`12ad5720`; OTA on iOS build 75, Android vc 53)
+
+What the five `UX_AUDIT.md` §S24 batches left open and that needed no decision, JS only. **Import:** a lift from a
+Hevy / Strong file is matched by exact name, then by the same words in any order when exactly one of the account's
+lifts has them (`wordKey` in `lib/workout-import.ts`: "Bench Press (Barbell)" is "Barbell Bench Press", "Pull Up" is
+"Pull-Up"); two candidates is not a match. **Train:** the exercise detail sheet shows the lift's form cues; Gym busy
+rows are a full target tall. **Today / History:** a "Log again" row says which meal it was; sleep hours open the
+decimal keypad. **Tour:** the step count is read once by a screen reader, not twice. **Copy:** the last three "burn"
+strings say maintenance; the Quick add failure notes no longer name an Android tile on an iPhone; the phase caption
+drops "cluster". Twelve unused keys left the three locales. Not done, and why, is in the audit: hiding "Day fully
+logged?" until the number is measured (that answer feeds the measurement), hiding empty Trends charts, the welcome
+mail for late verifiers (a server change that mails people). Browser check as before; tests: mobile 341 suites / 3,509.
+
 ## 2026-11-20 — market gaps: re-log from a past day, Hevy / Strong workout import (`3762bca3`; OTA on iOS build 75, Android vc 53)
 
 Fifth and last batch from `UX_AUDIT.md` §S24, JS only. **Re-log:** a past day in History has "Log again…" — a
