@@ -94,6 +94,11 @@ export function registerNavigationForTracing(ref: unknown): void {
 
 export function initSentry(): void {
   if (!dsn) return;
+  // The browser run is the owner-less rendered check (docs/COMMANDS.md), not a
+  // product: on 2026-11-20 four of the six open issues were that check tripping
+  // over phone-only APIs on localhost. Nothing a browser reports describes a
+  // user's phone, so it reports nothing.
+  if (Platform.OS === 'web') return;
   Sentry.init({
     dsn,
     // __DEV__ builds report as 'dev' so a debugging session never pollutes the
