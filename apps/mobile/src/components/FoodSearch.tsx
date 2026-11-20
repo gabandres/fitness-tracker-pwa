@@ -35,6 +35,7 @@ import { formatDecimal, parseDecimal, parseQuickAddQuery, type QuickAddQuery } f
 import { useA11yFocus } from '@/lib/use-a11y-focus';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
+import { spokenGrams } from '@/i18n/grammar';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -513,7 +514,7 @@ export function FoodSearch({
       accessibilityRole="button"
       accessibilityLabel={[
         t('food.quickAddA11y', { n: formatNumber(quick.calories, locale) }),
-        ...macroWords(quick, locale, t),
+        ...macroWords(quick, locale, t, true),
       ].join(', ')}
       testID="search-quick-add"
     >
@@ -543,7 +544,7 @@ export function FoodSearch({
             item.name,
             item.tag,
             t('entry.caloriesA11y', { n: formatNumber(item.kcal, locale) }),
-            item.protein != null ? t('entry.proteinAmount', { n: formatNumber(item.protein, locale) }) : null,
+            item.protein != null ? spokenGrams(t, 'protein', formatNumber(item.protein, locale)) : null,
           ].filter(Boolean).join(', ')}
           testID={`search-lib-${item.key}`}
         >
@@ -864,16 +865,18 @@ function servingA11y(s: ServingOption, locale: Locale, t: ReturnType<typeof useT
   return [
     s.label,
     t('entry.caloriesA11y', { n: formatNumber(s.kcal, locale) }),
-    t('entry.proteinAmount', { n: Math.round(s.protein) }),
+    spokenGrams(t, 'protein', formatNumber(Math.round(s.protein), locale)),
   ].join(', ');
 }
 
-/** "40 g protein", "30 g carbs", "12 g fat" — whichever a quick add carries. */
-function macroWords(q: QuickAddQuery, locale: Locale, t: ReturnType<typeof useT>): string[] {
+/** "40 g protein", "30 g carbs", "12 g fat" — whichever a quick add carries.
+ *  `spoken` says "grams" for the screen-reader label ("g" is read as a letter). */
+function macroWords(q: QuickAddQuery, locale: Locale, t: ReturnType<typeof useT>, spoken = false): string[] {
+  const n = (v: number) => formatNumber(v, locale);
   return [
-    q.protein != null ? t('entry.proteinAmount', { n: formatNumber(q.protein, locale) }) : null,
-    q.carbs != null ? t('entry.carbsAmount', { n: formatNumber(q.carbs, locale) }) : null,
-    q.fat != null ? t('entry.fatAmount', { n: formatNumber(q.fat, locale) }) : null,
+    q.protein != null ? (spoken ? spokenGrams(t, 'protein', n(q.protein)) : t('entry.proteinAmount', { n: n(q.protein) })) : null,
+    q.carbs != null ? (spoken ? spokenGrams(t, 'carbs', n(q.carbs)) : t('entry.carbsAmount', { n: n(q.carbs) })) : null,
+    q.fat != null ? (spoken ? spokenGrams(t, 'fat', n(q.fat)) : t('entry.fatAmount', { n: n(q.fat) })) : null,
   ].filter((w): w is string => w != null);
 }
 

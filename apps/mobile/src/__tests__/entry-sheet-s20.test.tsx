@@ -173,7 +173,7 @@ describe('U4 — a typed calorie count', () => {
     const row = await waitFor(() => screen.getByTestId('search-quick-add'));
     expect(screen.getByText('Log 350 kcal')).toBeTruthy();
     // Spoken as a word: "kcal" is read letter by letter (A5).
-    expect(row.props.accessibilityLabel).toBe('Log 350 calories, 40 g protein');
+    expect(row.props.accessibilityLabel).toBe('Log 350 calories, 40 grams of protein');
     await fireEvent.press(row);
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ calories: 350, protein: 40 }));

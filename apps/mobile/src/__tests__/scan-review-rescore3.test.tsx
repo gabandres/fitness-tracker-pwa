@@ -103,7 +103,7 @@ it('reads each macro total as one item with its unit (gap 4)', async () => {
   // Spoken words, not "g", which a reader says as a letter.
   expect(chipOf('scan-protein').props.accessibilityLabel).toBe('5 grams of protein');
   expect(chipOf('scan-carbs').props.accessibilityLabel).toBe('52 grams of carbs');
-  expect(chipOf('scan-fat').props.accessibilityLabel).toBe('1 grams of fat');
+  expect(chipOf('scan-fat').props.accessibilityLabel).toBe('1 gram of fat');
 });
 
 it('reads the hero total as one stop with the unit as a word', async () => {
