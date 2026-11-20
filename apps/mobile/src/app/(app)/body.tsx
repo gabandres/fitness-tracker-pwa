@@ -243,6 +243,11 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
   // reads its initial values from this, so add and edit stay one component.
   const [editing, setEditing] = useState<Measurement | null>(null);
   const [howOpen, setHowOpen] = useState(false);
+  // Body fat and tape measurements are optional, and until 2026-11-19 they took
+  // a third of the screen from an account that had never used either (UX_AUDIT
+  // S24-11). With no measurement and no body-fat figure they are one row; it
+  // opens for the session, and stays open for good once a measurement exists.
+  const [measuresShown, setMeasuresShown] = useState(false);
   /** The tape site whose chart is open (`MeasurementSiteSheet`); null = none. */
   const [site, setSite] = useState<MeasureKey | null>(null);
   const { fontScale } = useWindowDimensions();
@@ -877,6 +882,25 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
             />
           ) : null}
 
+          {measurements.length === 0 && !bodyFatShown && !measuresShown ? (
+            <Touchable
+              style={styles.optionalRow}
+              onPress={() => {
+                haptics.tap();
+                setMeasuresShown(true);
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: false }}
+              testID="measurements-optional"
+            >
+              <View style={styles.optionalText}>
+                <Text style={styles.optionalTitle}>{t('body.measureOptional')}</Text>
+                <Text style={styles.sectionHint}>{t('body.measureOptionalSub')}</Text>
+              </View>
+              <BodyIcon sf="chevron.down" ion="chevron-down" size={16} color={colors.muted} />
+            </Touchable>
+          ) : (
+          <>
           <BodyFatCard shown={bodyFatShown} navyPct={bodyFat} gap={bodyFatGap} missing={bodyFatMissing ?? []} />
 
           <View style={styles.sectionHeader}>
@@ -948,6 +972,8 @@ function BodyScreen({ onRetry }: { onRetry: () => void }) {
                 </TouchableOpacity>
               ) : null}
             </View>
+          )}
+          </>
           )}
 
           <Text style={styles.sectionTitle} accessibilityRole="header">{t('body.history')}</Text>
@@ -1130,6 +1156,21 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   empty: { fontSize: font.small, color: colors.muted },
   link: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   disclosure: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: TARGET, alignSelf: 'flex-start' },
+  optionalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    minHeight: TARGET,
+    marginTop: space.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  optionalText: { flex: 1, gap: 2 },
+  optionalTitle: { fontSize: font.body, color: colors.ink, fontWeight: '700' },
   sectionHint: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.5 },
   howBox: {
     backgroundColor: colors.card,

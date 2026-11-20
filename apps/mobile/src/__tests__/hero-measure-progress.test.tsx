@@ -48,7 +48,7 @@ describe('HeroRings measured-burn progress', () => {
       <HeroRings {...base} maintenance={null} progress={progress()} />,
     );
     expect(getByTestId('measure-progress')).toBeTruthy();
-    expect(getByText('5 of 14 logged days toward your measured burn')).toBeTruthy();
+    expect(getByText('5 of 14 logged days toward your measured maintenance')).toBeTruthy();
     expect(getByText('Log 9 more and Ignia measures what you actually burn — no formula')).toBeTruthy();
   });
 
@@ -60,7 +60,7 @@ describe('HeroRings measured-burn progress', () => {
         progress={progress({ loggedDays: 14, daysToGo: 0, weighIns: 0, weighInsToGo: 2, fraction: 1 })}
       />,
     );
-    expect(getByText('14 of 14 logged days toward your measured burn')).toBeTruthy();
+    expect(getByText('14 of 14 logged days toward your measured maintenance')).toBeTruthy();
     // A real plural now (`i18n/grammar.ts`), not "weigh-in(s)".
     expect(getByText('2 more weigh-ins and it unlocks — the trend needs two')).toBeTruthy();
   });
@@ -89,7 +89,7 @@ describe('HeroRings measured-burn progress', () => {
     expect(getByTestId('measure-progress-next')).toHaveTextContent(
       'Days under 1,000 kcal count only when marked fully logged.',
     );
-    expect(queryByText(/logged days toward your measured burn/)).toBeNull();
+    expect(queryByText(/logged days toward your measured maintenance/)).toBeNull();
     expect(queryByTestId('maintenance-line')).toBeNull();
   });
 

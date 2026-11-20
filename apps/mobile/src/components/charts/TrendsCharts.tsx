@@ -562,8 +562,8 @@ function WeightTrendCardImpl({ keys, series, days, unitSystem, milestones, onOpe
     const readout =
       first != null && last != null
         ? flat
-          ? t('trends.chart.weightSteady')
-          : t('trends.chart.weightChange', { delta: signedNumber(delta, locale, oneDecimal), u: unit })
+          ? t('trends.chart.weightSteady', { days: k.length })
+          : t('trends.chart.weightChange', { delta: signedNumber(delta, locale, oneDecimal), u: unit, days: k.length })
         : null;
     return { k, scale, trend, labels, bubbles, summary, readout, marks, weighIns };
   }, [keys, series, days, unitSystem, milestones, t, locale, unit]);

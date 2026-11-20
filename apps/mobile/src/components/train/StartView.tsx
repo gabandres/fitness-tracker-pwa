@@ -28,7 +28,7 @@ import {
   volumeGateMet,
   weeklyClusterAudit,
 } from '@macrolog/core';
-import { DEFAULT_TRAINING_PHASE } from '@macrolog/core/workout';
+import { effectiveTrainingPhase } from '@macrolog/core/workout';
 import { CONTEXT_MENUS, ContextMenu } from '@/components/ContextMenu';
 import { BottomSheet, NATIVE_SHEETS } from '@/components/BottomSheet';
 import { SheetHeader } from '@/components/SheetHeader';
@@ -187,7 +187,7 @@ export function StartView({
   // otherwise at most one, on a stalled main lift or an all-progressing
   // fortnight (`volumeCalls`). The app says so; it never adds one itself.
   const { user, profile } = useAuth();
-  const phase = profile?.trainingPhase ?? DEFAULT_TRAINING_PHASE;
+  const phase = effectiveTrainingPhase(profile);
   // The lifter's day, on the same render clock as the windows above.
   const today = useMemo(() => dayKeyAt(new Date(now), dayBoundaryOf(profile)), [now, profile]);
   // A plan note that waives this week's volume ("travel + re-entry — OK", core

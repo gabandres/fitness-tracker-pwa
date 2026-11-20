@@ -36,7 +36,7 @@ it('says a refused write was not saved, with no Undo and no Edit', async () => {
 
   expect(mockShow).toHaveBeenCalledTimes(1);
   const [message, opts] = mockShow.mock.calls[0] as [string, { action?: unknown; secondaryAction?: unknown }];
-  expect(message).toBe("Couldn't save Oats — it was refused, so nothing was logged.");
+  expect(message).toBe("Couldn't save Oats, so nothing was logged. Check the numbers and try again.");
   expect(message).not.toMatch(/offline/i);
   expect(opts.action).toBeUndefined();
   expect(opts.secondaryAction).toBeUndefined();

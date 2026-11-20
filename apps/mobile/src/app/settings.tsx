@@ -35,7 +35,7 @@ import {
   parseWeightToLb,
   toDisplayWeight,
 } from '@macrolog/core';
-import { DEFAULT_TRAINING_PHASE, TRAINING_PHASES, type TrainingPhase } from '@macrolog/core/workout';
+import { TRAINING_PHASES, effectiveTrainingPhase, type TrainingPhase } from '@macrolog/core/workout';
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import {
@@ -62,6 +62,7 @@ import { openExternal } from '@/lib/open-external';
 import { ConfirmHost, confirm } from '@/components/ConfirmSheet';
 import { showToast } from '@/components/Toast';
 import { useProgram } from '@/hooks/useProgram';
+import { useHasTemplates } from '@/hooks/useHasTemplates';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useIsOffline } from '@/lib/connectivity';
 import { TipSheet } from '@/components/TipSheet';
@@ -547,7 +548,13 @@ export default function Settings() {
   // All three are absent on every profile written before then, and absent
   // reads as cut / auto-apply OFF / no gate — so an untouched account changes
   // nothing. The gate is typed in the user's unit and stored in pounds.
-  const trainingPhase: TrainingPhase = profile?.trainingPhase ?? DEFAULT_TRAINING_PHASE;
+  const trainingPhase: TrainingPhase = effectiveTrainingPhase(profile);
+  // The whole Training group is for someone who trains here: absent until the
+  // account has a template (UX_AUDIT S24-10).
+  const hasTemplates = useHasTemplates();
+  // Watch diagnostics are a support tool: five taps on the version line.
+  const [buildTaps, setBuildTaps] = useState(0);
+  const showDiagnostics = watchDiagnosticsAvailable && buildTaps >= 5;
   const gateLb = profile?.volumeGateLb ?? null;
   const gateShown = gateLb != null ? String(toDisplayWeight(gateLb, unit)) : '';
   const [gateText, setGateText] = useState(gateShown);
@@ -1006,7 +1013,7 @@ export default function Settings() {
             "my complication is stale" report into a diagnosis. */}
         {/* Header and card gate on the SAME exported condition. They did not,
             and Android rendered an "Apple Watch" heading over empty space. */}
-        {watchDiagnosticsAvailable ? (
+        {showDiagnostics ? (
           <>
             <Text style={styles.section} accessibilityRole="header">{t('settings.watchSection')}</Text>
             <WatchDiagnosticsCard />
@@ -1017,8 +1024,10 @@ export default function Settings() {
             templates: the diet phase (a cut never adds volume), whether a
             finished session's calls apply themselves (OFF: only Apply moves a
             template), and the lifter's own gate for phase-2 volume. */}
+        {hasTemplates ? (
+        <>
         <Text style={styles.section} accessibilityRole="header">{t('settings.trainingSection')}</Text>
-        <View style={styles.card}>
+        <View style={styles.card} testID="settings-training">
           <Text style={styles.rowLabel}>{t('settings.trainingPhase')}</Text>
           <Text style={styles.rowValue}>{t('settings.trainingPhaseSub')}</Text>
           <ChoiceRow
@@ -1098,6 +1107,8 @@ export default function Settings() {
             </Text>
           ) : null}
         </View>
+        </>
+        ) : null}
 
         {/* ── Program version ── Program v2 (2026-10-11): all its templates
             switch together; shown only when the account has one. */}
@@ -1419,7 +1430,12 @@ export default function Settings() {
               already twice called a JS behaviour broken while measuring the
               previous bundle. `updateId` is null on an embedded launch — that
               is the honest answer, not a blank. */}
-          <Text style={styles.legalNote} selectable testID="settings-build">
+          <Text
+            style={styles.legalNote}
+            selectable
+            testID="settings-build"
+            onPress={watchDiagnosticsAvailable ? () => setBuildTaps((n) => n + 1) : undefined}
+          >
             {t('settings.buildLine', {
               version: Application.nativeApplicationVersion ?? '?',
               build: Application.nativeBuildVersion ?? '?',

@@ -1,4 +1,13 @@
-import { type BalanceVerdict, type TdeeResult, type UnitSystem, bodyWeightUnit, toDisplayWeight } from '@macrolog/core';
+import {
+  type BalanceVerdict,
+  type TdeeResult,
+  type UnitSystem,
+  type WeeklyInsights,
+  MIN_INSIGHT_DAYS,
+  balanceVerdict,
+  bodyWeightUnit,
+  toDisplayWeight,
+} from '@macrolog/core';
 import type { Locale, TFn } from '@/i18n';
 import { formatNumber } from '@/lib/date-format';
 
@@ -87,4 +96,77 @@ export function maintenanceBreakdown(
       ? t('trends.breakdownBlended', { kcal: formatNumber(Math.round(tdee.trueTdee), locale) })
       : null;
   return { line: keepUnitsTogether(line), blended: blended == null ? null : keepUnitsTogether(blended) };
+}
+
+/** Weigh-ins a weight direction needs before it can be stated at all. */
+export const ANSWER_WEIGH_INS = 2;
+
+/**
+ * What Trends says FIRST (UX_AUDIT S24-5, 2026-11-19). The screen opened on
+ * "Maintenance estimate 2,665 kcal" and five lines of method; a new user wants
+ * to know two things — which way the weight is going and how the eating
+ * compares with the plan — and both were already computed further down.
+ *
+ * Display only: `weightSlopeLbPerWeek` and `avgUnderTarget` come from
+ * `calculateWeeklyInsights`, the same seven complete days the Last-7-days card
+ * reads, and `balanceVerdict` supplies the dead band. Kilocalories round to
+ * the nearest 10 because the sentence says "about".
+ *
+ * Below the insight gate there is no sentence to make, so the answer is the
+ * two things that produce one: food on {@link MIN_INSIGHT_DAYS} days, and
+ * {@link ANSWER_WEIGH_INS} weigh-ins.
+ */
+export type TrendsAnswer =
+  | { kind: 'sentence'; weight: string | null; eating: string | null; needsWeighIns: boolean }
+  | { kind: 'checklist'; foodDays: number; foodNeeded: number; weighIns: number; weighInsNeeded: number };
+
+export function trendsAnswer(input: {
+  insights: Pick<WeeklyInsights, 'avgUnderTarget' | 'weightSlopeLbPerWeek'> | null;
+  loggedThisWeek: number;
+  weighIns: number;
+  hasTarget: boolean;
+  unitSystem: UnitSystem;
+  t: TFn;
+  locale: Locale;
+}): TrendsAnswer {
+  const { insights, unitSystem, t, locale } = input;
+  if (!insights) {
+    return {
+      kind: 'checklist',
+      foodDays: Math.max(0, Math.min(input.loggedThisWeek, MIN_INSIGHT_DAYS)),
+      foodNeeded: MIN_INSIGHT_DAYS,
+      weighIns: Math.max(0, Math.min(input.weighIns, ANSWER_WEIGH_INS)),
+      weighInsNeeded: ANSWER_WEIGH_INS,
+    };
+  }
+  const slope = insights.weightSlopeLbPerWeek;
+  let weight: string | null = null;
+  if (slope != null) {
+    if (Math.abs(slope) < 0.1) {
+      weight = t('trends.answer.steady');
+    } else {
+      const shown = toDisplayWeight(Math.abs(slope), unitSystem);
+      const n = formatNumber(shown, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      weight = t(slope < 0 ? 'trends.answer.losing' : 'trends.answer.gaining', {
+        rate: `${n} ${bodyWeightUnit(unitSystem)}`,
+      });
+    }
+  }
+  let eating: string | null = null;
+  if (input.hasTarget) {
+    const v = balanceVerdict(insights.avgUnderTarget);
+    const rounded = Math.max(10, Math.round(v.kcal / 10) * 10);
+    eating =
+      v.kind === 'on'
+        ? t('trends.answer.eatOn')
+        : t(v.kind === 'under' ? 'trends.answer.eatUnder' : 'trends.answer.eatOver', {
+            n: formatNumber(rounded, locale),
+          });
+  }
+  return {
+    kind: 'sentence',
+    weight: weight == null ? null : keepUnitsTogether(weight),
+    eating: eating == null ? null : keepUnitsTogether(eating),
+    needsWeighIns: slope == null,
+  };
 }

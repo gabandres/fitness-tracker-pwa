@@ -32,6 +32,8 @@ jest.mock('@/lib/ledger', () => ({
 jest.mock('@/hooks/useDailyTargets', () => ({ useDailyTargets: () => ({ loaded: false, error: null }) }));
 const mockProgram = { version: undefined as 'v1' | 'v2' | 'mixed' | undefined, rows: [] as { templateId: string; name: string; v1: number; v2: number }[], armedTemplate: undefined as string | undefined, autoActivatedAt: undefined as string | undefined, switchTo: jest.fn().mockResolvedValue(undefined), busy: false };
 jest.mock('@/hooks/useProgram', () => ({ useProgram: () => mockProgram }));
+let mockHasTemplates: boolean | null = true;
+jest.mock('@/hooks/useHasTemplates', () => ({ useHasTemplates: () => mockHasTemplates }));
 jest.mock('@/lib/connectivity', () => ({ useIsOffline: () => false, isOffline: () => false }));
 jest.mock('@/lib/reminders', () => ({
   getReminderSettings: jest.fn().mockResolvedValue({ enabled: false, meals: undefined }),
@@ -61,6 +63,7 @@ import Settings from '@/app/settings';
 beforeEach(() => {
   mockSetTrainingSettings.mockClear();
   mockProfile = { profileCompleted: true };
+  mockHasTemplates = true;
 });
 
 async function renderSettings() {
@@ -75,6 +78,26 @@ it('reads an untouched profile as cut, auto-apply off and no gate', async () => 
   expect(ui.getByTestId('settings-phase-cut')).toBeSelected();
   expect(ui.getByTestId('settings-auto-apply')).toHaveProp('value', false);
   expect(ui.getByTestId('settings-volume-gate')).toHaveProp('value', '');
+});
+
+// UX_AUDIT S24-10 (2026-11-19): the group is for someone who trains here.
+it('shows no Training group to an account without a template', async () => {
+  mockHasTemplates = false;
+  const ui = await renderSettings();
+  expect(ui.queryByTestId('settings-training')).toBeNull();
+  expect(ui.queryByTestId('settings-auto-apply')).toBeNull();
+});
+
+it('follows the diet goal until a phase is picked', async () => {
+  mockProfile = { profileCompleted: true, goalDirection: 'gain' };
+  const ui = await renderSettings();
+  expect(ui.getByTestId('settings-phase-bulk')).toBeSelected();
+});
+
+it('keeps a picked phase whatever the diet goal says', async () => {
+  mockProfile = { profileCompleted: true, goalDirection: 'gain', trainingPhase: 'cut' };
+  const ui = await renderSettings();
+  expect(ui.getByTestId('settings-phase-cut')).toBeSelected();
 });
 
 it('writes the phase, and only the phase', async () => {

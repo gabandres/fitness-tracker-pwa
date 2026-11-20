@@ -494,6 +494,21 @@ export const TRAINING_PHASES: readonly TrainingPhase[] = ['cut', 'maintenance', 
 export const DEFAULT_TRAINING_PHASE: TrainingPhase = 'cut';
 
 /**
+ * The phase training runs in. The lifter's own pick wins; until there is one
+ * it FOLLOWS THE DIET GOAL (UX_AUDIT S24-10, 2026-11-19) — it used to be 'cut'
+ * for everybody, so an account set to gain weight was told its training was in
+ * a cut. No goal on the profile keeps 'cut', the phase that never adds volume.
+ */
+export function effectiveTrainingPhase(
+  profile: { trainingPhase?: TrainingPhase | null; goalDirection?: 'lose' | 'maintain' | 'gain' | null } | null | undefined,
+): TrainingPhase {
+  if (profile?.trainingPhase) return profile.trainingPhase;
+  if (profile?.goalDirection === 'gain') return 'bulk';
+  if (profile?.goalDirection === 'maintain') return 'maintenance';
+  return DEFAULT_TRAINING_PHASE;
+}
+
+/**
  * One move of a template row's `targetLoad`, appended whenever it changes so
  * the lift's history can say when the load moved, by whom, and why.
  * `reason` is the sentence the lifter was shown when it was applied, in their

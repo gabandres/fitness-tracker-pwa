@@ -318,7 +318,7 @@ export function useToast(): ToastApi {
  * Done band, so the toast clears that as well.
  */
 function useKeyboardHeight(active: boolean): number {
-  const [height, setHeight] = useState(() => Keyboard.metrics()?.height ?? 0);
+  const [height, setHeight] = useState(() => Keyboard.metrics?.()?.height ?? 0);
   useEffect(() => {
     if (!active) return;
     const ios = Platform.OS === 'ios';

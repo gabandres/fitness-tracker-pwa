@@ -230,7 +230,7 @@ describe('the weight card', () => {
         locale="en"
       />,
     );
-    expect(view.getByTestId('weight-trend-readout', { includeHiddenElements: true })).toHaveTextContent('Trend −2.7 lb');
+    expect(view.getByTestId('weight-trend-readout', { includeHiddenElements: true })).toHaveTextContent('−2.7 lb over 10 days');
     expect(view.getByTestId('weight-trend-window')).toHaveTextContent('Last 10 days');
     // No native menu in jest: the caption steps to the next range.
     const menu = view.getByTestId('weight-trend-window-menu');
