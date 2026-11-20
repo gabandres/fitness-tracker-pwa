@@ -6,7 +6,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { SheetHeader } from '@/components/SheetHeader';
 import { showToast } from '@/components/Toast';
 import type { TrainState } from '@/hooks/useTrain';
-import { useLocale, useT } from '@/i18n';
+import { type I18nKey, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
@@ -16,6 +16,21 @@ import { createStyles } from './train-styles';
 import { isClusterSeed, orderStarters, starterPreview, starterPreviewParts } from './template-draft';
 
 /** The shipped starter splits — the cold-start helper. */
+/** What a starter IS, in one plain line under its name (UX_AUDIT S24-13):
+ *  the muscles and the sets × reps. The seed's own `notes` are English and say
+ *  "@ RIR 1–2". The cluster split keeps its "advanced" tag instead. */
+const STARTER_DESC: Partial<Record<string, I18nKey>> = {
+  'push-day': 'train.starterDesc.push',
+  'pull-day': 'train.starterDesc.pull',
+  'leg-day': 'train.starterDesc.legs',
+  'full-body': 'train.starterDesc.fullBody',
+  'mobility-reset': 'train.starterDesc.mobility',
+};
+
+/** The three starters that make a whole plan together. */
+const PPL_KEYS = ['push-day', 'pull-day', 'leg-day'] as const;
+const PPL_BUSY = 'bundle-ppl';
+
 export function StarterTemplatesSheet({
   visible,
   train,
@@ -97,6 +112,34 @@ export function StarterTemplatesSheet({
     announce(msg);
   }
 
+  // A plan, not three separate adds (S24-13): offered while all three are
+  // still available, added in order so Push Day is the first "Next up".
+  const ppl = PPL_KEYS.map((k) => available.find((s) => s.key === k));
+  const pplSeeds = ppl.every((s) => s != null) ? (ppl as SeedTemplate[]) : null;
+
+  async function addBundle(seeds: SeedTemplate[]) {
+    if (busyKey) return;
+    haptics.tap();
+    setBusyKey(PPL_BUSY);
+    let added = 0;
+    try {
+      for (const seed of seeds) {
+        await train.cloneStarterTemplate(seed);
+        added++;
+      }
+    } catch (e) {
+      haptics.warning();
+      showToast(t('train.starterErr'));
+      captureError(e, { where: 'train.cloneStarterBundle' });
+    }
+    setBusyKey(null);
+    if (added === 0) return;
+    onClose();
+    const msg = added === seeds.length ? t('train.bundle.pplAdded') : t('train.starterAdded', { name: seedTemplateName(seeds[0], locale) });
+    showToast(msg);
+    announce(msg);
+  }
+
   return (
     <BottomSheet native visible={visible} onClose={onClose} contentStyle={styles.sheetBody} maxHeight="80%">
       {/* A visible way out, outside the scroll (H7): the sheet opens full
@@ -122,8 +165,32 @@ export function StarterTemplatesSheet({
         {available.length === 0 ? (
           <Text style={styles.sheetEmpty}>{t('train.starterAllCloned')}</Text>
         ) : null}
+        {pplSeeds ? (
+          <View style={styles.tplRow} testID="starter-bundle-ppl">
+            <View
+              style={styles.tplMain}
+              accessible
+              accessibilityLabel={`${t('train.bundle.pplTitle')}, ${t('train.bundle.pplBody')}`}
+            >
+              <Text style={styles.histDate}>{t('train.bundle.pplTitle')}</Text>
+              <Text style={styles.histSub}>{t('train.bundle.pplBody')}</Text>
+            </View>
+            <Touchable
+              style={styles.tplStart}
+              onPress={() => addBundle(pplSeeds)}
+              disabled={busyKey != null}
+              accessibilityRole="button"
+              accessibilityLabel={`${t('train.bundle.addAll')}, ${t('train.bundle.pplTitle')}`}
+              testID="use-bundle-ppl"
+            >
+              <Text style={styles.tplStartText}>{busyKey === PPL_BUSY ? t('common.saving') : t('train.bundle.addAll')}</Text>
+            </Touchable>
+          </View>
+        ) : null}
         {available.map((seed) => {
           const name = seedTemplateName(seed, locale);
+          const descKey = STARTER_DESC[seed.key];
+          const desc = descKey ? t(descKey) : null;
           const count = `${seed.exercises.length} ${seed.exercises.length === 1 ? t('train.exerciseOne') : t('train.exerciseMany')}`;
           const preview = starterPreview(seed, locale);
           const parts = starterPreviewParts(seed, locale);
@@ -136,13 +203,14 @@ export function StarterTemplatesSheet({
               <View
                 style={styles.tplMain}
                 accessible
-                accessibilityLabel={[name, advanced ? t('train.starterAdvanced') : null, count, preview].filter(Boolean).join(', ')}
+                accessibilityLabel={[name, advanced ? t('train.starterAdvanced') : null, desc, count, preview].filter(Boolean).join(', ')}
                 testID={`starter-info-${seed.key}`}
               >
                 <Text style={styles.histDate}>{name}</Text>
                 {advanced ? (
                   <Text style={styles.supersetTag} testID={`starter-advanced-${seed.key}`}>{t('train.starterAdvanced')}</Text>
                 ) : null}
+                {desc ? <Text style={styles.histSub} testID={`starter-desc-${seed.key}`}>{desc}</Text> : null}
                 {/* The names truncate; "+n" sits outside them, so it is never cut. */}
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4 }} testID={`starter-preview-${seed.key}`}>
                   <Text style={[styles.histSub, { flexShrink: 1 }]} numberOfLines={2}>

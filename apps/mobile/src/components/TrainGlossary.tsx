@@ -11,17 +11,17 @@ const SECTIONS: GlossarySection[] = [
   // `myoRep` follows `cluster`: "Myo-rep clusters by muscle" counts only
   // these, and a straight-set lifter needs the word to know why it reads empty
   // (train-ux H12). `repRange` follows `progression`, which reads against it.
-  { title: 'train.glossary.sectionLogging', terms: ['rir', 'setTypes', 'structure', 'cluster', 'myoRep', 'superset', 'rest'] },
+  { title: 'train.glossary.sectionLogging', terms: ['prev', 'rir', 'setTypes', 'structure', 'cluster', 'myoRep', 'superset', 'rest', 'gymBusy'] },
   {
     title: 'train.glossary.sectionProgress',
-    terms: ['progression', 'repRange', 'suggest', 'last', 'pr', 'e1rm', 'volume', 'topSet'],
+    terms: ['progression', 'repRange', 'suggest', 'calibration', 'deload', 'rotation', 'last', 'pr', 'e1rm', 'volume', 'topSet'],
   },
   { title: 'train.glossary.sectionPlates', terms: ['perSide', 'short', 'warmupPct'] },
   // ADR-0025. Last, because it is the newest vocabulary and the smallest — but
   // `ringKcal` is the one entry here that answers a question the UI otherwise
   // raises and never resolves: the block shows a calorie number and the day's
   // budget never moves. Leaving that unexplained reads as a bug.
-  { title: 'train.glossary.sectionCardio', terms: ['cardioBlock', 'modality', 'rpe', 'ringKcal'] },
+  { title: 'train.glossary.sectionCardio', terms: ['cardioBlock', 'modality', 'rpe', 'zone2', 'ringKcal'] },
 ];
 
 /**

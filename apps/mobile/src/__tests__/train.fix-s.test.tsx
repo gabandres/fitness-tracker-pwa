@@ -408,13 +408,40 @@ describe('one-off templates (2026-11-16): stack positions and Gym busy on', () =
     expect(needsLoad(true, '6', undefined, true)).toBe(false);
   });
 
-  it('"Gym busy" starts on for a template with gymBusy, off otherwise', async () => {
+  // UX_AUDIT S24-12: the form cues are on the card, behind one row.
+  it('shows a lift\'s form cues from "How to do it"', async () => {
+    mockTrain.active = live([{ ...bench([{ kind: 'working', done: false }]), cues: ['Retract scapula', 'Bar to nipple line'] }]);
+    const ui = await render(<TrainScreen />);
+    expect(ui.queryByTestId('cues-list-0')).toBeNull();
+    await fireEvent.press(ui.getByTestId('cues-toggle-0'));
+    expect(ui.getByTestId('cues-list-0')).toHaveTextContent(/Retract scapula.*Bar to nipple line/);
+  });
+
+  it('a lift with no cues has no "How to do it" row, and a plain lift has no kg | lb switch on its card', async () => {
+    mockTrain.active = live([bench([{ kind: 'working', done: false }])]);
+    const ui = await render(<TrainScreen />);
+    expect(ui.queryByTestId('cues-toggle-0')).toBeNull();
+    // S24-14: the switch is a row in the ⋯ menu unless the lift uses it.
+    expect(ui.queryByTestId('unit-switch-0')).toBeNull();
+  });
+
+  // UX_AUDIT S24-14: nobody who never set one sees the switch.
+  it('"Gym busy" is not offered to an account without a gymBusy template', async () => {
     const two = [bench([{ kind: 'working', done: false }]), { ...bench([{ kind: 'working', done: false }]), exerciseId: 'row', name: 'Row' }];
     mockTrain.active = live(two);
+    const none = await render(<TrainScreen />);
+    expect(none.queryByTestId('gym-busy-switch')).toBeNull();
+  });
+
+  it('"Gym busy" starts on for a template with gymBusy, off for the account\'s other templates', async () => {
+    const two = [bench([{ kind: 'working', done: false }]), { ...bench([{ kind: 'working', done: false }]), exerciseId: 'row', name: 'Row' }];
+    mockTrain.active = live(two);
+    const saved = mockTrain.templates;
+    // Another template carries the flag: offered, off for this workout.
+    mockTrain.templates = [pushTemplate, { ...pushTemplate, id: 'other', name: 'Other', gymBusy: true }];
     const off = await render(<TrainScreen />);
     expect(off.getByTestId('gym-busy-switch').props.value).toBe(false);
     off.unmount();
-    const saved = mockTrain.templates;
     mockTrain.templates = [{ ...pushTemplate, gymBusy: true }];
     try {
       const on = await render(<TrainScreen />);

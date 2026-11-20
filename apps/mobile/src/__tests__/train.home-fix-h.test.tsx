@@ -251,11 +251,38 @@ describe('read-only sheets (N6, N8)', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  // UX_AUDIT S24-13: a plan in one tap, added in the order it is trained.
+  it('offers Push / Pull / Legs as one plan and adds the three in order', async () => {
+    mockTrain.cloneStarterTemplate.mockClear();
+    mockTrain.cloneStarterTemplate.mockResolvedValue(undefined);
+    const onClose = jest.fn();
+    const ui = await render(<StarterTemplatesSheet visible train={mockTrain as never} onClose={onClose} />);
+    expect(ui.getByTestId('starter-bundle-ppl')).toBeTruthy();
+    await fireEvent.press(ui.getByTestId('use-bundle-ppl'));
+    await waitFor(() => expect(mockTrain.cloneStarterTemplate).toHaveBeenCalledTimes(3));
+    expect(mockTrain.cloneStarterTemplate.mock.calls.map((c) => (c[0] as { key: string }).key)).toEqual(['push-day', 'pull-day', 'leg-day']);
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it('does not offer the plan once one of its three is already a template', async () => {
+    const saved = mockTrain.templates;
+    mockTrain.templates = [{ id: 't1', name: 'Push Day', seedKey: 'push-day', exercises: [] } as unknown as WorkoutTemplate];
+    try {
+      const ui = await render(<StarterTemplatesSheet visible train={mockTrain as never} onClose={jest.fn()} />);
+      expect(ui.queryByTestId('starter-bundle-ppl')).toBeNull();
+      expect(ui.getByTestId('use-starter-pull-day')).toBeTruthy();
+    } finally {
+      mockTrain.templates = saved;
+    }
+  });
+
   it('a starter row says what it is in its label; Add stays short', async () => {
     const ui = await render(<StarterTemplatesSheet visible train={mockTrain as never} onClose={jest.fn()} />);
     const info = ui.getByTestId('starter-info-push-day');
     expect(info.props.accessible).toBe(true);
-    expect(info.props.accessibilityLabel).toMatch(/^Push Day, \d+ exercises, .+/);
+    // The plain line (muscles, sets × reps) comes before the count (S24-13).
+    expect(info.props.accessibilityLabel).toMatch(/^Push Day, Chest, shoulders and triceps\. 3 sets of 8–12 reps on each lift\., \d+ exercises, .+/);
+    expect(ui.getByTestId('starter-desc-push-day')).toHaveTextContent('Chest, shoulders and triceps. 3 sets of 8–12 reps on each lift.');
     const add = ui.getByTestId('use-starter-push-day');
     expect(add.props.accessibilityLabel).toBe('Add Push Day');
     expect(add.props.accessibilityHint).toBeUndefined();
