@@ -26,6 +26,11 @@ const exercise = (name: string) => ({ exerciseId: name, name, sets: [] }) as unk
 const noFinishes = Promise.resolve([]);
 const alive = () => true;
 
+/** Every session a test made. Each holds a debounced journal write (500 ms):
+ *  left alone, it lands in a LATER test's storage — seen as a red suite on a
+ *  loaded machine, 2026-11-20. */
+const made: ReturnType<typeof createActiveSession>[] = [];
+
 function setup() {
   const seen: (WorkoutSession | null)[] = [];
   const saving: boolean[] = [];
@@ -37,12 +42,19 @@ function setup() {
     onError: (e) => errors.push(e),
     onResolved: (u) => resolved.push(u),
   });
+  made.push(session);
   return { session, seen, saving, errors, resolved };
 }
 
 beforeEach(async () => {
   memory.reset();
   await AsyncStorage.clear();
+});
+
+afterEach(async () => {
+  // `close` cancels the pending journal write and removes the stored one.
+  for (const session of made.splice(0)) session.close(UID);
+  await settle();
 });
 
 describe('starting a workout', () => {
