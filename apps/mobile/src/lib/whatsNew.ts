@@ -182,7 +182,12 @@ import type { I18nKey } from '@/i18n';
 // labels, units, 44/48 targets, corrected copy, the "plate #" template fix).
 // Every item is a repair to something already on screen; nothing is gained
 // that a banner could name. The activation changes that follow it are the bump.
-export const WHATS_NEW_VERSION = '2026-10-20-evening-hunger';
+// Bumped 2026-11-19 for the activation batch (UX_AUDIT §S24 batch 1): the
+// tracker switches in Settings are findable by nobody who is not told, and the
+// one-time reminder card on Today is new to every account with reminders off.
+// The evening-hunger items go: a month live. The verification change and the
+// first-meal card are NOT listed: neither reaches an account that can read this.
+export const WHATS_NEW_VERSION = '2026-11-19-trackers';
 
 const KEY = 'whatsNew.seen';
 
@@ -212,8 +217,8 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'restaurant-outline', titleKey: 'whatsNew.hunger.title', bodyKey: 'whatsNew.hunger.body' },
-  { icon: 'checkmark-done-outline', titleKey: 'whatsNew.rirCheck.title', bodyKey: 'whatsNew.rirCheck.body' },
+  { icon: 'eye-off-outline', titleKey: 'whatsNew.trackers.title', bodyKey: 'whatsNew.trackers.body' },
+  { icon: 'notifications-outline', titleKey: 'whatsNew.reminderAsk.title', bodyKey: 'whatsNew.reminderAsk.body' },
 ];
 
 /**
