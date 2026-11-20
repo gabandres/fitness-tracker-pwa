@@ -187,6 +187,10 @@ import type { I18nKey } from '@/i18n';
 // one-time reminder card on Today is new to every account with reminders off.
 // The evening-hunger items go: a month live. The verification change and the
 // first-meal card are NOT listed: neither reaches an account that can read this.
+// NOT re-bumped later the same day for the legibility batch (Trends answers
+// first, Training settings only for accounts with a template, one name per
+// concept). The banner above went out hours earlier and fires on the second
+// launch; the answer card is the first thing on Trends and needs no notice.
 export const WHATS_NEW_VERSION = '2026-11-19-trackers';
 
 const KEY = 'whatsNew.seen';
