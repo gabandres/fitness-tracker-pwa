@@ -191,6 +191,10 @@ import type { I18nKey } from '@/i18n';
 // first, Training settings only for accounts with a template, one name per
 // concept). The banner above went out hours earlier and fires on the second
 // launch; the answer card is the first thing on Trends and needs no notice.
+// NOT re-bumped for the Train batch either (same day), but its row is ADDED
+// to the list below — the 09-28 precedent: whoever has not opened the screen
+// yet reads all three, and nobody is shown it twice in one day. The row is
+// there because a control moved: kg | lb left the card for the ⋯ menu.
 export const WHATS_NEW_VERSION = '2026-11-19-trackers';
 
 const KEY = 'whatsNew.seen';
@@ -223,6 +227,7 @@ export interface WhatsNewItem {
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
   { icon: 'eye-off-outline', titleKey: 'whatsNew.trackers.title', bodyKey: 'whatsNew.trackers.body' },
   { icon: 'notifications-outline', titleKey: 'whatsNew.reminderAsk.title', bodyKey: 'whatsNew.reminderAsk.body' },
+  { icon: 'barbell-outline', titleKey: 'whatsNew.trainPlain.title', bodyKey: 'whatsNew.trainPlain.body' },
 ];
 
 /**

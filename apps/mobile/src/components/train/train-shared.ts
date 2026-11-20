@@ -142,7 +142,7 @@ export function numOrUndef(s: string): number | undefined {
 
 /**
  * Does this lift's card carry the kg | lb switch itself? Only when the lift
- * already uses it: the row is in a unit of its own, the session is at an away
+ * already uses it: the row is in a unit other than the account's, the session is at an away
  * gym, or a unit is remembered for some gym. Otherwise the switch is a row in
  * the card's ⋯ menu (UX_AUDIT S24-14) — on every card, one stray tap changed
  * the lift's unit and saved it.
@@ -150,6 +150,9 @@ export function numOrUndef(s: string): number | undefined {
 export function unitSwitchInline(
   ex: { loadUnit?: unknown; awayGym?: string | null },
   unitByGym: unknown,
+  /** The account's own unit. Every row is stamped with a unit when the
+   *  workout starts (`withStartUnits`), so only a DIFFERENT one says anything. */
+  accountUnit: 'kg' | 'lb',
 ): boolean {
-  return ex.loadUnit != null || !!ex.awayGym || Object.keys(unitByGymOf(unitByGym)).length > 0;
+  return (ex.loadUnit != null && ex.loadUnit !== accountUnit) || !!ex.awayGym || Object.keys(unitByGymOf(unitByGym)).length > 0;
 }

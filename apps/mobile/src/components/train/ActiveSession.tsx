@@ -1304,7 +1304,7 @@ export function ActiveSession({
       cluster: canAdd.cluster,
       block: canAdd.block,
       unitSwitch: (() => {
-        if ((ex.logStyle ?? 'weight-reps') !== 'weight-reps' || unitSwitchInline(ex, catalogEx?.unitByGym)) return null;
+        if ((ex.logStyle ?? 'weight-reps') !== 'weight-reps' || unitSwitchInline(ex, catalogEx?.unitByGym, unitSystem === 'metric' ? 'kg' : 'lb')) return null;
         const to = unitSystem === 'metric' ? 'lb' : 'kg';
         return { unit: to, label: t('train.unitSwitchMenu', { unit: to }) } as const;
       })(),

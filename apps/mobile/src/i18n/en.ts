@@ -3263,6 +3263,9 @@ export const en = {
   'train.glossary.rotationBody': 'One pass through all of your templates, however many days that takes.',
   'train.glossary.zone2': 'Zone 2',
   'train.glossary.zone2Body': 'Easy cardio, at a pace you could hold a conversation at. Ignia uses an average heart rate of 120–130 as the band, and Trends shows how many recent sessions stayed in it.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'whatsNew.trainPlain.title': 'Train, in plain words',
+  'whatsNew.trainPlain.body': 'Each lift\'s call now opens with one plain sentence, and its form cues are under "How to do it". The kg | lb switch moved into the lift\'s ⋯ menu unless that lift already uses another unit.',
 } as const;
 
 export type I18nKey = keyof typeof en;

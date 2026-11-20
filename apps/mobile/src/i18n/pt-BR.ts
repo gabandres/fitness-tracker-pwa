@@ -3047,4 +3047,7 @@ export const ptBR: Record<I18nKey, string> = {
   'train.glossary.rotationBody': 'Uma passagem completa por todos os seus modelos, não importa quantos dias leve.',
   'train.glossary.zone2': 'Zona 2',
   'train.glossary.zone2Body': 'Cardio leve, em um ritmo em que daria para conversar. O Ignia usa uma frequência cardíaca média de 120–130 como faixa, e Tendências mostra quantas sessões recentes ficaram nela.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'whatsNew.trainPlain.title': 'Treino, em palavras simples',
+  'whatsNew.trainPlain.body': 'A recomendação de cada exercício agora começa com uma frase simples, e as dicas de execução ficam em "Como fazer". O seletor kg | lb foi para o menu ⋯ do exercício, a menos que ele já use outra unidade.',
 };

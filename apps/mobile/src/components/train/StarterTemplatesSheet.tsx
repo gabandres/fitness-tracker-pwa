@@ -113,7 +113,9 @@ export function StarterTemplatesSheet({
   }
 
   // A plan, not three separate adds (S24-13): offered while all three are
-  // still available, added in order so Push Day is the first "Next up".
+  // still available. Added LAST FIRST: the template list is newest-first and
+  // "Next up" takes the first never-done one (`nextTemplateUp`), so Push Day
+  // has to be the newest for the plan to start with it, then Pull, then Legs.
   const ppl = PPL_KEYS.map((k) => available.find((s) => s.key === k));
   const pplSeeds = ppl.every((s) => s != null) ? (ppl as SeedTemplate[]) : null;
 
@@ -123,7 +125,7 @@ export function StarterTemplatesSheet({
     setBusyKey(PPL_BUSY);
     let added = 0;
     try {
-      for (const seed of seeds) {
+      for (const seed of [...seeds].reverse()) {
         await train.cloneStarterTemplate(seed);
         added++;
       }
@@ -135,7 +137,9 @@ export function StarterTemplatesSheet({
     setBusyKey(null);
     if (added === 0) return;
     onClose();
-    const msg = added === seeds.length ? t('train.bundle.pplAdded') : t('train.starterAdded', { name: seedTemplateName(seeds[0], locale) });
+    // A partial add already said so (the error toast above).
+    if (added < seeds.length) return;
+    const msg = t('train.bundle.pplAdded');
     showToast(msg);
     announce(msg);
   }

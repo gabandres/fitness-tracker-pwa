@@ -251,8 +251,9 @@ describe('read-only sheets (N6, N8)', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  // UX_AUDIT S24-13: a plan in one tap, added in the order it is trained.
-  it('offers Push / Pull / Legs as one plan and adds the three in order', async () => {
+  // UX_AUDIT S24-13: a plan in one tap. Added last-first, because the newest
+  // never-done template is "Next up" and the plan starts with Push Day.
+  it('offers Push / Pull / Legs as one plan and adds the three so Push Day is next up', async () => {
     mockTrain.cloneStarterTemplate.mockClear();
     mockTrain.cloneStarterTemplate.mockResolvedValue(undefined);
     const onClose = jest.fn();
@@ -260,7 +261,7 @@ describe('read-only sheets (N6, N8)', () => {
     expect(ui.getByTestId('starter-bundle-ppl')).toBeTruthy();
     await fireEvent.press(ui.getByTestId('use-bundle-ppl'));
     await waitFor(() => expect(mockTrain.cloneStarterTemplate).toHaveBeenCalledTimes(3));
-    expect(mockTrain.cloneStarterTemplate.mock.calls.map((c) => (c[0] as { key: string }).key)).toEqual(['push-day', 'pull-day', 'leg-day']);
+    expect(mockTrain.cloneStarterTemplate.mock.calls.map((c) => (c[0] as { key: string }).key)).toEqual(['leg-day', 'pull-day', 'push-day']);
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 

@@ -164,7 +164,8 @@ export const ExerciseCard = memo(function ExerciseCard({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   // A row in another unit (a gym's kg rack) shows and takes that unit.
-  const unitSystem = rowUnitSystem(ex.loadUnit, useUnitSystem()) ?? 'us';
+  const accountUnits = useUnitSystem();
+  const unitSystem = rowUnitSystem(ex.loadUnit, accountUnits) ?? 'us';
   const { colors } = useTheme();
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
   const setLabels = useMemo(() => setRowLabels(ex.sets), [ex.sets]);
@@ -268,7 +269,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   // already in another unit, an away gym, or a unit remembered for a gym.
   // Everywhere else it is one row in the ⋯ menu: on every card it switched
   // the lift's unit on a stray tap (S24-14).
-  const unitInline = unitSwitchInline(ex, catalogEx?.unitByGym);
+  const unitInline = unitSwitchInline(ex, catalogEx?.unitByGym, accountUnits === 'metric' ? 'kg' : 'lb');
   // "Use the range" (owner, 2026-11-05; core `rangeNudge`): three sets running
   // at exactly 10 reps and RIR ≥ 2, across the last session and this one.
   const nudge = useMemo(() => {

@@ -3064,4 +3064,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.glossary.rotationBody': 'Una vuelta completa por todas tus plantillas, sin importar cuántos días tome.',
   'train.glossary.zone2': 'Zona 2',
   'train.glossary.zone2Body': 'Cardio suave, a un ritmo en el que podrías conversar. Ignia usa un ritmo cardíaco promedio de 120–130 como banda, y Tendencias muestra cuántas sesiones recientes se mantuvieron en ella.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'whatsNew.trainPlain.title': 'Entrenar, en palabras simples',
+  'whatsNew.trainPlain.body': 'La recomendación de cada ejercicio ahora empieza con una oración simple, y sus indicaciones de técnica están en "Cómo hacerlo". El interruptor kg | lb pasó al menú ⋯ del ejercicio, a menos que ese ejercicio ya use otra unidad.',
 };
