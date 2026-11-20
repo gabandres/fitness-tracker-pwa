@@ -461,6 +461,7 @@ export * from './rir-required';
 export * from './flat-reps';
 // Switcher CSV import parser (MFP / Lose It! / Cronometer), pure + shared.
 export * from './import-csv';
+export * from './workout-import';
 
 // On-device USDA food search: the ranking `searchFoods` runs server-side, run
 // instead inside the app against the compact index built by

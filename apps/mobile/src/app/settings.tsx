@@ -30,8 +30,10 @@ import {
   type MealKey,
   type MealReminderSettings,
   type UnitSystem,
+  type WorkoutImport,
   bodyWeightUnit,
   parseImportCsv,
+  parseWorkoutCsv,
   parseWeightToLb,
   toDisplayWeight,
 } from '@macrolog/core';
@@ -78,7 +80,8 @@ import {
 } from '@/lib/reminders';
 import { TRACKER_KEYS, type TrackerKey, useTrackerPrefs } from '@/lib/tracker-prefs';
 import { LOCALES, LOCALE_DEFS, type I18nKey, type Locale, useLocale, useT } from '@/i18n';
-import { formatNumber, formatTime } from '@/lib/date-format';
+import { formatDate, formatNumber, formatTime } from '@/lib/date-format';
+import { runWorkoutImport } from '@/lib/workout-import';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { contentColumn, font, radius, space, TARGET } from '@/theme';
@@ -328,6 +331,11 @@ export default function Settings() {
   const [importPreview, setImportPreview] = useState<ImportParseResult | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  // A Hevy / Strong workout export (UX_AUDIT S24-17): its own preview, since
+  // it asks for a unit when the file does not name one and reports progress.
+  const [workoutPreview, setWorkoutPreview] = useState<WorkoutImport | null>(null);
+  const [workoutUnit, setWorkoutUnit] = useState<'kg' | 'lb'>('lb');
+  const [workoutProgress, setWorkoutProgress] = useState<{ done: number; total: number } | null>(null);
 
   async function pickImport() {
     haptics.tap();
@@ -339,6 +347,16 @@ export default function Settings() {
     if (res.canceled || !res.assets?.[0]) return;
     try {
       const text = await readCsvText(res.assets[0].uri);
+      // A workout export first: it is recognised by its exercise column, which
+      // no food diary has, so the two can never be mistaken for each other.
+      const workouts = parseWorkoutCsv(text);
+      if (workouts) {
+        setImportPreview(null);
+        setWorkoutUnit(workouts.unit ?? (profile?.unitSystem === 'metric' ? 'kg' : 'lb'));
+        setWorkoutPreview(workouts);
+        return;
+      }
+      setWorkoutPreview(null);
       const parsed = parseImportCsv(text);
       if (!parsed.ok) {
         setImportMsg(t(IMPORT_ERR_KEY[parsed.error]));
@@ -360,6 +378,26 @@ export default function Settings() {
       })
       .catch(() => setImportMsg(t('settings.importErrGeneric')))
       .finally(() => setImporting(false));
+  }
+
+  async function confirmWorkoutImport() {
+    if (!user || !workoutPreview || importing) return;
+    setImporting(true);
+    setWorkoutProgress({ done: 0, total: workoutPreview.workouts.length });
+    await runWorkoutImport(user.uid, workoutPreview, workoutUnit, (done, total) => setWorkoutProgress({ done, total }))
+      .then((r) => {
+        setWorkoutPreview(null);
+        const parts = [t('settings.workoutImportDone', { n: r.imported })];
+        if (r.duplicates > 0) parts.push(t('settings.workoutImportDup', { n: r.duplicates }));
+        if (r.exercisesAdded > 0) parts.push(t('settings.workoutImportLifts', { n: r.exercisesAdded }));
+        if (r.failed > 0) parts.push(t('settings.workoutImportFailed', { n: r.failed }));
+        setImportMsg(parts.join(' '));
+      })
+      .catch(() => setImportMsg(t('settings.importErrGeneric')))
+      .finally(() => {
+        setImporting(false);
+        setWorkoutProgress(null);
+      });
   }
 
   useEffect(() => {
@@ -1338,6 +1376,65 @@ export default function Settings() {
                   accessibilityRole="button"
                   accessibilityState={{ disabled: importing }}
                   testID="settings-import-cancel"
+                >
+                  <Text style={styles.importCancel}>{t('settings.importCancel')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+          {workoutPreview ? (
+            <View style={styles.importPreview} testID="settings-workout-import">
+              <Text style={styles.rowLabel}>
+                {t('settings.workoutImportPreview', {
+                  n: workoutPreview.workouts.length,
+                  sets: formatNumber(workoutPreview.sets, locale),
+                  from: workoutPreview.firstDate ? formatDate(workoutPreview.firstDate, locale, { year: 'numeric', month: 'short', day: 'numeric' }) : '?',
+                  to: workoutPreview.lastDate ? formatDate(workoutPreview.lastDate, locale, { year: 'numeric', month: 'short', day: 'numeric' }) : '?',
+                })}
+              </Text>
+              {workoutPreview.skippedRows > 0 ? (
+                <Text style={styles.rowValue}>{t('settings.workoutImportSkipped', { n: workoutPreview.skippedRows })}</Text>
+              ) : null}
+              {/* The file did not name its unit: ask, never assume. */}
+              {workoutPreview.unit == null ? (
+                <>
+                  <Text style={styles.rowValue}>{t('settings.workoutImportUnitAsk')}</Text>
+                  <ChoiceRow
+                    label={t('settings.workoutImportUnitAsk')}
+                    options={[
+                      { key: 'lb', label: 'lb', testID: 'settings-workout-unit-lb' },
+                      { key: 'kg', label: 'kg', testID: 'settings-workout-unit-kg' },
+                    ]}
+                    value={workoutUnit}
+                    onPick={(k) => setWorkoutUnit(k)}
+                    disabled={importing}
+                    stacked={stackFloors}
+                  />
+                </>
+              ) : null}
+              <Text style={styles.rowValue}>{t('settings.workoutImportNote')}</Text>
+              <View style={styles.importActions}>
+                <Touchable
+                  style={[styles.exportBtn, importing && styles.exportBtnDisabled]}
+                  onPress={confirmWorkoutImport}
+                  disabled={importing}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: importing, busy: importing }}
+                  testID="settings-workout-import-confirm"
+                >
+                  <Text style={styles.exportBtnText}>
+                    {importing && workoutProgress
+                      ? t('settings.workoutImportProgress', { done: workoutProgress.done, total: workoutProgress.total })
+                      : t('settings.importConfirm')}
+                  </Text>
+                </Touchable>
+                <TouchableOpacity
+                  style={styles.textBtn}
+                  onPress={() => setWorkoutPreview(null)}
+                  disabled={importing}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: importing }}
+                  testID="settings-workout-import-cancel"
                 >
                   <Text style={styles.importCancel}>{t('settings.importCancel')}</Text>
                 </TouchableOpacity>

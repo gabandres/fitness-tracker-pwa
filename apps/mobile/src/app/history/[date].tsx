@@ -21,10 +21,11 @@ import { SkeletonRows, SkeletonTotals } from '@/components/DaySkeleton';
 import { EntrySheet } from '@/components/EntrySheet';
 import { FastSheet, type FastSheetMode } from '@/components/FastSheet';
 import { MealEntries } from '@/components/MealEntries';
+import { RelogSheet } from '@/components/RelogSheet';
 import { useToast } from '@/components/Toast';
 import { useDayFasts } from '@/hooks/useDayFasts';
 import { useDayTargetRecord } from '@/hooks/useDayTargetRecord';
-import { useDiaryActions } from '@/hooks/useDiaryActions';
+import { copyForToday, useDiaryActions } from '@/hooks/useDiaryActions';
 import { useHistory } from '@/hooks/useHistory';
 import { useUnitSystem } from '@/lib/use-unit-system';
 import { useAuth } from '@/lib/auth';
@@ -140,6 +141,8 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
     deleteFast,
   } = useDayFasts(dateKey, boundary);
   const [fastSheet, setFastSheet] = useState<{ mode: FastSheetMode; fast: Fast | null } | null>(null);
+  // "Log again…": several of this day's entries, added to today (S24-16).
+  const [relogOpen, setRelogOpen] = useState(false);
 
   // Memoised on their inputs (review, Performance): both walk the whole
   // window — up to 400 rows plus any fetched months — and ran on every render,
@@ -384,7 +387,24 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
             </Text>
           ) : null}
 
-          <Text style={styles.sectionTitle} accessibilityRole="header">{t('today.entries')}</Text>
+          <View style={styles.entriesHead}>
+            <Text style={styles.sectionTitle} accessibilityRole="header">{t('today.entries')}</Text>
+            {/* Only on a past day with something to copy: on today itself it
+                would duplicate the day. */}
+            {dateKey !== todayKey && dayLogs.length > 0 ? (
+              <Touchable
+                onPress={() => {
+                  haptics.tap();
+                  setRelogOpen(true);
+                }}
+                style={styles.relogBtn}
+                accessibilityRole="button"
+                testID="history-relog"
+              >
+                <Text style={styles.relogText}>{t('relog.open')}</Text>
+              </Touchable>
+            ) : null}
+          </View>
           {/* Today's diary, for this date: four meal slots each with "+ Add",
               swipe to delete or save to Quick add (review U2/U3). */}
           <MealEntries
@@ -485,6 +505,17 @@ function DayDetailScreen({ onRetry }: { onRetry: () => void }) {
         </PressScale>
       ) : null}
 
+      <RelogSheet
+        visible={relogOpen}
+        logs={dayLogs}
+        onClose={() => setRelogOpen(false)}
+        onConfirm={(picked) => {
+          setRelogOpen(false);
+          // One receipt and one Undo for the lot, each row stamped now and in
+          // its own meal (`copyForToday`).
+          void diary.onSaveMany(picked.map((log) => copyForToday(log)));
+        }}
+      />
       <EntrySheet
         visible={diary.sheetOpen}
         editing={diary.editing}
@@ -581,6 +612,9 @@ const createStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   totalSub: { fontSize: font.tiny, color: colors.faint, fontWeight: '600', marginTop: 2 },
   weight: { fontSize: font.body, color: colors.muted },
   sectionTitle: { fontSize: font.h3, fontWeight: '700', color: colors.ink },
+  entriesHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  relogBtn: { minHeight: TARGET, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.lineStrong },
+  relogText: { fontSize: font.small, fontWeight: '700', color: colors.ink },
   fastHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   fastAdd: { fontSize: font.small, color: colors.teal, fontWeight: '700' },
   // A real TARGET box around the short word, not slop around it.

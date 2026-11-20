@@ -2222,7 +2222,7 @@ export const en = {
   'settings.exportDone': 'Exported {n} rows.',
   'settings.exportError': 'Export failed. Try again.',
   'settings.importTitle': 'Import from another app',
-  'settings.importSub': 'A CSV export from MyFitnessPal, Lose It!, or Cronometer.',
+  'settings.importSub': 'Food: a CSV export from MyFitnessPal, Lose It! or Cronometer. Workouts: a CSV export from Hevy or Strong.',
   'settings.importButton': 'Import',
   'settings.importPreview': '{n} entries · {from} → {to}',
   'settings.importSkipped': '{n} rows skipped (no date or calories).',
@@ -2233,7 +2233,7 @@ export const en = {
   'settings.importDone': 'Imported {n} entries.',
   'settings.importErrGeneric': 'Could not read that file. Try again.',
   'settings.importErrEmpty': 'That file is empty.',
-  'settings.importErrHeader': 'No date + calories columns found.',
+  'settings.importErrHeader': 'That file is not a food diary or a Hevy / Strong workout export. A food file needs date and calories columns.',
   'settings.importErrRows': 'No usable rows in that file.',
   'settings.kcalUnit': 'kcal',
   'settings.proteinUnit': 'g protein',
@@ -3266,6 +3266,25 @@ export const en = {
   // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
   'whatsNew.trainPlain.title': 'Train, in plain words',
   'whatsNew.trainPlain.body': 'Each lift\'s call now opens with one plain sentence, and its form cues are under "How to do it". The kg | lb switch moved into the lift\'s ⋯ menu unless that lift already uses another unit.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'relog.open': 'Log again…',
+  'relog.title': 'Add to today',
+  'relog.selectAll': 'Select all',
+  'relog.selectNone': 'Clear',
+  'relog.kcal': '{n} kcal',
+  'relog.pickSome': 'Pick what to add',
+  'relog.addOne': 'Add 1 entry · {kcal} kcal',
+  'relog.addMany': 'Add {n} entries · {kcal} kcal',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'settings.workoutImportPreview': '{n} workouts · {sets} sets · {from} → {to}',
+  'settings.workoutImportSkipped': '{n} rows skipped (no exercise, date or reps).',
+  'settings.workoutImportUnitAsk': 'This file does not say its weight unit. Which was the other app set to?',
+  'settings.workoutImportNote': 'Workouts already here are skipped, so importing a file twice adds nothing. Lifts are matched by name; a name Ignia does not have becomes a new lift you can merge later.',
+  'settings.workoutImportProgress': 'Importing {done} of {total}…',
+  'settings.workoutImportDone': 'Imported {n} workouts.',
+  'settings.workoutImportDup': '{n} were already here.',
+  'settings.workoutImportLifts': '{n} new lifts added.',
+  'settings.workoutImportFailed': '{n} could not be saved. Import the file again to retry them.',
 } as const;
 
 export type I18nKey = keyof typeof en;
