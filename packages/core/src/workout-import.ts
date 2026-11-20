@@ -197,6 +197,14 @@ function setKind(raw: string | undefined): ImportedSetKind {
   return 'working';
 }
 
+/** Hevy's `failure` set type (15 % of the sets in a real 7,211-row export,
+ *  2026-11-20): taken to failure is zero reps in reserve. Strong marks it "F"
+ *  in Set Order. */
+function isFailureSet(raw: string | undefined): boolean {
+  const s = (raw ?? '').trim().toLowerCase();
+  return s === 'failure' || s === 'f';
+}
+
 function rirFromRpe(raw: string | undefined): number | undefined {
   const rpe = num(raw);
   if (rpe == null || rpe < 5 || rpe > 10) return undefined;
@@ -266,8 +274,11 @@ export function parseWorkoutCsv(text: string): WorkoutImport | null {
     if (reps != null && reps > 0 && reps <= MAX_REPS) set.reps = Math.round(reps);
     if (weight != null && weight > 0 && weight <= MAX_WEIGHT) set.weight = weight;
     if (seconds != null && seconds > 0 && seconds <= MAX_DURATION_SEC) set.durationSec = Math.round(seconds);
+    // An RPE the lifter typed wins; a set marked "failure" with none is RIR 0.
     const rir = col.rpe >= 0 ? rirFromRpe(row[col.rpe]) : undefined;
+    const typeRaw = col.setType >= 0 ? row[col.setType] : col.setOrder >= 0 ? row[col.setOrder] : undefined;
     if (rir != null) set.rir = rir;
+    else if (isFailureSet(typeRaw)) set.rir = 0;
     // A set with neither reps nor a duration logged nothing.
     if (set.reps == null && set.durationSec == null) {
       skippedRows++;
