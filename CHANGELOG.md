@@ -4,6 +4,34 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — architecture: the active session is its own module; tests get an in-memory Firestore (merged, NOT published)
+
+From an architecture review of the hot spots of the last 400 commits. Three of five candidates built.
+**Active session** (`apps/mobile/src/lib/active-session.ts`): the rule for which copy of a live workout wins — this
+runtime's, the device journal's, the server's — was seven refs and a focus effect inside the 1,931-line Train hook,
+reachable only through a rendered hook. It is plain TypeScript now; `useTrain` (1,744 lines) holds one and tells React
+what it reports. Behaviour is unchanged by the move: the 55 existing Train suites pass untouched.
+**One behaviour change, the bug `STATUS.md` listed as known:** a workout the server says is `completed` — finished on
+another device or by a data script — is closed on the phone (`serverSaw`, fed by the sessions listener). Until now
+the phone kept it and finished it again at the 24 h cap (2026-11-06). A finish made on this device, and a completed
+session open for editing, are left alone.
+**In-memory Firestore** (`apps/mobile/src/test-support/memory-firestore.ts`): the second adapter behind the SDK calls
+the ledger makes, so a test runs the REAL ledger and reads back what was written. 77 test files faked the ledger
+inline and 25 faked the SDK; none could have caught the bug above. The seam is the SDK (18 functions), not the
+ledger (142): the ledger's own code is then under test too. New: 13 tests of the adapter, 15 of the active session
+with no renderer, 4 of the hook on the real ledger; `day-logged-ledger.test.ts` migrated as the pattern.
+`test-fakes-ratchet.test.ts` holds the inline fakes at 77 and 24 — they only go down. The other files are NOT
+migrated.
+**A near miss, now a gate:** the first version of the module exposed the session as a `.current` property. React
+Compiler reads that as a ref, could not match the callbacks' dependency lists, and skipped ALL of `useTrain` — with
+tsc clean and 3,558 tests green. The module exposes methods (`peek()`), and `scripts/ota-release.sh` now fails when
+the compiler skips more than 7 functions (`react-compiler-report.mjs --max`).
+**Account-data scripts** write the app's records through core's writers: `logMeal`, `saveMeal`, `markDay` in
+`scripts/lib/user-data.mts`.
+**Not built, on purpose:** a Day reading module (one caller today; it belongs with protein first on Trends, the
+widget and the share card, which brings the second and third) and one implementation for the six per-day records
+(700 lines of working write paths for a saving of about 400).
+
 ## 2026-11-20 — tooling from the session retro: one release script, a shared data module, two skills, three checks (no app change)
 
 **Release:** `scripts/ota-release.sh "<what changed>"` is the OTA recipe that lived in a scratch file — clean tree,

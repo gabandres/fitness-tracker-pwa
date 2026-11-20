@@ -6,7 +6,8 @@
 # Run it in Git Bash on the publishing machine (`winbox`), from a clean tree.
 # It refuses rather than publish something no binary will take:
 #   1. clean tree, and both runtime constants still in apps/mobile/AGENTS.md
-#   2. core tests, mobile tsc and mobile jest green at this commit
+#   2. core tests, mobile tsc and mobile jest green at this commit, and React
+#      Compiler skipping no more functions than it did
 #   3. the iOS tree fingerprint equals the live binary's
 #   4. a real Android export, measured against scripts/perf-budget.json
 # Then: publish iOS, pin app.json to the Android artifact runtime, publish
@@ -23,6 +24,8 @@ IOS_RT="e6d2973e85038818ae56e1db6d9bd0fe1aaa016c"
 IOS_BIN="build 75 / 1.2.11"
 AND_RT="e989353d992e38a829ca883290f99d5ad08d4479"
 AND_BIN="vc 53 / 1.2.10"
+# Functions React Compiler skips today (apps/mobile/scripts/react-compiler-report.mjs).
+COMPILER_SKIPS_MAX=7
 
 DRY=0
 if [ "${1:-}" = "--dry-run" ]; then DRY=1; shift; fi
@@ -54,6 +57,10 @@ else
   echo "mobile tsc: clean"
   (cd "$APP" && npx jest --silent) >"$LOG/jest.log" 2>&1 || { grep -E '^(FAIL|Tests:|Test Suites:)' "$LOG/jest.log"; die "mobile jest is red ($LOG/jest.log)"; }
   echo "mobile jest: $(grep -E '^Tests:' "$LOG/jest.log")"
+  # A hook React Compiler newly skips re-renders unmemoized, and tsc, jest and
+  # lint all stay green. COMPILER_SKIPS_MAX only goes down.
+  (cd "$APP" && node scripts/react-compiler-report.mjs --max "$COMPILER_SKIPS_MAX") >"$LOG/compiler.log" 2>&1 || { tail -25 "$LOG/compiler.log"; die "React Compiler skips more than $COMPILER_SKIPS_MAX functions"; }
+  echo "react compiler: $(tail -1 "$LOG/compiler.log")"
   echo "$SHA" >"$STAMP"
 fi
 

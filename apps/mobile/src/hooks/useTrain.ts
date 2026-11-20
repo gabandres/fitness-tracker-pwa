@@ -7,14 +7,11 @@ import { closeExpiredPauses, finishWorkout as finishWorkoutOp } from '@/lib/ledg
 import { useAuth } from '@/lib/auth';
 import {
   type PendingFinish,
-  clearActiveSessionJournal,
-  createJournalWriter,
-  readActiveSessionJournal,
   readPendingFinishes,
-  reconcileActiveSession,
   recordPendingFinish,
   removePendingFinish,
 } from '@/lib/active-session-journal';
+import { createActiveSession } from '@/lib/active-session';
 import { useOtaHold } from '@/lib/ota-hold';
 import {
   addExercise as addExerciseDoc,
@@ -26,7 +23,6 @@ import {
   deleteTemplate as deleteTemplateDoc,
   editExercise as editExerciseDoc,
   mergeExercises as mergeExercisesDoc,
-  readActiveSession,
   setTrainingSettings,
   startSession,
   subscribeExercises,
@@ -47,7 +43,6 @@ import {
   findDuplicateExercise,
   dayBoundaryOf,
   newCardioBlock,
-  newLedgerId,
   newWorkoutSet,
   toRecommendationSnapshot,
   undoRemoval as applyUndoRemoval,
@@ -125,7 +120,6 @@ import {
   seedTemplateName,
   seedTemplateNotes,
 } from '@macrolog/core';
-import { publishActiveWorkout } from '@/lib/active-workout-signal';
 import { rotationTemplates } from '@/components/train/WeeklyVolumeSheet';
 import { useLocale } from '@/i18n';
 
@@ -383,6 +377,11 @@ export interface TrainState {
  * copy of a finish the previous mount is still waiting on.
  */
 const finishesInFlight = new Set<string>();
+/** Sessions whose Finish was tapped on this device and has not returned yet.
+ *  With `finishesInFlight` it is what tells "completed here" from "completed
+ *  somewhere else" when the sessions listener reports a status (`serverSaw`). */
+const finishingHere = new Set<string>();
+const finishedByThisDevice = { has: (id: string) => finishesInFlight.has(id) || finishingHere.has(id) };
 
 /**
  * Everything an edit of a finished session can change, as it was at reopen.
@@ -410,6 +409,7 @@ export function editRestorePatch(original: WorkoutSession): Partial<SessionDraft
 /** Test seam — a runtime restart forgets what was in flight. */
 export function __resetFinishesInFlight(): void {
   finishesInFlight.clear();
+  finishingHere.clear();
 }
 
 /**
@@ -465,55 +465,6 @@ export function useTrain(): TrainState {
   // behind a spinner it already left.
   const [activeResolvedFor, setActiveResolvedFor] = useState<string | null>(null);
   const activePending = uid != null && activeResolvedFor !== uid;
-  /**
-   * Mirror of `active`, read by every mutation instead of a closed-over value.
-   *
-   * The old callbacks each computed their next state from `active` captured in
-   * a `useCallback([active, persist])`, which is why one of them carried a "no
-   * stale close-over" warning in its doc comment: any of the eight could
-   * capture a stale session if it fired from a handler React had not yet
-   * re-rendered. A ref cannot be stale, so the hazard is gone by construction
-   * rather than by comment — and `dispatch` no longer depends on `active`, so
-   * it keeps one identity across a whole workout instead of churning on every
-   * keystroke.
-   *
-   * Every write to `active` goes through `setActive` below; nothing sets the
-   * state directly, or the ref would drift from it.
-   */
-  const activeRef = useRef<WorkoutSession | null>(null);
-  /** One debounced journal writer for the hook's life (lazy, so it is built
-   *  once rather than on every render). See `createJournalWriter`. */
-  const [journal] = useState(createJournalWriter);
-  /**
-   * Ids of sessions started on THIS device whose create has not been
-   * acknowledged. Journaled as `created: false`, which is what lets a cold
-   * start tell "never reached the server" from "finished elsewhere"
-   * (`reconcileActiveSession`).
-   */
-  const uncreated = useRef(new Set<string>());
-  const setActive = useCallback(
-    (next: WorkoutSession | null) => {
-      activeRef.current = next;
-      setActiveState(next);
-      // On the device BEFORE Firestore hears of it: the SDK's write queue is
-      // memory-only on RN and dies with the runtime (`active-session-journal.ts`).
-      // Debounced — one AsyncStorage write per burst of keystrokes, flushed on
-      // blur, background and every start/finish (Train review item 30).
-      if (uid && next) journal.write(uid, next, uncreated.current.has(next.id ?? '') ? false : undefined);
-      // Every write to `active` goes through here, which is what makes this
-      // the one honest place to tell the rest of the app a workout is open.
-      // Not a shared subscription (ADR-0016) — one boolean and a name, no
-      // listener, one producer. See `active-workout-signal.ts`.
-      publishActiveWorkout(uid, next);
-    },
-    [uid, journal],
-  );
-  /**
-   * The session the journal put on screen before the server answered, if it
-   * is still the one showing. The server's answer may replace THAT; it never
-   * replaces a session the user started or edited in the meantime.
-   */
-  const provisional = useRef<WorkoutSession | null>(null);
   // The profile through a ref: the finish replay runs from `onOpen`, whose
   // closure is captured once per focus, and must read today's day boundary.
   const profileRef = useRef(profile);
@@ -521,25 +472,7 @@ export function useTrain(): TrainState {
     profileRef.current = profile;
   }, [profile]);
 
-  // Flush the journal whenever the app leaves the foreground or the tab
-  // blurs — the two moments a debounced write could otherwise be lost.
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') void journal.flush();
-    });
-    return () => {
-      sub.remove();
-      void journal.flush();
-    };
-  }, [journal]);
-  useFocusEffect(
-    useCallback(() => () => void journal.flush(), [journal]),
-  );
   const [editingExisting, setEditingExisting] = useState(false);
-  // Pristine snapshot of a reopened completed session, captured before any
-  // edit, so Cancel can restore it (set edits live-write, so they're already
-  // in Firestore by the time the user changes their mind).
-  const editOriginal = useRef<WorkoutSession | null>(null);
   const [saving, setSaving] = useState(false);
   // ONE error slot for both halves of the hook: the eight write verbs record
   // theirs here, and the feed is told to route a listener failure into the same
@@ -560,83 +493,54 @@ export function useTrain(): TrainState {
     [],
   );
 
-  // `writeWhole` and `persist` are declared ABOVE the feed, whose `onOpen`
-  // calls both: a closure naming a binding declared further down made it a
-  // reassignable one to React Compiler, which then could not keep
-  // `persist`'s memoization and skipped the whole hook.
-  /** The whole document for a session, for a create that has to be (re)sent.
-   *  The id names the doc; the timestamps are the writer's. */
-  const writeWhole = useCallback(
-    async (session: WorkoutSession) => {
-      if (!uid || !session.id) return;
-      const { id, createdAt: _createdAt, updatedAt: _updatedAt, ...draft } = session;
-      try {
-        await startSession(uid, draft as SessionDraft, id);
-        uncreated.current.delete(id);
-      } catch (e) {
-        setError(asError(e, 'Save failed'));
-      }
-    },
-    [uid, setError],
-  );
-
   /**
-   * How many session writes are waiting on the server. A counter, not a
-   * boolean: two overlapping writes used to clear `saving` when the FIRST one
-   * landed, while the second was still out.
+   * The active session (`lib/active-session.ts`): the workout on screen and the
+   * rule for which copy of it wins — this runtime's, the device journal's or
+   * the server's. Built once; it tells React through the four setters, all of
+   * which keep one identity for the hook's life.
+   *
+   * Every mutation reads `activeSession.peek()` instead of a closed-over
+   * `active`: a callback fired from a handler React has not re-rendered yet
+   * cannot hold a stale session, and `dispatch` keeps one identity across a
+   * whole workout instead of churning on every keystroke.
+   *
+   * Declared ABOVE the feed, whose `onOpen` calls it: a closure naming a
+   * binding declared further down made it a reassignable one to React
+   * Compiler, which then skipped the whole hook.
    */
-  const inFlight = useRef(0);
-
+  const [activeSession] = useState(() =>
+    createActiveSession({
+      onChange: setActiveState,
+      onSaving: setSaving,
+      onError: setError,
+      onResolved: setActiveResolvedFor,
+    }),
+  );
+  /** Every write to `active` goes through the active session; nothing sets
+   *  the state directly. */
+  const setActive = useCallback(
+    (next: WorkoutSession | null) => activeSession.set(uid, next),
+    [uid, activeSession],
+  );
   /** Persist the current local active session. */
   const persist = useCallback(
-    async (session: WorkoutSession) => {
-      if (!uid || !session.id) return;
-      inFlight.current += 1;
-      setSaving(true);
-      // Narrowed above; a closure would lose that.
-      const sessionId = session.id;
-      // Built before the `try`: React Compiler cannot lower a conditional
-      // inside a try block.
-      const patch = {
-        exercises: session.exercises,
-        // Absent stays ABSENT. `toSessionPatch` writes the key only when it
-        // is present, so a strength-only session never gains an empty array
-        // — but a session that HAS cardio must carry it, and omitting it
-        // here is a silent data loss rather than a rejected write: the block
-        // renders, the summary updates, and Firestore never hears about it.
-        // Measured on the LG G6 on 2026-08-24, by Maestro flow 21.
-        ...(session.cardio !== undefined ? { cardio: session.cardio } : {}),
-        // A removed imported block's id (2026-10-15) — without it the next
-        // Health import re-adds the block the user just took out.
-        ...(session.dismissedSourceIds !== undefined ? { dismissedSourceIds: session.dismissedSourceIds } : {}),
-        // Travel mode: the lifter's "not comparable" switch (false clears it).
-        ...(session.notComparable !== undefined ? { notComparable: session.notComparable } : {}),
-      };
-      const write = async () => {
-        try {
-          await updateSession(uid, sessionId, patch);
-        } catch (e) {
-          // `not-found` on the session still on screen means its create never
-          // reached the server (started offline, then a restart) — not that it
-          // was deleted: a discard or finish clears `activeRef` before it
-          // writes. So send the whole document instead of losing the workout.
-          const code = (e as { code?: string } | null)?.code;
-          if (code === 'not-found' && session.status === 'active' && activeRef.current?.id === sessionId) {
-            await writeWhole(activeRef.current);
-          } else {
-            setError(asError(e, 'Save failed'));
-          }
-        }
-      };
-      // `.finally()` on the promise, not a `finally` block: React Compiler
-      // cannot lower one and skipped the whole hook. Runs on a resolve and a
-      // reject alike, and a rejection still propagates.
-      await write().finally(() => {
-        inFlight.current -= 1;
-        if (inFlight.current === 0) setSaving(false);
-      });
-    },
-    [uid, setError, writeWhole],
+    (session: WorkoutSession) => activeSession.persist(uid, session),
+    [uid, activeSession],
+  );
+
+  // Flush the journal whenever the app leaves the foreground or the tab
+  // blurs — the two moments a debounced write could otherwise be lost.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') void activeSession.flush();
+    });
+    return () => {
+      sub.remove();
+      void activeSession.flush();
+    };
+  }, [activeSession]);
+  useFocusEffect(
+    useCallback(() => () => void activeSession.flush(), [activeSession]),
   );
 
   // Focus-gated so the Train tab drops its live listeners when it blurs
@@ -647,81 +551,15 @@ export function useTrain(): TrainState {
     label: 'Train',
     gate: 'focus',
     onError: setLoadError,
-    // One-shot load of any in-progress session so set edits aren't clobbered
-    // by a live subscription mid-typing. `alive()` is the feed's — a resolve
-    // that lands after the tab blurred must not revive a torn-down screen.
     onOpen: ({ uid: u, alive }) => {
       // Finishes recorded on the device and not yet heard by the server — a
       // restart since, or still in flight. Replayed until each lands.
       const finishes = readPendingFinishes(u);
       void finishes.then((list) => list.forEach((entry) => runFinish(u, entry)));
-      const journalRead = readActiveSessionJournal(u);
-      // The DEVICE first. A cold start offline waited on a server read that
-      // the memory-only SDK cannot answer for seconds, and showed Start the
-      // whole time — long enough to start a second workout over the one still
-      // open (Train review bug 4). The journal is on the phone; show it now,
-      // and let the server's answer correct it below.
-      void Promise.all([journalRead, finishes])
-        .then(([journal, list]) => {
-          if (!alive() || editOriginal.current || activeRef.current || !journal) return;
-          if (list.some((f) => f.session.id === journal.session.id)) return;
-          // Carried forward, or the next journal write would forget that the
-          // server never got this session's create.
-          if (journal.created === false && journal.session.id) uncreated.current.add(journal.session.id);
-          provisional.current = journal.session;
-          setActive(journal.session);
-        })
-        // A storage failure is an answer too ("nothing on the device"); the
-        // server read below still corrects it.
-        .catch(() => {})
-        // AFTER `setActive`, so no render sees "answered" with the journal's
-        // session still missing.
-        .finally(() => {
-          if (alive()) setActiveResolvedFor(u);
-        });
-      Promise.all([
-        // A failed read is an unreachable server, not an empty one.
-        readActiveSession(u).catch(() => ({ session: null, fromCache: true })),
-        journalRead,
-        finishes,
-      ])
-        .then(([read, journal, list]) => {
-          // Not while a COMPLETED session is open for editing. `reopenSession`
-          // loads it into `active` without changing its status, so this query
-          // answers `null` on every refocus — and writing that through closed
-          // the editor while `editingExisting` and the Cancel snapshot stayed
-          // set, leaving the NEXT workout started wearing the edit chrome:
-          // "Done" then never marked it completed.
-          if (!alive() || editOriginal.current) return;
-          const local = activeRef.current;
-          const fromJournal = local != null && local === provisional.current;
-          provisional.current = null;
-          // A session started, resumed or edited in THIS runtime wins. Every
-          // write to it came from here, so the server's copy can only be equal
-          // or behind — behind by any deferred edit not yet committed, or by
-          // writes still queued on a slow connection. Replacing it threw those
-          // away, and the next whole-array write made it permanent. (Until
-          // 2026-10-04 this held only for the same id; a start tapped while
-          // this read was in flight was then replaced by the read's `null`.)
-          if (local && !fromJournal) return;
-          // A fresh mount (cold start, OTA reload): the device journal wins
-          // when it is newer than the server's last write — or when the server
-          // could not be asked — and is written back so Firestore gets the
-          // edits a dead runtime never sent.
-          const { session, resync, recreate } = reconcileActiveSession(read.session, journal, {
-            serverKnown: !read.fromCache,
-            finishing: new Set(list.map((f) => f.session.id ?? '')),
-          });
-          if (session?.id) {
-            if (recreate) uncreated.current.add(session.id);
-            else uncreated.current.delete(session.id);
-          }
-          if (session !== local) setActive(session);
-          if (session && resync) void (recreate ? writeWhole(session) : persist(session));
-        })
-        // Nothing to report: the read's own failure is handled above, and a
-        // storage failure only costs the journal's head start.
-        .catch(() => {});
+      // One-shot load of any in-progress session so set edits aren't clobbered
+      // by a live subscription mid-typing: the device's journal first, then
+      // the server's answer (`activeSession.open`).
+      activeSession.open(u, { alive, finishes });
     },
     channels: () =>
       uid
@@ -763,6 +601,9 @@ export function useTrain(): TrainState {
               // keyed on `recentSessions` and the memoized ExerciseCards hold
               // (`perf-keystroke-churn.test.ts`).
               apply: (sessions: WorkoutSession[], provenance) => {
+                // Completed somewhere else (another device, a data script):
+                // the copy held here is no longer the live one.
+                activeSession.serverSaw(uid, sessions, finishedByThisDevice);
                 setRecentSessions(
                   sessions.filter((x) => x.status === 'completed'),
                   provenance,
@@ -813,32 +654,16 @@ export function useTrain(): TrainState {
    */
   const begin = useCallback(
     (draft: SessionDraft) => {
-      if (!uid || activeRef.current || starting.current) return;
+      if (!uid || activeSession.peek() || starting.current) return;
       starting.current = true;
       withFinallySync(
-        () => {
-          // A Firestore-shaped id (20 chars of [A-Za-z0-9]) from core, the same
-          // minting the durable food queue uses — no SDK call, so no network.
-          const id = newLedgerId(Math.random);
-          const now = new Date();
-          uncreated.current.add(id);
-          setActive({ ...draft, id, createdAt: now, updatedAt: now });
-          // The session's birth is not a keystroke: written now, not debounced.
-          void journal.flush();
-          startSession(uid, draft, id)
-            .then(() => {
-              uncreated.current.delete(id);
-              const current = activeRef.current;
-              if (current?.id === id) journal.write(uid, current);
-            })
-            .catch((e) => setError(asError(e, 'Start failed')));
-        },
+        () => activeSession.begin(uid, draft),
         () => {
           starting.current = false;
         },
       );
     },
-    [uid, setActive, journal, setError],
+    [uid, activeSession],
   );
 
   const startWorkout = useCallback(async () => {
@@ -935,7 +760,7 @@ export function useTrain(): TrainState {
 
   const startFromTemplate = useCallback(
     async (template: WorkoutTemplate) => {
-      if (!uid || activeRef.current) return;
+      if (!uid || activeSession.peek()) return;
       // A deload week owes this template its deload session: the template's
       // own loads, half the clusters, RIR 3 (core `deloadSessionExercises`).
       // No engine call is frozen on it — the engine never reads a deload.
@@ -1033,7 +858,7 @@ export function useTrain(): TrainState {
         ...(awayGym || template.oneOff ? { notComparable: true } : {}),
       });
     },
-    [uid, begin, recentSessions, engineCatalog, deload, profile, templates, withStartUnits],
+    [uid, begin, recentSessions, engineCatalog, deload, profile, templates, withStartUnits, activeSession],
   );
 
   /**
@@ -1070,16 +895,16 @@ export function useTrain(): TrainState {
         .then(() => removePendingFinish(u, id))
         .catch((e) => {
           setError(asError(e, 'Finish failed'));
-          if (activeRef.current || u !== uid) return; // kept; replayed on the next mount
+          if (activeSession.peek() || u !== uid) return; // kept; replayed on the next mount
           setActive({ ...entry.session, status: 'active' });
           // The journal holds it now — only then is the pending copy dropped
           // (otherwise a Discard of the restored session would be undone by
           // the next mount replaying its finish).
-          void journal.flush().then(() => removePendingFinish(u, id));
+          void activeSession.flush().then(() => removePendingFinish(u, id));
         })
         .finally(() => finishesInFlight.delete(id));
     },
-    [uid, setActive, setError, journal],
+    [uid, setActive, setError, activeSession],
   );
 
   const saveTemplate = useCallback(
@@ -1361,12 +1186,12 @@ export function useTrain(): TrainState {
    */
   const dispatch = useCallback(
     async (action: SessionAction, opts?: { defer?: boolean }) => {
-      const prev = activeRef.current;
+      const prev = activeSession.peek();
       if (!prev) return;
       // The clock stamps a ticked set's `loggedAt` (the timer's auto-stop,
       // core `session-idle.ts`) — never while editing a finished session,
       // where the tap's time is not when the set was lifted.
-      const next = applySessionAction(prev, action, editOriginal.current ? undefined : new Date());
+      const next = applySessionAction(prev, action, activeSession.editing() ? undefined : new Date());
       if (next === prev) return;
       setActive(next);
       // Not awaited: the session is already on screen and journaled, and the
@@ -1375,13 +1200,13 @@ export function useTrain(): TrainState {
       // back (Train review bugs 2, 3). A refusal still lands in `error`.
       if (!opts?.defer) void persist(next);
     },
-    [persist, setActive],
+    [persist, setActive, activeSession],
   );
 
   const commitActive = useCallback(async () => {
-    const current = activeRef.current;
+    const current = activeSession.peek();
     if (current) await persist(current);
-  }, [persist]);
+  }, [persist, activeSession]);
 
   const addLibraryExercise = useCallback(
     (seed: SeedExercise) => ensureLibraryExercise(seed),
@@ -1431,7 +1256,7 @@ export function useTrain(): TrainState {
    */
   const placeExercise = useCallback(
     async (exercise: SessionExercise, replaceIndex?: number) => {
-      const prev = activeRef.current;
+      const prev = activeSession.peek();
       if (!prev) return;
       const old = replaceIndex != null ? prev.exercises[replaceIndex] : undefined;
       if (!old) {
@@ -1455,12 +1280,12 @@ export function useTrain(): TrainState {
       setActive(next);
       void persist(next);
     },
-    [dispatch, setActive, persist],
+    [dispatch, setActive, persist, activeSession],
   );
 
   const moveExerciseInActive = useCallback(
     (from: number, to: number) => {
-      const prev = activeRef.current;
+      const prev = activeSession.peek();
       if (!prev) return { newIndex: from };
       // The rule is core's (`moveInSession`); this only writes it.
       const r = moveInSession(prev.exercises, from, to);
@@ -1470,31 +1295,31 @@ export function useTrain(): TrainState {
       void persist(next);
       return { newIndex: r.newIndex, ...(r.left ? { left: { name: r.left.row.name, group: r.left.group, before: prev.exercises } } : {}) };
     },
-    [setActive, persist],
+    [setActive, persist, activeSession],
   );
 
   const undoMove = useCallback(
     (before: SessionExercise[]) => {
-      const prev = activeRef.current;
+      const prev = activeSession.peek();
       if (!prev || !canUndoMove(before, prev.exercises)) return;
       // The order and pairing from before; the sets as they are NOW.
       const next = { ...prev, exercises: undoMoveRows(before, prev.exercises) };
       setActive(next);
       void persist(next);
     },
-    [setActive, persist],
+    [setActive, persist, activeSession],
   );
 
   const undoRemoval = useCallback(
     (removal: TrainRemoval) => {
-      const prev = activeRef.current;
+      const prev = activeSession.peek();
       if (!prev) return;
       const next = removal.kind === 'cardio' ? undoCardioRemoval(prev, removal) : applyUndoRemoval(prev, removal);
       if (next === prev) return;
       setActive(next);
       void persist(next);
     },
-    [setActive, persist],
+    [setActive, persist, activeSession],
   );
 
   const addExerciseToActive = useCallback(
@@ -1507,7 +1332,7 @@ export function useTrain(): TrainState {
     ) => {
       // The ref, not a closed-over `active` — this callback's deps no longer
       // track the session, so a captured value would be pinned at null forever.
-      if (!uid || !activeRef.current) return;
+      if (!uid || !activeSession.peek()) return;
       let id = exerciseId;
       // Snapshot the CANONICAL catalog name, not what was typed. Sessions
       // store a name snapshot for display, so reusing an entry while keeping
@@ -1550,7 +1375,7 @@ export function useTrain(): TrainState {
       };
       await placeExercise(exercise, replaceIndex);
     },
-    [uid, catalog, placeExercise, locale, ensureLibraryExercise],
+    [uid, catalog, placeExercise, locale, ensureLibraryExercise, activeSession],
   );
 
   /**
@@ -1581,15 +1406,15 @@ export function useTrain(): TrainState {
 
   const addLibraryExerciseToActive = useCallback(
     async (seed: SeedExercise, replaceIndex?: number) => {
-      if (!uid || !activeRef.current) return;
+      if (!uid || !activeSession.peek()) return;
       await placeExercise(await seedSessionExercise(seed), replaceIndex);
     },
-    [uid, seedSessionExercise, placeExercise],
+    [uid, seedSessionExercise, placeExercise, activeSession],
   );
 
   const addManyToActive = useCallback(
     async (picks: readonly ActivePick[]) => {
-      if (!uid || !activeRef.current) return;
+      if (!uid || !activeSession.peek()) return;
       const built: SessionExercise[] = [];
       // In order, not in parallel: two seeds resolving at once would both read
       // the same `catalog` and could each clone a movement the other just did.
@@ -1607,13 +1432,13 @@ export function useTrain(): TrainState {
         }
       }
       // Read AFTER the awaits: an edit made while a clone was in flight stays.
-      const prev = activeRef.current;
+      const prev = activeSession.peek();
       if (!prev || built.length === 0) return;
       const next = { ...prev, exercises: [...prev.exercises, ...built] };
       setActive(next);
       void persist(next);
     },
-    [uid, seedSessionExercise, setActive, persist],
+    [uid, seedSessionExercise, setActive, persist, activeSession],
   );
 
 
@@ -1622,9 +1447,11 @@ export function useTrain(): TrainState {
 
   const finishWorkout = useCallback(
     async (input: FinishInput): Promise<boolean> => {
-      const active = activeRef.current;
+      const active = activeSession.peek();
       if (!uid || !active?.id || finishing.current) return false;
       finishing.current = true;
+      const finishingId = active.id;
+      finishingHere.add(finishingId);
       setSaving(true);
       return withFinally(
         async () => {
@@ -1666,16 +1493,12 @@ export function useTrain(): TrainState {
               setError(asError(e, 'Finish failed'));
               return false;
             }
-            journal.cancel();
-            void clearActiveSessionJournal(uid);
-            setActive(null);
+            activeSession.close(uid);
             return true;
           }
           // The pending finish IS the durable copy now: drop any queued journal
           // write (it would bring the active session back) and the journal.
-          journal.cancel();
-          void clearActiveSessionJournal(uid);
-          setActive(null);
+          activeSession.close(uid);
           // The six-step sequence itself lives in `ledger-ops.ts`, where it is
           // reachable without a renderer — the pruning order, the weight
           // backstop and which half is fire-and-forget are asserted there.
@@ -1684,26 +1507,25 @@ export function useTrain(): TrainState {
         },
         () => {
           finishing.current = false;
-          setSaving(inFlight.current > 0);
+          finishingHere.delete(finishingId);
+          setSaving(activeSession.isSaving());
         },
       );
     },
-    [uid, setActive, setError, journal, runFinish],
+    [uid, setError, activeSession, runFinish],
   );
 
   const discardWorkout = useCallback(async () => {
-    const active = activeRef.current;
+    const active = activeSession.peek();
     if (!uid || !active?.id) return;
     // Clear the ref BEFORE the delete round-trip, not after. Discard has no
     // confirmation, so the tap can land while a set input still has focus;
     // its blur-commit (and any deferred dispatch) reads `activeRef` and would
     // write to the doc the delete is in the middle of removing. With the ref
     // already null, `dispatch`/`commitActive` see no session and write nothing.
-    setActive(null);
     // The user asked for it gone; a journal must not bring it back — not the
     // stored one, and not a debounced write still waiting to land.
-    journal.cancel();
-    void clearActiveSessionJournal(uid);
+    activeSession.close(uid);
     try {
       await deleteSessionDoc(uid, active.id);
     } catch (e) {
@@ -1711,7 +1533,7 @@ export function useTrain(): TrainState {
       // with no stack and no screen. Surface it on the tab instead.
       setError(asError(e, 'Discard failed'));
     }
-  }, [uid, setActive, journal, setError]);
+  }, [uid, activeSession, setError]);
 
   /**
    * Pause (2026-11-04). Cleared from the screen first, written behind — the
@@ -1720,12 +1542,10 @@ export function useTrain(): TrainState {
    * whole; any other refusal puts it back on screen with the error.
    */
   const pauseWorkout = useCallback(async () => {
-    const active = activeRef.current;
-    if (!uid || !active?.id || editOriginal.current) return;
+    const active = activeSession.peek();
+    if (!uid || !active?.id || activeSession.editing()) return;
     const p = pausedSession(active, new Date());
-    setActive(null);
-    journal.cancel();
-    void clearActiveSessionJournal(uid);
+    activeSession.close(uid);
     const patch = { status: p.status, exercises: p.exercises, segments: p.segments, ...(p.durationMin != null ? { durationMin: p.durationMin } : {}) };
     try {
       await updateSession(uid, active.id, patch);
@@ -1736,9 +1556,9 @@ export function useTrain(): TrainState {
         return;
       }
       setError(asError(e, 'Pause failed'));
-      if (!activeRef.current) setActive(active);
+      if (!activeSession.peek()) setActive(active);
     }
-  }, [uid, setActive, journal, setError]);
+  }, [uid, setActive, activeSession, setError]);
 
   const pausedRef = useRef<WorkoutSession[]>([]);
   useEffect(() => {
@@ -1747,17 +1567,17 @@ export function useTrain(): TrainState {
   const resumeSession = useCallback(
     (id: string): boolean => {
       const s = pausedRef.current.find((x) => x.id === id);
-      if (!uid || !s?.id || activeRef.current || starting.current) return false;
+      if (!uid || !s?.id || activeSession.peek() || starting.current) return false;
       const now = new Date();
       if (!canResume(s, now, dayBoundaryOf(profileRef.current))) return false;
       const r = resumedSession(s, now);
       setActive(r);
-      void journal.flush();
+      void activeSession.flush();
       setPaused((list) => list.filter((x) => x.id !== id));
       updateSession(uid, s.id, { status: 'active', segments: r.segments }).catch((e) => setError(asError(e, 'Resume failed')));
       return true;
     },
-    [uid, setActive, journal, setError],
+    [uid, setActive, activeSession, setError],
   );
 
   // A paused session past its window is closed as partial by whichever screen
@@ -1785,14 +1605,11 @@ export function useTrain(): TrainState {
   const reopenSession = useCallback(
     (session: WorkoutSession) => {
       // Single-active invariant: don't clobber a live in-progress workout.
-      if (activeRef.current || !session.id) return;
-      // Snapshot the pristine session for Cancel. The edit callbacks replace
-      // (map/spread) rather than mutate, so this reference stays untouched.
-      editOriginal.current = session;
+      // The pristine session is snapshotted for Cancel (`activeSession.reopen`).
+      if (!activeSession.reopen(uid, session)) return;
       setEditingExisting(true);
-      setActive(session);
     },
-    [setActive],
+    [uid, activeSession],
   );
 
   const finishEdit = useCallback(async () => {
@@ -1803,9 +1620,7 @@ export function useTrain(): TrainState {
     // The editor closes FIRST and the write runs behind it: offline, the
     // update resolves only when the signal returns, and "Done" used to sit
     // there until it did. A refusal still surfaces on the tab.
-    const active = activeRef.current;
-    editOriginal.current = null;
-    setActive(null);
+    const { edited: active } = activeSession.endEdit(uid);
     setEditingExisting(false);
     if (uid && active?.id) {
       // `dropEmptyCardio` too, as `finishWorkout` does: a block added in the
@@ -1824,15 +1639,13 @@ export function useTrain(): TrainState {
         setError(asError(e, 'Save failed'));
       }
     }
-  }, [uid, setActive, setError]);
+  }, [uid, activeSession, setError]);
 
   const cancelEdit = useCallback(async () => {
     // Set edits live-write, so cancelling means restoring the pre-edit
     // exercises snapshotted at reopen — otherwise partial edits would stick.
     // Closed first, written behind, for the same reason as `finishEdit`.
-    const original = editOriginal.current;
-    editOriginal.current = null;
-    setActive(null);
+    const { original } = activeSession.endEdit(uid);
     setEditingExisting(false);
     if (uid && original?.id) {
       try {
@@ -1841,7 +1654,7 @@ export function useTrain(): TrainState {
         setError(asError(e, 'Restore failed'));
       }
     }
-  }, [uid, setActive, setError]);
+  }, [uid, activeSession, setError]);
 
   const clearError = useCallback(() => setErrorState(null), []);
 

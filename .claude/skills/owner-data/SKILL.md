@@ -23,6 +23,10 @@ default, and a second run changes nothing.
    only the owner's account is touched) on `scripts/lib/user-data.mts`. Every
    step names its row by id, calls `s.problem(…)` when the stored value is not
    what step 1 read, and plans nothing when the value is already the wanted one.
+   New records go through the module's verbs — `s.logMeal`, `s.saveMeal`,
+   `s.markDay` — which build the document with core's own writers. A record
+   with no verb yet gets one there, on a core writer; a script holds no
+   document shape of its own.
 4. **Dry run** (`npx jiti scripts/<file>.mts`) and read the plan against the
    request line by line. Done when each request item maps to a plan line or a
    stated reason it has none.

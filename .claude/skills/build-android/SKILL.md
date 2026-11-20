@@ -102,7 +102,8 @@ bash scripts/ota-release.sh --dry-run "<what changed>"   # every gate, publishes
 bash scripts/ota-release.sh "<what changed>"
 ```
 
-It refuses on a dirty tree, red tests (core, mobile `tsc`, mobile `jest`), an iOS fingerprint that is not the
+It refuses on a dirty tree, red tests (core, mobile `tsc`, mobile `jest`), a function React Compiler newly skips
+(`COMPILER_SKIPS_MAX` at the top of the script; it only goes down), an iOS fingerprint that is not the
 live binary's, a failed export or a bundle over budget. Then it publishes iOS, pins `runtimeVersion` in
 `app.json` to the Android artifact value, publishes Android, restores `app.json`, reads both groups back from
 EAS (failing if either went out under another runtime) and writes the two rows at the top of

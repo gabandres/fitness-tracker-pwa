@@ -14,6 +14,7 @@
  *
  *   node scripts/react-compiler-report.mjs            # every skip, grouped by file
  *   node scripts/react-compiler-report.mjs --count    # one line: compiled / skipped
+ *   node scripts/react-compiler-report.mjs --max 7    # every skip, and exit 1 when there are more than 7
  *   node scripts/react-compiler-report.mjs src/components/EntrySheet.tsx
  */
 import { createRequire } from 'node:module';
@@ -27,7 +28,13 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 
 const args = process.argv.slice(2);
 const countOnly = args.includes('--count');
-const targets = args.filter((a) => !a.startsWith('--'));
+const maxAt = args.indexOf('--max');
+const max = maxAt === -1 ? null : Number(args[maxAt + 1]);
+if (max !== null && !Number.isInteger(max)) {
+  console.error('--max needs a whole number');
+  process.exit(64);
+}
+const targets = args.filter((a, i) => !a.startsWith('--') && i !== maxAt + 1);
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -90,4 +97,13 @@ if (countOnly) {
     console.log(`  :${s.line} ${s.fn ? s.fn + ' — ' : ''}${s.reason}`);
   }
   console.log(`\ncompiled ${compiled}, skipped ${skips.length}`);
+}
+
+// The release gate (`scripts/ota-release.sh`): a hook the compiler newly skips
+// re-renders with nothing memoized, and no test or lint step says so. On
+// 2026-11-20 a refactor of `useTrain` that passed tsc and all 3,558 tests was
+// skipped whole — found only because someone ran this by hand.
+if (max !== null && skips.length > max) {
+  console.error(`${skips.length} skipped, the budget is ${max}: fix the new skip above, do not raise the budget`);
+  process.exit(1);
 }

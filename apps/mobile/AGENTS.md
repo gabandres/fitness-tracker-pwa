@@ -31,6 +31,17 @@ with `{ includeHiddenElements: true }`: without it the query finds nothing and
 the test reads as a missing element. Jest runs silent (`jest.config.js`); for one
 file's console output run `npx jest <file> --silent=false`.
 
+**A new test that touches stored data runs the real ledger over the in-memory
+Firestore** (`src/test-support/memory-firestore.ts`; two `jest.mock` lines, then
+`memory.seed` / `memory.read` / `memory.writes`), so it reads back what the code
+wrote. An inline `jest.mock('@/lib/ledger', () => ({…}))` or a hand-written SDK
+fake fails `test-fakes-ratchet.test.ts`: those counts only go down.
+
+**After changing a hook, run `node scripts/react-compiler-report.mjs <file>`.** The compiler skips a
+function silently and it then re-renders unmemoized; nothing else reports it. Known triggers: a `try/finally`,
+a closure naming a binding declared further down, and a property called `.current` on anything that is not a
+`useRef` (use a method). The release script holds the app-wide count.
+
 **`tsc --noEmit` and `jest` both pass while this is broken.** They do not run
 Metro. On 2026-08-06 it took two EAS builds to the *Bundle JavaScript* phase
 before anything noticed — a latent break from 2026-08-05, since no EAS build

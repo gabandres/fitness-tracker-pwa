@@ -48,7 +48,8 @@ rendered check is the app in a browser (`test-mobile-web` skill).
 
 ## 2. Merged, on `main`, and not delivered everywhere
 
-- iOS build 75 and Android vc 53 carry everything on `main`; **Android vc 52 is behind it** by everything since 2026-11-10 (§1, OTA row).
+- iOS build 75 and Android vc 53 carry everything on `main` **except the 2026-11-20 Train change**; Android vc 52 is behind by everything since 2026-11-10 (§1, OTA row).
+- **Not published: the active session module** (`lib/active-session.ts`). The Train hook's rule for which copy of a live workout wins moved into it, and a workout the server says is completed is now closed on the phone (the 2026-11-06 double finish). Tests only so far (the 55 existing Train suites unchanged, 19 new tests on the real ledger); it wants a rendered check of start → log a set → finish before `bash scripts/ota-release.sh`.
 
 **iOS regression suite: 21 of 21** (2026-09-22, simulator). It predates every
 Train change since and **cannot be re-run without a Mac**
@@ -105,10 +106,6 @@ found (S24-18); the owner calls S24-27b and S24-28. **Re-measure activation**
 
 ### Bugs known and not fixed
 
-- **A session held open in the phone's memory beats the server copy**
-  (`useTrain`: "a session started, resumed or edited in THIS runtime wins"), so
-  a session closed by a script was finished again on the phone at the 24 h cap
-  (2026-11-06). Fix: drop the local copy when the server says `completed`.
 - **Predictive back is OFF on Android** despite `predictiveBackGestureEnabled:
   true` in `app.json` (`patch-android-release.mjs` step 4e; with it on, back
   from History backgrounded the app). Leave `app.json` alone until the next

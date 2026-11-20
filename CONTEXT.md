@@ -570,10 +570,19 @@ collections + a `WorkoutStore` facet back the Train tab.
 - **WorkoutSession** — One logged instance at
   `users/{uid}/workoutSessions`. Starting a session **snapshots** the
   template's exercises into the session doc, so template edits never
-  rewrite history. `status: 'active' | 'completed'` drives live-write +
-  resume; there is at most **one active session** (enforced in
-  `WorkoutStore.startSession`). The session's `date` is stored as the
-  `timestamp` field at the seam.
+  rewrite history. `status: 'active' | 'paused' | 'completed'`; there is
+  at most **one active session** (see **Active session**). The session's
+  `date` is stored as the `timestamp` field at the seam.
+- **Active session** (2026-11-20) — The one workout on screen, and the rule
+  for which copy of it wins (`apps/mobile/src/lib/active-session.ts`; plain
+  TypeScript, `useTrain` holds one). Four copies exist at once: this
+  runtime's, the device journal's, the server's document, and writes still
+  on their way. This runtime's copy beats a server READ; the journal covers
+  a dead runtime; **a session the server says is `completed` is closed
+  here** (finished on another device or by a data script); a completed
+  session open for editing is never replaced. Not a pending finish
+  (`active-session-journal.ts`): a finish this device recorded and the server
+  has not heard yet.
 - **Stack position** (2026-11-16) — `WorkoutSet.plate`: the load as the plate
   number on a selectorized stack whose plates are not marked (an Airbnb
   multi-gym). Allowed only on a row with `stackPositions`; the card's "plate #"
