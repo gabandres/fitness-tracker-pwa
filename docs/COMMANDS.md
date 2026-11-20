@@ -216,6 +216,25 @@ Ground truth is the fingerprint file **inside the artifact**
 in an `.ipa`), never a locally generated hash. The current two-row table lives in
 `apps/mobile/AGENTS.md`; every past row is `apps/mobile/docs/fingerprint-ledger.md`.
 
+## A rendered check without a device
+
+There is no simulator or emulator on `winbox`. The Expo app does run in a browser (react-native-web), which is the
+same JavaScript against the same production backend — first done 2026-11-19. It is NOT the native render: safe areas,
+the keyboard, native menus and screen readers are not covered.
+
+```sh
+cd apps/mobile && CI=1 npx expo start --web --port 8097     # http://localhost:8097, first bundle ~40 s
+```
+
+- **Restart the server after every edit.** Metro does not see file changes on `Z:` and keeps serving the old bundle.
+- Drive it by `data-testid` (the app's `testID`s). The dev error toast sits over the bottom button: hide `#error-toast`.
+- A phone-only call that crashes the web run gets an optional call at the call site (`Keyboard.metrics?.()`), which is
+  the same call on a phone.
+- Sign up with a throwaway `…@example.com` address and delete it afterwards through the `deleteAccount` callable; a
+  leftover unverified account counts in the signup numbers (`UX_AUDIT.md` S24-1c).
+- The AI callables can be checked without the UI: `analyzePhoto` with `{ data: { photoBase64: "…" } }` and an
+  unverified token returns `failed-precondition` / `EMAIL_NOT_VERIFIED` before any quota is spent.
+
 ## How long a local build takes — on THIS machine
 
 **No Mac since `ignia-mac` was sold 2026-11-13** — this is the runbook for the

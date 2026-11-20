@@ -35,7 +35,7 @@ run 2026-11-19).
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Functions and rules last deployed 2026-11-19 with the activation batch (`CHANGELOG.md`): unverified owners may write; AI callables refuse an unverified email |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
-| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-19, the activation batch (`af651bff`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
+| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-19, the legibility batch (`7ebe7c86`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Publishing:** OTAs for both platforms go out from the Windows PC (`winbox`,
@@ -89,26 +89,18 @@ Then scored against standards re-read that day (`docs/research/app-ux-standards.
 92 rules): **≈ 77 code-only, whole app** — Train 81.2, History lowest at 69.5.
 Findings, the score table and the OTA batches: `UX_AUDIT.md` §S24; the market refresh:
 `docs/research/competitive-feature-scan.md` (2026-11-19 addendum).
-**Shipped 2026-11-19, both on build 75 + vc 53:** the standards sweep
-(`d9cb2e9a`; the owner looked at it on the iPhone and passed it) and **batch 1,
-activation** (`af651bff`; functions, then rules, then the OTA). Batch 1 was
-not seen on a screen before publishing — **owed: the owner signs up with a
-fresh email address on the phone** and checks that onboarding opens without
-verifying, Today shows "Log your first meal", Scan and Coach say to verify
-first, and Settings has "On your Today screen". Rollback is client-only:
-republish the sweep groups (ledger); the deployed functions and rules are a
-superset an older client never exercises.
-**Batch 2, legibility, is BUILT and NOT RELEASED: branch
-`feat/ota3-legibility`** (two commits on `main` @ `98bcf9e3`). mobile 338
-suites / 3,476, core 2,761, Android export within budget. JS only: no
-functions, no rules. It waits on the fresh-signup check of batch 1 above.
-To release: merge, fingerprint + export gates, publish to build 75 + vc 53
-(pinned), ledger row. What it holds and what it left out: `UX_AUDIT.md`
-§S24 batch 2. One behaviour change to know about: with no phase picked in
-Settings, the training phase now follows the diet goal (maintain →
-maintenance, gain → bulk), which lets Train suggest added volume.
-**After it:** Train for non-owners, then the market gaps. Open from batch 1:
-S24-1b/1c/1d.
+**Shipped 2026-11-19, all on build 75 + vc 53:** the standards sweep
+(`d9cb2e9a`), batch 1 activation (`af651bff`) and batch 2 legibility
+(`7ebe7c86`). The sweep was passed by the owner on the iPhone. Batches 1 and 2
+were checked RENDERED IN A BROWSER against production with throwaway accounts
+(deleted after) — `docs/COMMANDS.md` → "A rendered check without a device".
+That is the same JavaScript on react-native-web, not the native render: safe
+areas, the keyboard, native menus and both screen readers are still unseen.
+Rollback is one republish per platform (groups in the ledger).
+One behaviour change from batch 2: with no phase picked in Settings, the
+training phase follows the diet goal (maintain → maintenance, gain → bulk).
+**Next: batch 3, Train for non-owners** (`UX_AUDIT.md` §S24), then the market
+gaps. Open from batches 1–2: S24-1b/1c/1d and the "what is left" items.
 
 ### Blocked on a Mac
 

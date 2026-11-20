@@ -4,6 +4,26 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-19 — legibility batch (`7ebe7c86`; OTA on iOS build 75, Android vc 53); first rendered check without a device
+
+Third batch from `UX_AUDIT.md` §S24, JS only. **Trends answers first:** a card on top says which way the weight is
+going and how the eating compares with the target ("You're losing about 0.5 lb a week. You're eating about 150 kcal a
+day under your target."), or below three logged days the two steps that produce it, each opening its sheet. The hero
+keeps the number, its range and any state that asks something of the user; the arithmetic, smoothing note,
+completeness and ignored weigh-ins open from "How this number is worked out". The weight card reads "−1.2 lb over 30
+days". **Settings:** the Training group is absent until the account has a template; with no phase picked the training
+phase follows the diet goal (`effectiveTrainingPhase`, core) instead of Cut for everyone; Watch diagnostics need five
+taps on the version line. **Names:** "maintenance" not "burn" as a noun, "Quick add" not "preset" / "Slot 1", "Ignia"
+not "the engine", in three locales; the RIR glossary no longer says nothing depends on RIR; five errors say what to
+do. **Body:** with nothing measured, body fat + measurements are one "Track measurements (optional)" row.
+**Verification changed this day:** the Expo app runs in a browser once two phone-only calls are guarded
+(`Keyboard.metrics`, `Appearance.setColorScheme`), so batches 1 and 2 were walked on screen against production with
+throwaway accounts — signup with no wall, onboarding, first-meal card, a logged meal, the reminder card, locked Scan
+and Coach, the Trends checklist, the collapsed Body row, the Training group appearing with a first template and
+selecting Bulk for a gain account — and `analyzePhoto` was called directly and refused with `EMAIL_NOT_VERIFIED`.
+Not covered by a browser: safe areas, the keyboard, native menus, screen readers. Left open: `UX_AUDIT.md` batch 2
+"what is left" (photo review as a confirm, the goal picker on Daily targets, ⋯ on diary rows).
+
 ## 2026-11-19 — activation batch (`af651bff`; functions + rules deployed, OTA on iOS build 75, Android vc 53)
 
 Second batch from `UX_AUDIT.md` §S24, aimed at the measured problem (33 % of signups ever log; 34 min to the first
