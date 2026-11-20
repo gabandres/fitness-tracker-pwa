@@ -25,7 +25,11 @@ Unable to resolve module console from @testing-library/react-native/dist/helpers
 
 Mobile tests live in **`src/__tests__/`** (or beside a non-route module, like
 `src/components/SignInMethodsCard.test.tsx`) and import the screen through the
-alias — `@/app/(app)/train`, never `./train`.
+alias — `@/app/(app)/train`, never `./train`. Query an element that sits under
+`importantForAccessibility="no-hide-descendants"` (the hero's rings and legend)
+with `{ includeHiddenElements: true }`: without it the query finds nothing and
+the test reads as a missing element. Jest runs silent (`jest.config.js`); for one
+file's console output run `npx jest <file> --silent=false`.
 
 **`tsc --noEmit` and `jest` both pass while this is broken.** They do not run
 Metro. On 2026-08-06 it took two EAS builds to the *Bundle JavaScript* phase
@@ -176,9 +180,8 @@ Three commit-independent causes, found by diffing the two `sources` arrays
   and stops at them on macOS. Aligning Node/npm cannot converge the two hashes,
   and `npm ci` is not a fix for a mismatch.
 
-This paragraph concluded "cross-host parity is not achievable" until 2026-11-12,
-when the backslash patch above achieved it. The hazard it named still holds:
-**an upgrade of `@expo/fingerprint`/`expo-updates` can move the hash with no
+The backslash patch above achieved cross-host parity on 2026-11-12. One hazard
+remains: **an upgrade of `@expo/fingerprint`/`expo-updates` can move the hash with no
 change to this repo at all** — re-read the gate against the shipped artifacts
 after any such bump, not just after a code change.
 
@@ -247,10 +250,8 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 | Android | vc 52 / 1.2.8 (and vc 53 / 1.2.10: `e989353d992e38a829ca883290f99d5ad08d4479`) | `dfb995eae6902f95b5388c02c7914bde0eeb1967` | the `.aab` |
 | iOS | build 75 / 1.2.11 | `e6d2973e85038818ae56e1db6d9bd0fe1aaa016c` | the `.ipa` |
 
-Until 2026-11-19 these rows carried review states and superseded binaries, and
-the iOS fingerprint cell held `50a47f62…` (not build 75's). Which OTA is newest
-on which runtime is the ledger's top rows, not this paragraph: it named an OTA
-two publishes stale on 2026-09-17 and four on 2026-10-05. **Only a value read
+Which OTA is newest on which runtime is the ledger's top rows, not this
+section. **Only a value read
 from the artifact is evidence** — a build log, a locally generated hash, or an
 old Windows-computed number is not.
 
@@ -266,6 +267,11 @@ old Windows-computed number is not.
   new binary per platform exists. (history: "version bump moved BOTH")
 - `eas.json`, even a `submit` profile. Do not edit it between a build and its
   OTAs. (history: "`eas.json` is hashed too")
+- **The `scripts` block of `apps/mobile/package.json`.** Changing `"test":
+  "jest"` to `"jest --silent"` moved iOS off build 75's `e6d2973e…` to
+  `8304646b…` (2026-11-20, reverted before any publish). A script change waits
+  for the next binary; tool settings go in the tool's config file
+  (`jest.config.js` is not hashed).
 - `modules/*/ios` — an Expo Module is a `dir:` source; one Swift line there
   moves the runtime. (history: "`modules/*/ios` IS hashed")
 - **`plugins/withGradleJvmArgs.js` is FROZEN** — it is a config plugin, so any
@@ -301,7 +307,7 @@ gate")
   a Mac (needs the watchOS platform — the scheme embeds `IgniaWatch.app`,
   `DEV_ENVIRONMENT.md` §3.10; **none exists since `ignia-mac` was sold
   2026-11-13**); Android by `eas build --local` on a Mac (vc 46–53) or raw Gradle
-  on Windows (vc 31–45, unverified since). This said "on `ignia-mac`" until 2026-11-19.
+  on Windows (vc 31–45, unverified since).
 
 **Delivery:**
 

@@ -491,8 +491,12 @@ These three windows look similar and are NOT interchangeable. See
 - **Travel period** — A dated trip on the profile (`travelPeriods`, inclusive
   `start`–`end`; ADR-0048). Its days never feed the maintenance fit; inside it
   the estimate is held at its value as of the trip's first day, and after it
-  until 14 complete days home ("rebuilding"). Ends by date — nothing writes
-  "travel over". Not the legacy `travelMode` boolean (pace = 0, no writer).
+  until 14 complete days home ("rebuilding"). The first session of each
+  template within 42 days after it is a **Re-entry session**. Ends by date —
+  nothing writes "travel over". Not the legacy `travelMode` boolean (pace = 0,
+  no writer). **A trip that should do none of this** (a few days away, same
+  food, same loads on return) is not a travel period: it is dated notes on the
+  **Home plan**.
 - **Eyeballed meal** — A log row sized by eye, `estimateQuality: 'eyeballed'`
   (travel mode). A quality, not a `source`. Added 2026-10-26.
 - **Re-entry session** — A session after time away (`reentry: 'travel' |
@@ -509,8 +513,17 @@ These three windows look similar and are NOT interchangeable. See
   training week (a suggestion, never a warning), the program review card after
   N normal rotations, the deload trigger (lifts, reps down), a quiet window for
   weight alerts, a dated tape check-in vs a baseline, and days a meal may be
-  logged as an estimate (the eyeballed-meal sheet, off-trip). Owner-data
-  written; the app only reads it.
+  logged as an estimate (the eyeballed-meal sheet, off-trip), and dated
+  `nutrition` windows that switch **Protein first** on. Owner-data written
+  (`owner-data` skill); the app only reads it.
+- **Protein first** (2026-11-20) — The day read the other way round (core
+  `protein-first.ts`): the hero counts protein left, calories are a range, and
+  nothing says "over", "left" or "under maintenance". **Presentation only** —
+  no target, estimate or stored number moves. Two triggers, the dated one
+  winning: a home plan `nutrition` window (its own protein target, floor and
+  calorie range), or `profile.proteinFirst` (Settings; range = the calorie
+  safety minimum to the day's target). Trends, the widgets and the share card
+  still lead with calories.
 - **Day fully logged?** — The Today row that answers whether a day is a
   **Complete day** (see Targets + derivations); stored per day in
   `dailyLogged`. Unlike Evening hunger it is NOT display-only: it is an input

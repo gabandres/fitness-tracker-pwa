@@ -158,6 +158,11 @@ mirror's count differs. Country availability is **Console-only** —
 
 ## OTA — the fingerprint gate
 
+**Publish with `bash scripts/ota-release.sh "<what changed>"`** (Git Bash, clean tree; `--dry-run` runs every
+gate and publishes nothing). It runs the tests, this gate, the export and size budget, one publish per runtime
+with the Android pin, the read-back, and writes the two ledger rows. The commands below are what it runs, for
+when a gate fails and the cause has to be found.
+
 An update published against a changed fingerprint **succeeds and reaches
 nobody**, which is indistinguishable from a working update. Gate first, on the
 machine that will publish: **the Windows PC (`winbox`, `Z:\fitness-tracker-pwa`)
@@ -218,32 +223,25 @@ in an `.ipa`), never a locally generated hash. The current two-row table lives i
 
 ## A rendered check without a device
 
-There is no simulator or emulator on `winbox`. The Expo app does run in a browser (react-native-web), which is the
-same JavaScript against the same production backend — first done 2026-11-19. It is NOT the native render: safe areas,
-the keyboard, native menus and screen readers are not covered.
+There is no simulator or emulator on `winbox`. The Expo app runs in a browser (react-native-web): the same
+JavaScript against the same production backend, not the native render. The procedure is the
+**`test-mobile-web` skill**; its tools are `scripts/web-check/`:
 
 ```sh
-cd apps/mobile && CI=1 npx expo start --web --port 8097     # http://localhost:8097, first bundle ~40 s
+pwsh -File scripts/web-check/server.ps1 start|stop|status      # port 8097; start always restarts
+# scripts/web-check/helpers.js — paste as one evaluate call after every navigation
+node scripts/web-check/cleanup-account.mjs <delivered+label@resend.dev> <password>
 ```
 
-- **Restart the server after every edit.** `CI=1` turns reloads off ("Metro is running in CI mode"), so it keeps serving
-  the old bundle; without `CI=1` the command waits on a terminal. The first page render after a start can take minutes.
-- A long script outlives the 15 s evaluate limit: start it without awaiting, push progress to `window.__log`, and poll.
-- Drive it by `data-testid` (the app's `testID`s). The dev error toast sits over the bottom button: hide `#error-toast`.
-- Stopping the background task does not stop the server: the `node` child keeps port 8097, and the next `expo start`
-  exits at once while the OLD process goes on serving the old code. Stop it by port (PowerShell:
-  `Stop-Process -Id (Get-NetTCPConnection -LocalPort 8097 -State Listen).OwningProcess -Force`). The first page after a
-  fresh start can sit on the splash for over a minute while the bundle builds.
-- A phone-only call that crashes the web run gets an optional call at the call site (`Keyboard.metrics?.()`), which is
-  the same call on a phone.
-- Sign up with a throwaway `delivered+<label>@resend.dev` address (the mail provider's own test inbox) and delete it
-  afterwards through the `deleteAccount` callable; a leftover unverified account counts in the signup numbers
-  (`UX_AUDIT.md` S24-1c). **Not `…@example.com`**: the provider refuses that domain with a 422, so
-  `sendVerificationEmail` returns 500 and logs an ERROR for every check account (five of them on 2026-11-20, read as a
-  production error until the uid was matched). The browser run itself reports nothing to Sentry since that day
-  (`lib/sentry.ts` returns early on web).
-- The AI callables can be checked without the UI: `analyzePhoto` with `{ data: { photoBase64: "…" } }` and an
-  unverified token returns `failed-precondition` / `EMAIL_NOT_VERIFIED` before any quota is spent.
+## Account data — read it, then script it
+
+```sh
+npx jiti scripts/user-state.mts <email> <from> [to] [--foods <regex>] [--logs <regex>] [--plan]   # read-only
+npx jiti scripts/user-data-<date>-<slug>.mts [--apply]                                           # dry run by default
+```
+
+The procedure is the **`owner-data` skill**; the shared half of every such script is
+`scripts/lib/user-data.mts` (it sets the Puerto Rico clock itself, so the shell does not matter).
 
 ## How long a local build takes — on THIS machine
 

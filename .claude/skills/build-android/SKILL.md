@@ -94,9 +94,22 @@ cold start. It grew **+2.0 MB in one publish** when the food index shipped
 either a regression to find or a growth to accept on the record with
 `npm run perf:budget -- --update` — never by raising `headroomPct`.
 
-In Git Bash on the Windows PC (`C:\Program Files\Git\bin\bash.exe`; the
-`bash` on PATH is WSL's), from `/z/fitness-tracker-pwa/apps/mobile`, one runtime
-per command:
+**Publish with the script**, in Git Bash on the Windows PC (`C:\Program Files\Git\bin\bash.exe`; the
+`bash` on PATH is WSL's), from a clean tree at the commit to ship:
+
+```sh
+bash scripts/ota-release.sh --dry-run "<what changed>"   # every gate, publishes nothing
+bash scripts/ota-release.sh "<what changed>"
+```
+
+It refuses on a dirty tree, red tests (core, mobile `tsc`, mobile `jest`), an iOS fingerprint that is not the
+live binary's, a failed export or a bundle over budget. Then it publishes iOS, pins `runtimeVersion` in
+`app.json` to the Android artifact value, publishes Android, restores `app.json`, reads both groups back from
+EAS (failing if either went out under another runtime) and writes the two rows at the top of
+`apps/mobile/docs/fingerprint-ledger.md`. Commit the ledger, then `CHANGELOG.md` and the OTA row of `STATUS.md`
+§1. A new binary changes the two runtime constants at the top of the script and the `AGENTS.md` table together.
+
+What it runs, one runtime per command, for when a step has to be done by hand:
 
 ```sh
 # iOS — the tree hash IS the live runtime (gate above), no pin
