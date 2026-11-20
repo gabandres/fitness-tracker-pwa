@@ -195,6 +195,9 @@ import type { I18nKey } from '@/i18n';
 // to the list below — the 09-28 precedent: whoever has not opened the screen
 // yet reads all three, and nobody is shown it twice in one day. The row is
 // there because a control moved: kg | lb left the card for the ⋯ menu.
+// NOT re-bumped 2026-11-20 for the market-gaps batch; "Log again…" joins the
+// list (the banner is under a day old). The Hevy / Strong import is not
+// listed: it is for someone arriving, and they have not seen a banner yet.
 export const WHATS_NEW_VERSION = '2026-11-19-trackers';
 
 const KEY = 'whatsNew.seen';
@@ -228,6 +231,7 @@ export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
   { icon: 'eye-off-outline', titleKey: 'whatsNew.trackers.title', bodyKey: 'whatsNew.trackers.body' },
   { icon: 'notifications-outline', titleKey: 'whatsNew.reminderAsk.title', bodyKey: 'whatsNew.reminderAsk.body' },
   { icon: 'barbell-outline', titleKey: 'whatsNew.trainPlain.title', bodyKey: 'whatsNew.trainPlain.body' },
+  { icon: 'copy-outline', titleKey: 'whatsNew.relog.title', bodyKey: 'whatsNew.relog.body' },
 ];
 
 /**
