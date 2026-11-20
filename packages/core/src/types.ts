@@ -419,6 +419,11 @@ export interface ProfileFields {
   volumeGateLb?: number;
   /** "Available dumbbell weights" (Program v2.1): 2.5-lb steps (17.5,
    *  22.5…) unless this is `false`, then 5-lb steps. Absent → 2.5. */
+  /** Protein-first mode (2026-11-20, `protein-first.ts`): Today leads with
+   *  protein and shows calories as a range from the safety minimum to the
+   *  target. For anyone eating little on purpose or by appetite (a GLP-1
+   *  medication). Absent = off. */
+  proteinFirst?: boolean;
   dumbbellHalfSteps?: boolean;
   /** When an accepted deload week started (core `deload.ts`). Absent or
    *  finished → no deload. */

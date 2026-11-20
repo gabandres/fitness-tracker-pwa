@@ -1331,6 +1331,9 @@ describe(`firestore.rules (owner token email_verified=${ownerVerified})`, () => 
     await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), autoApplyProgression: false }));
     // Program v2.1 (2026-10-15): the dumbbell step and an accepted deload.
     await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), dumbbellHalfSteps: false, deloadStartedAt: Timestamp.now() }));
+    // Protein-first mode (2026-11-20).
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), proteinFirst: true }));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), proteinFirst: false }));
   });
 
   it('rejects malformed training settings on a completed profile', async () => {
@@ -1341,6 +1344,8 @@ describe(`firestore.rules (owner token email_verified=${ownerVerified})`, () => 
       { trainingPhase: 1 },
       { autoApplyProgression: 'on' },
       { dumbbellHalfSteps: 'yes' },
+      { proteinFirst: 'on' },
+      { proteinFirst: 1 },
       { deloadStartedAt: '2026-10-16' },
       { volumeGateLb: 49 },
       { volumeGateLb: 1001 },

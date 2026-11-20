@@ -201,7 +201,11 @@ import type { I18nKey } from '@/i18n';
 // NOT bumped 2026-11-20 for the leftovers batch, and no row added: corrected
 // copy, a decimal keypad, a taller row, cues in a sheet, a meal name on a row.
 // Repairs to what is already there.
-export const WHATS_NEW_VERSION = '2026-11-19-trackers';
+// Bumped 2026-11-20 for protein-first mode: a switch in Settings that nobody
+// finds unless told, and the first thing here made for someone on a GLP-1
+// medication. The reminder card's row goes (the card announces itself); the
+// tracker switches, Log again and the Train row stay, a day old.
+export const WHATS_NEW_VERSION = '2026-11-20-protein-first';
 
 const KEY = 'whatsNew.seen';
 
@@ -231,8 +235,8 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
+  { icon: 'fish-outline', titleKey: 'whatsNew.proteinFirst.title', bodyKey: 'whatsNew.proteinFirst.body' },
   { icon: 'eye-off-outline', titleKey: 'whatsNew.trackers.title', bodyKey: 'whatsNew.trackers.body' },
-  { icon: 'notifications-outline', titleKey: 'whatsNew.reminderAsk.title', bodyKey: 'whatsNew.reminderAsk.body' },
   { icon: 'barbell-outline', titleKey: 'whatsNew.trainPlain.title', bodyKey: 'whatsNew.trainPlain.body' },
   { icon: 'copy-outline', titleKey: 'whatsNew.relog.title', bodyKey: 'whatsNew.relog.body' },
 ];

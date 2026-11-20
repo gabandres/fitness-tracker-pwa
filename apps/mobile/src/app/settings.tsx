@@ -41,7 +41,7 @@ import { TRAINING_PHASES, effectiveTrainingPhase, type TrainingPhase } from '@ma
 import { useAuth } from '@/lib/auth';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import {
-  importLogs, setCalorieFloor, setDayStartHour, setPreferredLocale, setProteinFloor, setTrainingSettings,
+  importLogs, setCalorieFloor, setDayStartHour, setPreferredLocale, setProteinFirst, setProteinFloor, setTrainingSettings,
   setUnitSystem, setWeeklyDigestOptIn,
 } from '@/lib/ledger';
 import { useDoneKeyProps } from '@/components/KeyboardBar';
@@ -619,6 +619,12 @@ export default function Settings() {
     await setTrainingSettings(user.uid, { autoApplyProgression: next }).catch(saveFailed('auto-apply'));
   }
 
+  async function toggleProteinFirst(next: boolean) {
+    if (!user) return;
+    haptics.tap();
+    await setProteinFirst(user.uid, next).catch(saveFailed('protein first'));
+  }
+
   async function toggleDumbbellHalfSteps(next: boolean) {
     if (!user) return;
     haptics.tap();
@@ -725,6 +731,24 @@ export default function Settings() {
             </View>
             <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
           </Touchable>
+          {/* Protein-first mode (2026-11-20; core `protein-first.ts`): Today
+              leads with protein and shows calories as a range. It changes no
+              target — the row says so, since a switch beside the targets reads
+              as one that moves them. */}
+          <View style={styles.digestRow}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>{t('settings.proteinFirst')}</Text>
+              <Text style={styles.rowValue}>{t('settings.proteinFirstSub')}</Text>
+            </View>
+            <Switch
+              value={profile?.proteinFirst === true}
+              onValueChange={toggleProteinFirst}
+              disabled={offline}
+              trackColor={{ true: colors.tealSolid, false: colors.lineStrong }}
+              accessibilityLabel={t('settings.proteinFirst')}
+              testID="settings-protein-first"
+            />
+          </View>
           {/* This pushes the WHOLE onboarding wizard, not a goal editor — the
               goal editor is the Daily targets row above. It was labelled "Edit
               goals" until 2026-09-04, which is how an established user ended up

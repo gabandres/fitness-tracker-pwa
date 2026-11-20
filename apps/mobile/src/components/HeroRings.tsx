@@ -19,7 +19,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { parseYmd, type MaintenanceView, type MeasurementProgress } from '@macrolog/core';
+import { parseYmd, type MaintenanceView, type MeasurementProgress, type ProteinFirstView } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { type TFn, useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
@@ -308,6 +308,10 @@ interface Props {
    *  more days and Ignia measures…" means nothing before the first entry, and
    *  the first-meal card right below says the one thing to do. Default false. */
   hideStatusLine?: boolean;
+  /** Protein-first mode (core `protein-first.ts`, 2026-11-20): the centre
+   *  counts protein, the calorie ring fills toward the top of a range, and
+   *  nothing says "over" or "under". Null/absent = the usual hero. */
+  proteinFirst?: ProteinFirstView | null;
 }
 
 /**
@@ -330,6 +334,7 @@ export function HeroRings({
   onShare,
   sharing = false,
   hideStatusLine = false,
+  proteinFirst = null,
 }: Props) {
   const t = useT();
   const locale = useLocale();
@@ -341,6 +346,13 @@ export function HeroRings({
   const calRemaining = calTarget - calConsumed;
   const over = calRemaining < 0;
   const g = (n: number) => t('unit.grams', { n: formatNumber(n, locale) });
+  // Protein first: its own protein target (a plan window may set one), and the
+  // calorie ring measured against the top of the range.
+  const pf = proteinFirst;
+  const protGoal = pf ? pf.proteinTarget : protTarget;
+  const protRemaining = Math.max(0, Math.round(protGoal - protConsumed));
+  const protMet = protGoal > 0 && protConsumed >= protGoal;
+  const oneNumber = pf != null && pf.kcalMin === pf.kcalMax;
 
   // Celebration: hitting the protein target flares the inner ring once —
   // a glow halo swells and fades. Fires only on the crossing (null-first ref
@@ -355,7 +367,7 @@ export function HeroRings({
   const flare = useSharedValue(0);
   const prevProt = useRef<number | null>(null);
   useEffect(() => {
-    const p = protTarget ? protConsumed / protTarget : 0;
+    const p = protGoal ? protConsumed / protGoal : 0;
     if (prevProt.current !== null && prevProt.current < 1 && p >= 1) {
       haptics.celebrateIfQuiet();
       if (!reduce) {
@@ -368,7 +380,7 @@ export function HeroRings({
       }
     }
     prevProt.current = p;
-  }, [protConsumed, protTarget, reduce, flare]);
+  }, [protConsumed, protGoal, reduce, flare]);
   const flareProps = useAnimatedProps(() => ({ opacity: flare.value * 0.35 }));
 
   // The calorie ring's own, softer flare: on coming into ±5% of the target
@@ -378,7 +390,8 @@ export function HeroRings({
   const calFlare = useSharedValue(0);
   const prevCal = useRef<number | null>(null);
   useEffect(() => {
-    if (enteredCalorieBand(prevCal.current, calConsumed, calTarget) && !reduce) {
+    // Not in protein-first mode: there the number to land on is a range.
+    if (!pf && enteredCalorieBand(prevCal.current, calConsumed, calTarget) && !reduce) {
       calFlare.set(
         withSequence(
           withTiming(1, { duration: motion.dur.base, easing: Easing.out(Easing.cubic) }),
@@ -387,7 +400,7 @@ export function HeroRings({
       );
     }
     prevCal.current = calConsumed;
-  }, [calConsumed, calTarget, reduce, calFlare]);
+  }, [calConsumed, calTarget, reduce, calFlare, pf]);
   const calFlareProps = useAnimatedProps(() => ({ opacity: calFlare.value * 0.25 }));
 
   const notes = maintenance
@@ -395,16 +408,34 @@ export function HeroRings({
     : null;
   const [aboutOpen, setAboutOpen] = useState(false);
 
-  const sentence = [
-    t(over ? 'a11y.heroOver' : 'a11y.heroLeft', {
-      kcal: formatNumber(calConsumed, locale),
-      kcalTarget: formatNumber(calTarget, locale),
-      n: formatNumber(Math.abs(calRemaining), locale),
-      protein: formatNumber(protConsumed, locale),
-      proteinTarget: formatNumber(protTarget, locale),
-    }),
-    t('a11y.heroMacros', { carbs: formatNumber(carbs, locale), fat: formatNumber(fat, locale) }),
-  ].join(', ');
+  const sentence = (pf
+    ? [
+        t(protMet ? 'a11y.heroPfMet' : 'a11y.heroPfLeft', {
+          protein: formatNumber(protConsumed, locale),
+          proteinTarget: formatNumber(protGoal, locale),
+          n: formatNumber(protRemaining, locale),
+        }),
+        pf.proteinFloor != null ? t('a11y.heroPfFloor', { floor: formatNumber(pf.proteinFloor, locale) }) : null,
+        t(oneNumber ? 'a11y.heroPfKcalOne' : 'a11y.heroPfKcal', {
+          kcal: formatNumber(calConsumed, locale),
+          min: formatNumber(pf.kcalMin, locale),
+          max: formatNumber(pf.kcalMax, locale),
+        }),
+        t('a11y.heroMacros', { carbs: formatNumber(carbs, locale), fat: formatNumber(fat, locale) }),
+      ]
+    : [
+        t(over ? 'a11y.heroOver' : 'a11y.heroLeft', {
+          kcal: formatNumber(calConsumed, locale),
+          kcalTarget: formatNumber(calTarget, locale),
+          n: formatNumber(Math.abs(calRemaining), locale),
+          protein: formatNumber(protConsumed, locale),
+          proteinTarget: formatNumber(protTarget, locale),
+        }),
+        t('a11y.heroMacros', { carbs: formatNumber(carbs, locale), fat: formatNumber(fat, locale) }),
+      ]
+  )
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <View style={styles.panel} testID="hero-rings">
@@ -451,7 +482,7 @@ export function HeroRings({
             stroke={OUTER_STROKE}
             trackColor={ringTrack(colors.ring, colors.heroPanel)}
             color={colors.ring}
-            progress={calTarget ? calConsumed / calTarget : 0}
+            progress={pf ? (pf.kcalMax ? calConsumed / pf.kcalMax : 0) : calTarget ? calConsumed / calTarget : 0}
             delay={100}
           />
           <AnimatedCircle
@@ -468,7 +499,7 @@ export function HeroRings({
             stroke={INNER_STROKE}
             trackColor={ringTrack(colors.protein, colors.heroPanel)}
             color={colors.protein}
-            progress={protTarget ? protConsumed / protTarget : 0}
+            progress={protGoal ? protConsumed / protGoal : 0}
             delay={280}
           />
         </Svg>
@@ -480,7 +511,7 @@ export function HeroRings({
         <View style={[styles.center, { pointerEvents: 'none' }]}>
           <View style={styles.centerInner}>
             <CountUpText
-              value={Math.abs(calRemaining)}
+              value={pf ? (protMet ? Math.round(protConsumed) : protRemaining) : Math.abs(calRemaining)}
               style={styles.centerValue}
               testID="hero-kcal"
               maxFontSizeMultiplier={1.2}
@@ -492,7 +523,7 @@ export function HeroRings({
               adjustsFontSizeToFit
               minimumFontScale={0.7}
             >
-              {t('today.kcal')} {over ? t('today.over') : t('today.left')}
+              {pf ? t(protMet ? 'today.pf.met' : 'today.pf.left') : `${t('today.kcal')} ${over ? t('today.over') : t('today.left')}`}
             </Text>
           </View>
         </View>
@@ -539,7 +570,9 @@ export function HeroRings({
             adjustsFontSizeToFit
             minimumFontScale={LEGEND_MIN_FIT}
           >
-            {formatNumber(calConsumed, locale)} / {formatNumber(calTarget, locale)} {t('today.kcal')}
+            {pf && !oneNumber
+              ? t('today.pf.kcalRange', { kcal: formatNumber(calConsumed, locale), min: formatNumber(pf.kcalMin, locale), max: formatNumber(pf.kcalMax, locale) })
+              : `${formatNumber(calConsumed, locale)} / ${formatNumber(pf ? pf.kcalMax : calTarget, locale)} ${t('today.kcal')}`}
           </Text>
         </View>
         <View style={styles.legendItem}>
@@ -551,7 +584,8 @@ export function HeroRings({
             adjustsFontSizeToFit
             minimumFontScale={LEGEND_MIN_FIT}
           >
-            {formatNumber(protConsumed, locale)} / {g(protTarget)} {t('today.protein').toLowerCase()}
+            {formatNumber(protConsumed, locale)} / {g(protGoal)} {t('today.protein').toLowerCase()}
+            {pf?.proteinFloor != null ? t('today.pf.floor', { floor: formatNumber(pf.proteinFloor, locale) }) : ''}
           </Text>
         </View>
       </View>
@@ -571,6 +605,14 @@ export function HeroRings({
           <Text style={{ color: colors.fat }}>●</Text> {t('today.fat')} {g(fat)}
         </Text>
       </View>
+
+      {/* Why this hero reads differently today (protein first): one muted
+          line, the plan's own words when a plan turned it on. */}
+      {pf ? (
+        <Text style={styles.pfNote} testID="hero-protein-first" maxFontSizeMultiplier={LEGEND_MAX_FONT_SCALE}>
+          {pf.note ?? t('today.pf.note')}
+        </Text>
+      ) : null}
 
       {/* Before measured mode opens there is no maintenance line, and until
           2026-09-10 the footer was simply absent — so a day-0 user saw a ring
@@ -620,8 +662,9 @@ export function HeroRings({
       {maintenance && !hideStatusLine ? (
         <View style={styles.maintenanceFooter} testID="maintenance-line">
           {(() => {
+            // Protein first says nothing about a deficit: the number, not the gap.
             const delta =
-              maintenance.delta == null
+              pf || maintenance.delta == null
                 ? null
                 : maintenance.delta < 0
                   ? t('today.underMaintenance', { n: formatNumber(Math.abs(maintenance.delta), locale) })
@@ -843,5 +886,6 @@ function createStyles({ colors, shadow, scheme }: Theme) {
     legendText: { fontSize: font.small, color: colors.heroText, fontFamily: type.heading, flexShrink: 1 },
     macroRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: space.lg, rowGap: space.xs },
     macroChip: { fontSize: font.tiny, color: colors.heroMuted },
+    pfNote: { fontSize: font.tiny, color: colors.heroMuted, textAlign: 'center' },
   });
 }

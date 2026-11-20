@@ -74,6 +74,8 @@ export * from './travel-plan';
 export * from './travel-volume';
 export * from './reentry';
 export * from './home-plan';
+// Protein-first mode (2026-11-20): Today leads with protein, calories are a range.
+export * from './protein-first';
 export * from './meal-slots';
 export * from './meal-draft';
 export * from './meal-preset';

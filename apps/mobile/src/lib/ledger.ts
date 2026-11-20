@@ -2084,6 +2084,13 @@ export async function setExerciseUnitByGym(uid: string, id: string, map: Partial
   await ackOrQueued(updateDoc(exerciseDoc(uid, id), { unitByGym: { ...map } }));
 }
 
+/** Settings → Daily targets → "Protein first" (2026-11-20; core
+ *  `protein-first.ts`). Presentation only: no target changes. Needs the
+ *  2026-11-20 rules (`proteinFirst`). */
+export async function setProteinFirst(uid: string, on: boolean): Promise<void> {
+  await updateDoc(userDoc(uid), { proteinFirst: on });
+}
+
 /** Settings → Training (progression engine, 2026-10-07). Only the keys
  *  passed are written; `volumeGateLb: null` clears the gate. Absent fields
  *  read as cut / auto-apply off / no gate (core `Profile`). */

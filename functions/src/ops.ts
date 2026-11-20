@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { db } from "./init";
 
@@ -29,9 +30,41 @@ export const statusPulse = onSchedule(
 // Using count() aggregation keeps the read cost a single billed unit
 // regardless of collection size.
 // Plain async task run by the hourly dispatcher (`hourly-tasks.ts`).
+//
+// VERIFIED accounts only since 2026-11-20 (owner's call, UX_AUDIT S24-1c):
+// since the verification wall came down (11-19) anyone can create a profile
+// with an address they do not control, and a public number that bulk signups
+// can move is not social proof. Verification lives on the Auth record, so the
+// Auth list is paged (1,000 a page, a handful of pages at this size) and the
+// result is capped by the profile count — an Auth account that never opened
+// the app has no profile and was never in this number.
+export function isPublicUser(u: { emailVerified?: boolean; disabled?: boolean }): boolean {
+  return u.emailVerified === true && u.disabled !== true;
+}
+
+/** Pages of 1,000 Auth users read per run before giving up on exactness. */
+const MAX_AUTH_PAGES = 50;
+
+async function countVerifiedUsers(): Promise<number | null> {
+  let n = 0;
+  let token: string | undefined;
+  for (let page = 0; page < MAX_AUTH_PAGES; page++) {
+    const res = await getAuth().listUsers(1000, token);
+    for (const u of res.users) if (isPublicUser(u)) n++;
+    token = res.pageToken;
+    if (!token) return n;
+  }
+  return null; // more than 50,000 accounts: the profile count stands in
+}
+
 export async function runPublishUserCount(): Promise<void> {
     const snap = await db.collection("users").count().get();
-    const total = snap.data().count;
+    const profiles = snap.data().count;
+    const verified = await countVerifiedUsers().catch((err) => {
+      console.error("publishUserCount: Auth list failed; keeping the profile count", err instanceof Error ? err.message : err);
+      return null;
+    });
+    const total = verified == null ? profiles : Math.min(profiles, verified);
     await db.doc("public/stats").set({
       totalUsers: total,
       updatedAt: Timestamp.now(),
