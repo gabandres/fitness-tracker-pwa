@@ -63,7 +63,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // window's interface style, not from this palette (UX_AUDIT S20). "System"
   // hands it back to the OS, so `useColorScheme` keeps reporting the real one.
   useEffect(() => {
-    Appearance.setColorScheme(preference === 'system' ? 'unspecified' : preference);
+    Appearance.setColorScheme?.(preference === 'system' ? 'unspecified' : preference);
   }, [preference]);
 
   const value = useMemo<ThemeContextValue>(
