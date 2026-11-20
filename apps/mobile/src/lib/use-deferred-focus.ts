@@ -20,7 +20,9 @@ export function useDeferredFocus(visible: boolean, delayMs = 300) {
       // Someone got there first: a field tapped during the delay is where the
       // user is typing, and stealing focus mid-word sent a meal's NAME into
       // Calories ("QA E2E Sandwich123", Maestro 11 — and any quick human).
-      if (TextInput.State.currentlyFocusedInput()) return;
+      // Optional call: react-native-web has no `currentlyFocusedInput`, and
+      // the browser run threw here (docs/COMMANDS.md, a rendered check).
+      if (TextInput.State.currentlyFocusedInput?.()) return;
       ref.current?.focus();
     }, delayMs);
     return () => clearTimeout(timer);

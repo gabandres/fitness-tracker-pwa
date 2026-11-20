@@ -3069,4 +3069,7 @@ export const ptBR: Record<I18nKey, string> = {
   'settings.workoutImportDup': '{n} já estavam aqui.',
   'settings.workoutImportLifts': '{n} exercícios novos adicionados.',
   'settings.workoutImportFailed': '{n} não puderam ser salvos. Importe o arquivo de novo para tentar outra vez.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'whatsNew.relog.title': 'Registre de novo um dia passado',
+  'whatsNew.relog.body': 'Abra qualquer dia passado no Histórico e toque em "Registrar de novo…" para escolher vários registros e adicioná-los a hoje de uma vez.',
 };

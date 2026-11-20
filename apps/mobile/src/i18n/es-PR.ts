@@ -3086,4 +3086,7 @@ export const esPR: Record<I18nKey, string> = {
   'settings.workoutImportDup': '{n} ya estaban aquí.',
   'settings.workoutImportLifts': 'Se añadieron {n} ejercicios nuevos.',
   'settings.workoutImportFailed': '{n} no se pudieron guardar. Importa el archivo de nuevo para reintentarlos.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'whatsNew.relog.title': 'Registra de nuevo un día pasado',
+  'whatsNew.relog.body': 'Abre cualquier día pasado en Historial y toca "Registrar de nuevo…" para elegir varias de sus entradas y añadirlas a hoy de una vez.',
 };

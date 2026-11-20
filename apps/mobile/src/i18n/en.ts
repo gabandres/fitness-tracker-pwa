@@ -3285,6 +3285,9 @@ export const en = {
   'settings.workoutImportDup': '{n} were already here.',
   'settings.workoutImportLifts': '{n} new lifts added.',
   'settings.workoutImportFailed': '{n} could not be saved. Import the file again to retry them.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'whatsNew.relog.title': 'Log a past day again',
+  'whatsNew.relog.body': 'Open any past day in History and tap "Log again…" to pick several of its entries and add them to today in one go.',
 } as const;
 
 export type I18nKey = keyof typeof en;
