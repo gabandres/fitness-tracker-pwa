@@ -32,10 +32,10 @@ run 2026-11-19).
 | **TestFlight** | **Not re-read since 2026-09-08.** Read the group's builds AND each build's `externalBuildState` (`asc-testflight-external.mjs`) — `VALID` + in the group ≠ installable |
 | **Play** | **Production: vc 53 / 1.2.10 COMMITTED 2026-11-19 and sent for review; vc 52 / 1.2.8 is what the listing serves until that clears.** Alpha: vc 53. The tracks API cannot tell "in review" from "live" — it already reports vc 53 as production — so the store page or the Console row is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
 | **Web `ignia.fit`** | **Shell + `/admin`** (ADR-0036). 113 prerendered pages, EN + es-PR, both store badges. Grep `public/` as well as `src/` before claiming copy is gone |
-| **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Rules last changed with the 2026-11-19 Train OTA (`CHANGELOG.md`) |
+| **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Functions and rules last deployed 2026-11-19 with the activation batch (`CHANGELOG.md`): unverified owners may write; AI callables refuse an unverified email |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
-| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-19, the §S24 standards sweep (`d9cb2e9a`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
+| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-19, the activation batch (`af651bff`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Publishing:** OTAs for both platforms go out from the Windows PC (`winbox`,
@@ -89,24 +89,17 @@ Then scored against standards re-read that day (`docs/research/app-ux-standards.
 92 rules): **≈ 77 code-only, whole app** — Train 81.2, History lowest at 69.5.
 Findings, the score table and the OTA batches: `UX_AUDIT.md` §S24; the market refresh:
 `docs/research/competitive-feature-scan.md` (2026-11-19 addendum).
-**Shipped 2026-11-19: the standards sweep (S24-20…26).** It was not seen on a
-screen before publishing — **owed: the owner opens the app on the iPhone**
-(sign-in form labels, the scan screen's bottom edge, Daily targets back prompt,
-History calendar) and says if anything looks wrong; rollback is one republish
-(groups in the ledger).
-
-**Batch 1, activation, is BUILT and NOT RELEASED: branch
-`feat/ota2-activation`** (S24-1…4 + tracker switches; owner said yes to both
-calls 2026-11-19). mobile jest 337 suites / 3,462, functions + rules 1,309,
-both green. It waits on the phone check above, so two unseen batches are
-never stacked. **Release order, all three or none:**
-1. `npm --prefix functions run build && firebase deploy --only functions`
-   (the AI guard and the lifecycle-mail skip go live first);
-2. `firebase deploy --only firestore:rules` (unverified owners may write);
-3. merge the branch, gate, publish the OTA to build 75 + vc 53.
-Steps 1–2 change nothing for installed apps, which still hold unverified
-users at the wall client-side. Decide at step 3 whether the what's-new banner
-bumps (tracker switches and the reminder card are visible to existing users).
+**Shipped 2026-11-19, both on build 75 + vc 53:** the standards sweep
+(`d9cb2e9a`; the owner looked at it on the iPhone and passed it) and **batch 1,
+activation** (`af651bff`; functions, then rules, then the OTA). Batch 1 was
+not seen on a screen before publishing — **owed: the owner signs up with a
+fresh email address on the phone** and checks that onboarding opens without
+verifying, Today shows "Log your first meal", Scan and Coach say to verify
+first, and Settings has "On your Today screen". Rollback is client-only:
+republish the sweep groups (ledger); the deployed functions and rules are a
+superset an older client never exercises.
+**Next: batch 2, legibility** (`UX_AUDIT.md` §S24), then Train for non-owners,
+then the market gaps. Open from batch 1: S24-1b/1c/1d.
 
 ### Blocked on a Mac
 
@@ -199,7 +192,7 @@ per 120 days no A/B is readable, and the denominator is signups IN WINDOW.
 | # | Lever | State |
 |---|---|---|
 | 5 | **Verify the zero-friction triggers** | Android widget VERIFIED 2026-09-08; watch/Siri open, owner with an iPhone |
-| 6 | **Guest mode (`UX_AUDIT.md` N5)** | Deferred; §S24-1 (the verification wall) is the cheaper first move |
+| 6 | **Guest mode (`UX_AUDIT.md` N5)** | Deferred; the verification wall came down 2026-11-19 (§S24-1). Re-measure "ever logged" before building this |
 | 10 | **Ask for reminders AFTER the first log lands** | **Open, not built** — the ask is still an onboarding step (`UX_AUDIT.md` §S24-3) |
 
 Levers 1–4, 7, 8, 9 shipped (2026-09-02 → 09-16, `CHANGELOG.md`).

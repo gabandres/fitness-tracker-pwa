@@ -4,6 +4,22 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-19 — activation batch (`af651bff`; functions + rules deployed, OTA on iOS build 75, Android vc 53)
+
+Second batch from `UX_AUDIT.md` §S24, aimed at the measured problem (33 % of signups ever log; 34 min to the first
+log; 0 of 43 took reminders in onboarding). **The verification wall is gone:** an email signup goes straight to
+onboarding and can write its own profile and logs (`firestore.rules`: `isOwnerWriter`); verification is a banner on
+Today and a pushed screen. **AI stays verified-only, server-side:** `withCostGuards` refuses an unverified caller with
+`EMAIL_NOT_VERIFIED` before the spend ceiling and before any quota is reserved; Scan and Coach show a locked state.
+Welcome, day-1 and weekly-digest mail skip an unverified address (`lifecycle-recipient.ts`). **Today:** a "Log your
+first meal" card for an account with no food row, and a one-time "Want a nudge at meal times?" card after the first
+log (lowest-priority nudge). **Onboarding:** reminders step removed, plain goal hints, an example under each activity
+level. **Trackers:** Settings → "On your Today screen" hides fasting, water, sleep, evening hunger and the day-logged
+check; new accounts start with water and sleep only, existing accounts keep all five. What's-new bumped
+(`2026-11-19-trackers`). Order: functions, rules, then the OTA. Tests: mobile 337 suites / 3,462, functions + rules
+1,309 (vitest timeouts raised to 60 s for this ARM PC). Not seen on a screen before publishing. Left open:
+`UX_AUDIT.md` S24-1b (welcome mail for late verifiers), S24-1c (unverified accounts in the counts), S24-1d.
+
 ## 2026-11-19 — standards sweep (`d9cb2e9a`; OTA on iOS build 75, Android vc 53); vc 53 sent to Play production
 
 First batch from `UX_AUDIT.md` §S24, repairs only, no flow change. **Bug:** saving a template in the editor erased
