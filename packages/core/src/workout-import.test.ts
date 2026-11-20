@@ -142,3 +142,102 @@ describe('importedWeightToLb', () => {
     expect(importedWeightToLb(100, 'kg')).toBe(220.46);
   });
 });
+
+// 2026-11-20: the shapes below are what REAL exports look like — read off a
+// 7,211-row Hevy export and four Strong exports found in public repositories
+// (the values here are made up; the columns, quoting, zeros and formats are
+// theirs). The first version of this parser was written without one.
+describe('parseWorkoutCsv — the shapes real exports have', () => {
+  const HEVY_REAL = [
+    '"title","start_time","end_time","description","exercise_title","superset_id","exercise_notes","set_index","set_type","weight_kg","reps","distance_km","duration_seconds","rpe"',
+    // Newest first, as Hevy writes it. A rep set carries duration_seconds 0.
+    '"Lower A","15 Sep 2025, 07:48","15 Sep 2025, 09:13","","Seated Leg Curl (Machine)",,"",0,"warmup",39,10,,0,6',
+    '"Lower A","15 Sep 2025, 07:48","15 Sep 2025, 09:13","","Seated Leg Curl (Machine)",,"",1,"normal",77.5,12,,0,9.5',
+    '"Lower A","15 Sep 2025, 07:48","15 Sep 2025, 09:13","","Seated Leg Curl (Machine)",,"",2,"failure",77.5,9,,0,10',
+    '"Lower A","15 Sep 2025, 07:48","15 Sep 2025, 09:13","","Crunch (Weighted)",1,"",0,"failure",10,15,,0,',
+    '"Lower A","15 Sep 2025, 07:48","15 Sep 2025, 09:13","","Crunch (Weighted)",1,"",1,"failure",10,0,,0,10',
+    '"Pull 1","3 Jul 2024, 18:02","3 Jul 2024, 19:03","","Warm Up",,"",0,"normal",,,,300,',
+    '"Pull 1","3 Jul 2024, 18:02","3 Jul 2024, 19:03","","Pull Up",,"",0,"warmup",,4,,0,7',
+  ].join('\n');
+
+  it('reads a Hevy export in kilograms, oldest workout first', () => {
+    const r = parseWorkoutCsv(HEVY_REAL)!;
+    expect(r.format).toBe('hevy');
+    expect(r.unit).toBe('kg');
+    expect(r.workouts.map((w) => w.name)).toEqual(['Pull 1', 'Lower A']);
+    expect(r.workouts[0].durationMin).toBe(61);
+    expect(r.workouts[1].durationMin).toBe(85);
+  });
+
+  it('does not turn duration_seconds 0 into a timed set, and keeps a timed warm-up', () => {
+    const r = parseWorkoutCsv(HEVY_REAL)!;
+    expect(r.workouts[0].exercises[0]).toEqual({ name: 'Warm Up', sets: [{ kind: 'working', durationSec: 300 }] });
+    expect(r.workouts[0].exercises[1]).toEqual({ name: 'Pull Up', sets: [{ kind: 'warmup', reps: 4, rir: 3 }] });
+    expect(r.workouts[1].exercises[0].sets[0]).toEqual({ kind: 'warmup', weight: 39, reps: 10, rir: 4 });
+  });
+
+  it('reads a failure set as a working set with nothing left, and a half RPE to the nearest rep', () => {
+    const sets = parseWorkoutCsv(HEVY_REAL)!.workouts[1].exercises;
+    expect(sets[0].sets[1]).toEqual({ kind: 'working', weight: 77.5, reps: 12, rir: 1 });
+    expect(sets[0].sets[2]).toEqual({ kind: 'working', weight: 77.5, reps: 9, rir: 0 });
+    // No RPE typed: the set type alone says failure.
+    expect(sets[1].sets).toEqual([{ kind: 'working', weight: 10, reps: 15, rir: 0 }]);
+  });
+
+  it('skips the row Hevy wrote with 0 reps and no time', () => {
+    const r = parseWorkoutCsv(HEVY_REAL)!;
+    expect(r.skippedRows).toBe(1);
+    expect(r.sets).toBe(6);
+  });
+
+  const STRONG_REAL = [
+    'Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE',
+    '2020-12-30 18:51:52,"Evening Workout",2h 38m,"Snatch (Barbell)",1,40.0,3,0,0,"","",',
+    '2020-12-30 18:51:52,"Evening Workout",2h 38m,"Snatch (Barbell)",2,42.5,3,0,0,,,',
+    '2020-12-30 18:51:52,"Evening Workout",2h 38m,"Push Up",1,0,20,0,0,,,',
+    '2021-05-13 12:00:00,"Midday",1h,"Swimming",1,0,0,1.0,30,"","",',
+    '2022-09-21 10:26:28,"Wednesday",38min,"Squat (Barbell)",1,45.0,10,0,0,"","",',
+  ].join('\n');
+
+  it('reads the three duration spellings Strong has used: "2h 38m", "1h", "38min"', () => {
+    const r = parseWorkoutCsv(STRONG_REAL)!;
+    expect(r.format).toBe('strong');
+    expect(r.workouts.map((w) => w.durationMin)).toEqual([158, 60, 38]);
+  });
+
+  it('reads a weight of 0 as no weight (a bodyweight set), and a cardio row as its time', () => {
+    const r = parseWorkoutCsv(STRONG_REAL)!;
+    expect(r.workouts[0].exercises[0].sets).toEqual([
+      { kind: 'working', weight: 40, reps: 3 },
+      { kind: 'working', weight: 42.5, reps: 3 },
+    ]);
+    expect(r.workouts[0].exercises[1]).toEqual({ name: 'Push Up', sets: [{ kind: 'working', reps: 20 }] });
+    expect(r.workouts[1].exercises[0]).toEqual({ name: 'Swimming', sets: [{ kind: 'working', durationSec: 30 }] });
+    expect(r.skippedRows).toBe(0);
+  });
+
+  it('reads the older ten-column export, whose reps and seconds are decimals', () => {
+    const legacy = [
+      'Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE',
+      '2024-11-28 17:36:08,"B",35m,"Bent Over Row (Barbell)",1,10.0,13.0,0,0.0,',
+      '2024-11-28 17:36:08,"B",35m,"Bent Over Row (Barbell)",2,20.0,5.0,0,0.0,',
+    ].join('\n');
+    const r = parseWorkoutCsv(legacy)!;
+    expect(r.unit).toBeNull();
+    expect(r.workouts[0].exercises[0].sets).toEqual([
+      { kind: 'working', weight: 10, reps: 13 },
+      { kind: 'working', weight: 20, reps: 5 },
+    ]);
+  });
+
+  it('reads the newer semicolon export with every cell quoted', () => {
+    const semi = [
+      '"Workout #";"Date";"Workout Name";"Duration (sec)";"Exercise Name";"Set Order";"Weight (kg)";"Reps";"RPE";"Distance (meters)";"Seconds";"Notes";"Workout Notes"',
+      '"1";"2025-04-29 12:00:00";"Chest and Triceps";"600";"Bench Press (Barbell)";"1";"100.0";"10";"";"";"";"";""',
+    ].join('\n');
+    const r = parseWorkoutCsv(semi)!;
+    expect(r.unit).toBe('kg');
+    expect(r.workouts[0].durationMin).toBe(10);
+    expect(r.workouts[0].exercises[0].sets).toEqual([{ kind: 'working', weight: 100, reps: 10 }]);
+  });
+});
