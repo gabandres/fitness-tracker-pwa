@@ -98,8 +98,17 @@ verifying, Today shows "Log your first meal", Scan and Coach say to verify
 first, and Settings has "On your Today screen". Rollback is client-only:
 republish the sweep groups (ledger); the deployed functions and rules are a
 superset an older client never exercises.
-**Next: batch 2, legibility** (`UX_AUDIT.md` §S24), then Train for non-owners,
-then the market gaps. Open from batch 1: S24-1b/1c/1d.
+**Batch 2, legibility, is BUILT and NOT RELEASED: branch
+`feat/ota3-legibility`** (two commits on `main` @ `98bcf9e3`). mobile 338
+suites / 3,476, core 2,761, Android export within budget. JS only: no
+functions, no rules. It waits on the fresh-signup check of batch 1 above.
+To release: merge, fingerprint + export gates, publish to build 75 + vc 53
+(pinned), ledger row. What it holds and what it left out: `UX_AUDIT.md`
+§S24 batch 2. One behaviour change to know about: with no phase picked in
+Settings, the training phase now follows the diet goal (maintain →
+maintenance, gain → bulk), which lets Train suggest added volume.
+**After it:** Train for non-owners, then the market gaps. Open from batch 1:
+S24-1b/1c/1d.
 
 ### Blocked on a Mac
 
