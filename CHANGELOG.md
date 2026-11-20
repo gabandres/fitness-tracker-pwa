@@ -4,6 +4,23 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — error sweep, late welcome mail, spoken labels (`bff138f8`, `cae457e0`; functions deploy + OTA on iOS build 75, Android vc 53)
+
+**Sweep:** Sentry (mobile 6 open, web 0), Cloud Functions errors since 11-17 and `npm run doctor` (23 of 24, 0 failed).
+Nothing in production needed a fix. Four Sentry issues and all five `sendVerificationEmail` 500s were the rendered check
+itself: a browser tripping over phone-only APIs, and check accounts on `example.com`, which the mail provider refuses
+with a 422. The four are resolved; `lib/sentry.ts` returns early on web; check accounts now use the provider's test
+inbox (`docs/COMMANDS.md`). One `adminExportData` error was a deploy-time write quota, retried by the same deploy
+(revision 00037 is Ready). Left as they are: one expo-updates emergency launch on one iPhone (11-10, one event) and an
+App Store link failure last seen 10-29 on 1.2.0, below today's minimum.
+**Late welcome (`functions/src/late-welcome.ts`, in `hourlyTasks`):** since the verification wall came down an account
+can finish onboarding unverified, and `sendWelcomeEmail` only fires on that flip — so it got no welcome, however soon it
+verified. The sweep takes profiles completed 30 min to 14 days ago with no `welcomeEmailSentAt`, verified, opted in,
+and — from a read-only dry run that found a 126-day-old account about to be welcomed — created inside those 14 days.
+Latched before the send. **OTA:** `spokenGrams` gives the screen-reader labels a singular ("1 gram of fat") and food
+search stops saying "g protein"; six spoken strings say calories instead of "kcal". Tests: mobile 342 suites / 3,512,
+functions specs for the sweep's rules.
+
 ## 2026-11-20 — audit leftovers (`12ad5720`; OTA on iOS build 75, Android vc 53)
 
 What the five `UX_AUDIT.md` §S24 batches left open and that needed no decision, JS only. **Import:** a lift from a

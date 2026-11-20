@@ -35,7 +35,7 @@ run 2026-11-19).
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Functions and rules last deployed 2026-11-19 with the activation batch (`CHANGELOG.md`): unverified owners may write; AI callables refuse an unverified email |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
-| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-20, the leftovers batch (`12ad5720`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
+| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-20, spoken labels (`cae457e0`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Publishing:** OTAs for both platforms go out from the Windows PC (`winbox`,
@@ -93,8 +93,8 @@ Findings, the score table and the OTA batches: `UX_AUDIT.md` §S24; the market r
 `UX_AUDIT.md` §S24 audit asked for:** the standards sweep (`d9cb2e9a`),
 activation (`af651bff`), legibility (`7ebe7c86`), Train for non-owners
 (`2cd8511c`) and the market gaps (`3762bca3`: re-log from a past day, Hevy /
-Strong workout import), **plus a sixth of leftovers on 2026-11-20
-(`12ad5720`)**. The sweep was passed by the owner on the iPhone; the
+Strong workout import), **plus two of leftovers on 2026-11-20
+(`12ad5720`, `cae457e0`)**. The sweep was passed by the owner on the iPhone; the
 other five were checked RENDERED IN A BROWSER against production with
 throwaway accounts, deleted after (`docs/COMMANDS.md` → "A rendered check
 without a device"). That is the same JavaScript on react-native-web, not the
@@ -110,6 +110,12 @@ column names their exports are known by and tested on a hand-made sample.
 A file it does not recognise is refused, not half-read. Since `12ad5720` a lift
 is also matched by the same words in another order ("Bench Press (Barbell)" →
 "Barbell Bench Press"), only when exactly one of the account's lifts has them.
+**Error sweep 2026-11-20:** no production error needed a fix. Four of the six
+open Sentry issues and all five `sendVerificationEmail` errors were the
+browser check itself (resolved; the browser run no longer reports, and check
+accounts use the mail provider's test inbox — `docs/COMMANDS.md`).
+`hourlyTasks` gained `lateWelcome` (`bff138f8`, deployed): the welcome mail for
+an account that verifies after onboarding.
 **Next:** what the batches left open (`UX_AUDIT.md` §S24 "what is left",
 S24-1b/1c/1d), then exercise stills once an image source with a clear
 licence is found (S24-18), then the owner calls (S24-19, S24-27b, S24-28).
