@@ -198,6 +198,9 @@ import type { I18nKey } from '@/i18n';
 // NOT re-bumped 2026-11-20 for the market-gaps batch; "Log again…" joins the
 // list (the banner is under a day old). The Hevy / Strong import is not
 // listed: it is for someone arriving, and they have not seen a banner yet.
+// NOT bumped 2026-11-20 for the leftovers batch, and no row added: corrected
+// copy, a decimal keypad, a taller row, cues in a sheet, a meal name on a row.
+// Repairs to what is already there.
 export const WHATS_NEW_VERSION = '2026-11-19-trackers';
 
 const KEY = 'whatsNew.seen';

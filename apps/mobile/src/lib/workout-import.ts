@@ -13,10 +13,12 @@ import type { Exercise, LogStyle, SessionDraft, SessionExercise, WorkoutSession,
  * lifts, and writes the sessions as `completed`, a few at a time.
  *
  * Decisions, each a limit of the source file rather than a preference:
- *  - **A lift is matched by NAME**, case-insensitively. "Bench Press (Barbell)"
- *    does not match a seeded "Barbell Bench Press"; it becomes its own lift
- *    with no muscles, and Train's merge can join the two afterwards. Guessing
- *    would file someone's history under the wrong lift.
+ *  - **A lift is matched by NAME**, case-insensitively, then by the same
+ *    WORDS in any order: "Bench Press (Barbell)" is a seeded "Barbell Bench
+ *    Press" (Hevy and Strong put the equipment last, in brackets). Only when
+ *    exactly one catalog lift has those words — two candidates is a guess, and
+ *    a guess would file someone's history under the wrong lift. Anything else
+ *    becomes its own lift with no muscles, and Train's merge can join it later.
  *  - **A workout already here is skipped**: same start minute as a completed
  *    session. Importing the same file twice adds nothing.
  *  - **Weights are stored in pounds**, as every session is; the file's unit is
@@ -33,6 +35,16 @@ const WRITE_CONCURRENCY = 4;
 
 const nameKey = (name: string) => name.trim().toLowerCase();
 const minuteKey = (d: Date) => Math.floor(d.getTime() / 60000);
+/** The name's words, lower-cased and sorted, brackets and punctuation dropped:
+ *  the same for "Bench Press (Barbell)" and "Barbell Bench Press". Exported
+ *  for test. */
+export const wordKey = (name: string) =>
+  name
+    .toLowerCase()
+    .split(/[\s()[\]{}\-–—_,./]+/)
+    .filter(Boolean)
+    .sort()
+    .join(' ');
 
 export interface PlannedExercise {
   /** {@link nameKey} of the lift. */
@@ -85,7 +97,17 @@ export function planWorkoutImport(
   existing: readonly Pick<WorkoutSession, 'status' | 'date'>[],
 ): WorkoutImportPlan {
   const known = new Map<string, LogStyle | undefined>();
-  for (const e of catalog) known.set(nameKey(e.name), e.logStyle);
+  // Catalog lifts by their words; `null` marks words two lifts share.
+  const byWords = new Map<string, { key: string; name: string } | null>();
+  for (const e of catalog) {
+    const key = nameKey(e.name);
+    known.set(key, e.logStyle);
+    const words = wordKey(e.name);
+    if (!words) continue;
+    const seen = byWords.get(words);
+    if (seen === undefined) byWords.set(words, { key, name: e.name });
+    else if (seen && seen.key !== key) byWords.set(words, null);
+  }
   const taken = new Set(existing.filter((s) => s.status === 'completed').map((s) => minuteKey(s.date)));
   const styles = logStyleOf(parsed.workouts);
 
@@ -105,9 +127,12 @@ export function planWorkoutImport(
     taken.add(minute);
     droppedExercises += Math.max(0, w.exercises.length - IMPORT_MAX_EXERCISES);
     const exercises = w.exercises.slice(0, IMPORT_MAX_EXERCISES).map((ex) => {
-      const key = nameKey(ex.name);
-      const name = ex.name.trim().slice(0, NAME_MAX);
-      const logStyle = known.get(key) ?? styles.get(key) ?? 'weight-reps';
+      const fileKey = nameKey(ex.name);
+      // Exact name first; else the one catalog lift with the same words.
+      const same = known.has(fileKey) ? null : byWords.get(wordKey(ex.name));
+      const key = same ? same.key : fileKey;
+      const name = (same ? same.name : ex.name).trim().slice(0, NAME_MAX);
+      const logStyle = known.get(key) ?? styles.get(fileKey) ?? 'weight-reps';
       if (!known.has(key) && !newExercises.has(key)) newExercises.set(key, { key, name, logStyle });
       const sets: WorkoutSet[] = ex.sets.map((s) => ({
         kind: s.kind,

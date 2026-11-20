@@ -197,7 +197,9 @@ export default function Tour() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Animated.View key={step.id} entering={entering} style={styles.card} testID={`tour-step-${step.id}`}>
-          <Text style={styles.counter}>
+          {/* The dots above already say "Step n of m" to a screen reader;
+              read once, not twice (UX_AUDIT S24-27). */}
+          <Text style={styles.counter} accessibilityElementsHidden importantForAccessibility="no">
             {t('tour.progress', { n: index + 1, total: STEPS.length })}
           </Text>
           <Text style={styles.title} accessibilityRole="header">{t(step.titleKey)}</Text>

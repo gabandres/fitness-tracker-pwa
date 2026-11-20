@@ -8,7 +8,7 @@ jest.mock('@/lib/ledger', () => ({
 }));
 
 import { addExercise, getAllExercises, getAllSessions, startSession } from '@/lib/ledger';
-import { IMPORT_MAX_EXERCISES, planWorkoutImport, runWorkoutImport } from '@/lib/workout-import';
+import { IMPORT_MAX_EXERCISES, planWorkoutImport, runWorkoutImport, wordKey } from '@/lib/workout-import';
 
 /**
  * UX_AUDIT S24-17 (2026-11-19): a Hevy / Strong export becomes this account's
@@ -108,5 +108,55 @@ describe('runWorkoutImport', () => {
     const out = await runWorkoutImport('u1', { workouts: [workout(1, [bench]), workout(2, [bench]), workout(3, [bench])] }, 'lb');
     expect(out.imported).toBe(2);
     expect(out.failed).toBe(1);
+  });
+});
+
+// UX_AUDIT S24-17 follow-up (2026-11-20): Hevy and Strong put the equipment
+// last, in brackets; the seeded catalog puts it first.
+describe('planWorkoutImport — the same words in another order', () => {
+  it('reads "Bench Press (Barbell)" as the "Barbell Bench Press" in the catalog', () => {
+    expect(wordKey('Bench Press (Barbell)')).toBe(wordKey('Barbell Bench Press'));
+    const plan = planWorkoutImport(
+      { workouts: [workout(1, [bench, pullUp])] },
+      'lb',
+      [{ name: 'Barbell Bench Press', logStyle: 'weight-reps' }],
+      [],
+    );
+    expect(plan.newExercises.map((e) => e.name)).toEqual(['Pull Up']);
+    expect(plan.sessions[0].exercises[0]).toMatchObject({ key: 'barbell bench press', name: 'Barbell Bench Press' });
+  });
+
+  it('does not guess when two catalog lifts have those words, or when a word differs', () => {
+    const two = planWorkoutImport(
+      { workouts: [workout(1, [bench])] },
+      'lb',
+      [
+        { name: 'Barbell Bench Press', logStyle: 'weight-reps' },
+        { name: 'Press, Barbell Bench', logStyle: 'weight-reps' },
+      ],
+      [],
+    );
+    expect(two.newExercises.map((e) => e.name)).toEqual(['Bench Press (Barbell)']);
+    const other = planWorkoutImport(
+      { workouts: [workout(1, [bench])] },
+      'lb',
+      [{ name: 'Dumbbell Bench Press', logStyle: 'weight-reps' }],
+      [],
+    );
+    expect(other.newExercises.map((e) => e.name)).toEqual(['Bench Press (Barbell)']);
+  });
+
+  it('prefers the exact name when both exist', () => {
+    const plan = planWorkoutImport(
+      { workouts: [workout(1, [bench])] },
+      'lb',
+      [
+        { name: 'Barbell Bench Press', logStyle: 'weight-reps' },
+        { name: 'Bench Press (Barbell)', logStyle: 'weight-reps' },
+      ],
+      [],
+    );
+    expect(plan.newExercises).toEqual([]);
+    expect(plan.sessions[0].exercises[0].key).toBe('bench press (barbell)');
   });
 });

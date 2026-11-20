@@ -188,9 +188,10 @@ async function existingProviderForEmail(email: string): Promise<LinkableProvider
  *
  * Same reasoning as `resetPassword` below — Firebase's built-in sender ships
  * from `noreply@<project>.firebaseapp.com`, which cannot be DMARC-aligned with
- * ignia.fit — and it matters more here, because verification is the signup
- * wall: mail that lands in junk is a user who never reaches the app at all.
- * That was reported on 2026-08-14.
+ * ignia.fit — and it mattered more here while verification was the signup
+ * wall (until 2026-11-19, UX_AUDIT S24-1): mail in junk was a user who never
+ * reached the app, reported 2026-08-14. Since then an unverified account logs
+ * normally and verification unlocks photo scan and Coach.
  *
  * The usual fix, pointing Firebase Auth at a custom SMTP relay, is NOT
  * available on this project: every write to the Auth email config is refused

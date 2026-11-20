@@ -194,14 +194,6 @@ export const esPR: Record<I18nKey, string> = {
   'onboarding.planBasisOwn': "Estas son tus propias metas y se quedan como están. Toca un número para cambiarlo.",
   'onboarding.planSub': 'Puedes cambiar estos números cuando quieras.',
   'onboarding.continue': 'Continuar',
-  'onboarding.remindersQ': '¿Quieres un recordatorio a la hora de comer?',
-  'onboarding.remindersBody': 'Ignia puede recordarte en este teléfono, sin ruido. No hace falta nada más y nada sale del dispositivo.',
-  'onboarding.remindersLunch': 'Almuerzo · {t}',
-  'onboarding.remindersDinner': 'Cena · {t}',
-  'onboarding.remindersStreak': 'Solo si un día está por quedar sin registro · {t}',
-  'onboarding.remindersNote': 'Cambia las horas o apágalos cuando quieras en Ajustes.',
-  'onboarding.remindersOn': 'Activar recordatorios',
-  'onboarding.remindersNotNow': 'Ahora no',
   'onboarding.firstLogQ': 'Registra lo último que comiste',
   'onboarding.firstLogBody': 'Con una entrada basta para ver tu plan en acción. Toma menos de un minuto.',
   'onboarding.firstLogSearch': 'Busca un alimento',
@@ -211,7 +203,6 @@ export const esPR: Record<I18nKey, string> = {
   'onboarding.firstLogCta': 'Registrar mi última comida',
   'onboarding.firstLogLater': 'Lo hago después',
   'onboarding.titleEdit': 'Edita tus metas',
-  'onboarding.tagline': 'Dos preguntas y listo — nosotros hacemos las cuentas.',
   'onboarding.currentWeight': 'Peso actual (lb)',
   'onboarding.goal': 'Meta',
   'onboarding.goalWeight': 'Peso meta (lb) — opcional',
@@ -355,8 +346,7 @@ export const esPR: Record<I18nKey, string> = {
   'targetNotice.why.userSet': 'Por qué: pusiste tu propia meta.',
   'targetNotice.ack': 'Entendido',
   'targetNotice.setOwn': 'Poner la mía',
-  'recalibration.trend.metabolism-slowed':
-    'Tu gasto medido está más bajo de lo esperado — es común, no es una alarma. Tu meta lo sigue para que el progreso se mantenga.',
+  'recalibration.trend.metabolism-slowed': 'Tu mantenimiento medido está más bajo de lo esperado — es común, no es una alarma. Tu meta lo sigue para que el progreso se mantenga.',
   'recalibration.trend.metabolism-faster':
     'Estás quemando más de lo esperado — la meta sube para que no comas de menos.',
   'recalibration.trend.steady': 'Tu mantenimiento se mantiene estable con lo que proyectamos.',
@@ -485,8 +475,7 @@ export const esPR: Record<I18nKey, string> = {
   'numbers.glossary.atTargetBody':
     'Un día pasado sin nada registrado cuenta como si hubieras comido tu objetivo, no cero. Si no, un día vacío parecería un ahorro enorme que nunca pasó.',
   'numbers.glossary.milestoneMark': 'Marcas de logros',
-  'numbers.glossary.milestoneMarkBody':
-    'Los rombitos en una gráfica marcan los días en que lograste algo — una racha, tu primer gasto medido, una meta. Desliza hasta uno para ver cuál.',
+  'numbers.glossary.milestoneMarkBody': 'Los rombitos en una gráfica marcan los días en que lograste algo — una racha, tu primer mantenimiento medido, una meta. Desliza hasta uno para ver cuál.',
   'numbers.glossary.composition': 'Ajustado por composición',
   'numbers.glossary.compositionBody': 'Un segundo número de mantenimiento, debajo del medido y nunca usado para tu meta. Cuenta la grasa y la masa magra por separado — la grasa guarda unas cinco veces más energía por kilo — usando la grasa corporal de tus medidas con cinta o de un DXA. Con cinta se queda en confianza Baja, porque la cinta es muy burda para ver cambios pequeños de grasa. Dos DXA con un mes o más de diferencia pueden llegar a Media o Alta.',
   'numbers.glossary.recomp': 'Señal de recomposición',
@@ -695,7 +684,6 @@ export const esPR: Record<I18nKey, string> = {
   'recipe.servings': 'Porciones',
   'recipe.perServing': 'Por porción',
   'recipe.roundsToZero': 'Una porción redondea a 0 kcal. Usa menos porciones.',
-  'recipe.invalidNumbers': 'Algunos números no son válidos. Corrige los campos marcados.',
   'recipe.useThis': 'Usar esto',
 
   // ── barcode ──
@@ -1667,7 +1655,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.volume.gateNotMet': 'Todavía no.',
   'settings.trainingSection': 'Entrenamiento',
   'settings.trainingPhase': 'Fase',
-  'settings.trainingPhaseSub': 'Sigue tu meta hasta que elijas una. En definición nunca se añade volumen semanal — la recuperación va primero. Mantenimiento y volumen pueden sugerir un clúster más.',
+  'settings.trainingPhaseSub': 'Sigue tu meta hasta que elijas una. En definición nunca se añaden series a tu semana — la recuperación va primero. Mantenimiento y volumen pueden sugerir una más.',
   'settings.autoApply': 'Aplicar progresión automáticamente',
   'settings.autoApplySub': 'Si está apagado, la plantilla solo cambia cuando tocas Actualizar y terminar al final del entrenamiento.',
   'settings.dumbbellHalfSteps': "Mancuernas: pasos de 2.5 lb (17.5, 22.5…)",
@@ -1962,8 +1950,8 @@ export const esPR: Record<I18nKey, string> = {
   'settings.quickAddMacros': '{kcal} kcal · {protein} g proteína',
   'settings.quickAddFull': 'Ya son {n}. Toca uno para cambiarlo.',
   'settings.quickAddWidgetHint': 'El primero de la lista es el que registran el botón del widget y el botón de Ajustes rápidos.',
-  'settings.quickAddSignedOut': 'Tu último toque en el widget o la tarjeta no se pudo registrar — no pudo leer tu sesión. Abre Ignia una vez y vuelve a intentarlo.',
-  'settings.quickAddNoSlot': 'Tu último toque en el widget o la tarjeta no registró nada — la comida de Registro rápido que tenía ya no existe. Escoge una arriba.',
+  'settings.quickAddSignedOut': 'Tu último toque de Registro rápido desde fuera de la app no se pudo registrar — no pudo leer tu sesión. Abre Ignia una vez y vuelve a intentarlo.',
+  'settings.quickAddNoSlot': 'Tu último toque de Registro rápido desde fuera de la app no registró nada — la comida que tenía ya no existe. Escoge una arriba.',
   'reminder.mealTitle': 'Ignia',
   'reminder.breakfastBody': '¿Ya registraste el desayuno?',
   'reminder.lunchBody': 'Hora de registrar el almuerzo 🍽️',
@@ -2095,8 +2083,7 @@ export const esPR: Record<I18nKey, string> = {
   'refine.customNote': "Estás usando tus propias metas (Ajustes → Metas diarias). Guardar aquí actualiza la sugerencia automática, no las metas que fijaste.",
   'refine.paceFloorCapped':
     'Tu mínimo de {floor} kcal lo limita a {pace}. Bájalo en Ajustes → Límites mínimos para ir más rápido de verdad.',
-  'refine.paceFloorNoDeficit':
-    'Tu mínimo de {floor} kcal está en o por encima de tu gasto estimado de {maintenance} kcal, así que este ritmo no puede crear déficit.',
+  'refine.paceFloorNoDeficit': 'Tu mínimo de {floor} kcal está en o por encima de tu mantenimiento estimado de {maintenance} kcal, así que este ritmo no puede crear déficit.',
   'refine.maintain': 'Mantener',
   'refine.save': 'Guardar metas',
   'refine.saveErr': 'No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.',
@@ -2155,7 +2142,6 @@ export const esPR: Record<I18nKey, string> = {
   'verify.resendFailed': 'No se pudo reenviar el correo. Intenta de nuevo.',
   'verify.initialSendFailed': 'No pudimos enviar tu correo de verificación. Toca Reenviar para intentarlo de nuevo.',
   'verify.resendTooSoon': 'Acabas de pedir uno — revisa tu bandeja y la carpeta de spam. Puedes reenviarlo en un minuto.',
-  'onboarding.saveErrVerify': 'Verifica tu correo primero (revisa tu bandeja o spam) e intenta de nuevo.',
 
   // ── daily targets (targetMode: custom vs automatic) ──
   'targets.title': 'Metas diarias',
@@ -2866,7 +2852,6 @@ export const esPR: Record<I18nKey, string> = {
   'train.unitSwitchA11y': 'kg o lb, mostrar este ejercicio en {unit}',
   'train.plateSwitch': 'placa #',
   'train.plateSwitchA11y': 'Placa número, registrar este ejercicio por posición en la pila en vez de peso',
-  'train.plateHead': '#',
   'train.swapTo': 'Cambiar a {name}',
   'train.swapped': '{from} → {to}. El historial sigue a {to}.',
   'train.timeCap': 'Pasaste {min} min — elimina en este orden: {order}.',
@@ -3080,7 +3065,7 @@ export const esPR: Record<I18nKey, string> = {
   'settings.workoutImportPreview': '{n} entrenamientos · {sets} series · {from} → {to}',
   'settings.workoutImportSkipped': '{n} filas omitidas (sin ejercicio, fecha o repeticiones).',
   'settings.workoutImportUnitAsk': 'Este archivo no dice su unidad de peso. ¿En cuál estaba la otra app?',
-  'settings.workoutImportNote': 'Los entrenamientos que ya están aquí se omiten, así que importar un archivo dos veces no añade nada. Los ejercicios se emparejan por nombre; un nombre que Ignia no tiene se crea como ejercicio nuevo que puedes combinar después.',
+  'settings.workoutImportNote': 'Los entrenamientos que ya están aquí se omiten, así que importar un archivo dos veces no añade nada. Los ejercicios se emparejan por nombre, en cualquier orden de palabras ("Bench Press (Barbell)" es tu "Barbell Bench Press"); un nombre que Ignia no tiene se crea como ejercicio nuevo que puedes combinar después.',
   'settings.workoutImportProgress': 'Importando {done} de {total}…',
   'settings.workoutImportDone': 'Se importaron {n} entrenamientos.',
   'settings.workoutImportDup': '{n} ya estaban aquí.',

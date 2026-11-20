@@ -87,3 +87,22 @@ it('renders the rest of the history without templates at all', async () => {
   expect(ui.queryByTestId('exercise-load-log')).toBeNull();
   expect(ui.getByText('Smith squat')).toBeTruthy();
 });
+
+// UX_AUDIT S24-12 follow-up (2026-11-20): the lift's form cues are in its
+// detail sheet too, before any history exists.
+it('shows the form cues of a lift that has them, and nothing for one without', async () => {
+  const cued: Exercise = { ...squat, defaultCues: ['Brace before you unrack', 'Knees track over toes'] };
+  const train = {
+    recentSessions: [], catalog: [cued], templates: [],
+    editCatalogExercise: jest.fn(), deleteCatalogExercise: jest.fn(), mergeCatalogExercises: jest.fn(),
+  } as unknown as React.ComponentProps<typeof ExerciseDetailSheet>['train'];
+  const ui = await render(<ExerciseDetailSheet visible exercise={cued} train={train} onClose={() => {}} />);
+  const cues = ui.getByTestId('exercise-cues');
+  expect(within(cues).getByText('How to do it')).toBeTruthy();
+  expect(within(cues).getByText('• Knees track over toes')).toBeTruthy();
+});
+
+it('has no cues block for a lift without cues', async () => {
+  const ui = await renderSheet([]);
+  expect(ui.queryByTestId('exercise-cues')).toBeNull();
+});

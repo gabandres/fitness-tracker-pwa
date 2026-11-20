@@ -174,7 +174,6 @@ export const ptBR: Record<I18nKey, string> = {
 
   // ── onboarding ──
   'onboarding.titleEdit': 'Editar suas metas',
-  'onboarding.tagline': 'Duas perguntas e pronto — a conta é por nossa conta.',
   'onboarding.goalQ': 'Qual é o seu objetivo?',
   'onboarding.weightQ': 'Quanto você pesa hoje?',
   'onboarding.goalWeightQ': 'Qual é o seu peso-alvo?',
@@ -196,14 +195,6 @@ export const ptBR: Record<I18nKey, string> = {
   'onboarding.planBasisOwn': "Estas são as suas próprias metas e continuam como estão. Toque em um número para mudá-lo.",
   'onboarding.planSub': 'Você pode mudar esses números quando quiser.',
   'onboarding.continue': 'Continuar',
-  'onboarding.remindersQ': 'Quer um lembrete na hora das refeições?',
-  'onboarding.remindersBody': 'O Ignia pode lembrar você neste telefone, sem alarde. Não precisa de mais nada e nada sai do aparelho.',
-  'onboarding.remindersLunch': 'Almoço · {t}',
-  'onboarding.remindersDinner': 'Jantar · {t}',
-  'onboarding.remindersStreak': 'Só se um dia estiver prestes a ficar sem registro · {t}',
-  'onboarding.remindersNote': 'Mude os horários ou desligue quando quiser em Ajustes.',
-  'onboarding.remindersOn': 'Ativar lembretes',
-  'onboarding.remindersNotNow': 'Agora não',
   'onboarding.firstLogQ': 'Registre o que você comeu por último',
   'onboarding.firstLogBody': 'Uma entrada já basta para ver seu plano funcionando. Leva menos de um minuto.',
   'onboarding.firstLogSearch': 'Busque um alimento',
@@ -354,8 +345,7 @@ export const ptBR: Record<I18nKey, string> = {
   'targetNotice.why.userSet': 'Por quê: você definiu a sua própria meta.',
   'targetNotice.ack': 'Entendi',
   'targetNotice.setOwn': 'Definir a minha',
-  'recalibration.trend.metabolism-slowed':
-    'Seu gasto medido está mais baixo do que o esperado — é comum, não é um alerta. Sua meta acompanha para o progresso seguir constante.',
+  'recalibration.trend.metabolism-slowed': 'Sua manutenção medida está mais baixa do que o esperado — é comum, não é um alerta. Sua meta acompanha para o progresso seguir constante.',
   'recalibration.trend.metabolism-faster':
     'Você está gastando mais do que o esperado — a meta sobe para você não comer de menos.',
   'recalibration.trend.steady': 'Sua manutenção está estável, de acordo com o que projetamos.',
@@ -483,8 +473,7 @@ export const ptBR: Record<I18nKey, string> = {
   'numbers.glossary.atTargetBody':
     'Um dia passado sem nada registrado conta como se você tivesse comido a sua meta, não zero. Senão, um dia vazio pareceria uma economia enorme que nunca aconteceu.',
   'numbers.glossary.milestoneMark': 'Marcas de conquistas',
-  'numbers.glossary.milestoneMarkBody':
-    'Os pequenos losangos num gráfico marcam os dias em que você alcançou uma conquista — uma sequência, o primeiro gasto medido, uma meta. Arraste até um para ver qual.',
+  'numbers.glossary.milestoneMarkBody': 'Os pequenos losangos num gráfico marcam os dias em que você alcançou uma conquista — uma sequência, a primeira manutenção medida, uma meta. Arraste até um para ver qual.',
   'numbers.glossary.composition': 'Ajustado pela composição',
   'numbers.glossary.compositionBody': 'Um segundo número de manutenção, abaixo do medido e nunca usado para a sua meta. Ele conta gordura e massa magra separadamente — a gordura guarda cerca de cinco vezes mais energia por quilo — usando a gordura corporal das suas medidas com fita ou de um DXA. Com fita fica em confiança Baixa, porque a fita é grosseira demais para ler pequenas mudanças de gordura. Dois DXA com um mês ou mais de intervalo podem chegar a Média ou Alta.',
   'numbers.glossary.recomp': 'Sinal de recomposição',
@@ -691,7 +680,6 @@ export const ptBR: Record<I18nKey, string> = {
   'recipe.servings': 'Porções',
   'recipe.perServing': 'Por porção',
   'recipe.roundsToZero': 'Uma porção arredonda para 0 kcal. Use menos porções.',
-  'recipe.invalidNumbers': 'Alguns números não são válidos. Corrija os campos destacados.',
   'recipe.useThis': 'Usar esta',
 
   // ── barcode ──
@@ -1660,7 +1648,7 @@ export const ptBR: Record<I18nKey, string> = {
   'train.volume.gateNotMet': 'Ainda não.',
   'settings.trainingSection': 'Treino',
   'settings.trainingPhase': 'Fase',
-  'settings.trainingPhaseSub': 'Segue a sua meta até você escolher uma. No cutting nunca se adiciona volume semanal — a recuperação vem primeiro. Manutenção e bulking podem sugerir mais um cluster.',
+  'settings.trainingPhaseSub': 'Segue a sua meta até você escolher uma. No cutting nunca se adicionam séries à sua semana — a recuperação vem primeiro. Manutenção e bulking podem sugerir mais uma.',
   'settings.autoApply': 'Aplicar progressão automaticamente',
   'settings.autoApplySub': 'Desligado, o modelo só muda quando você toca em Atualizar e concluir no fim do treino.',
   'settings.dumbbellHalfSteps': "Halteres: passos de 2,5 lb (17,5, 22,5…)",
@@ -1940,8 +1928,8 @@ export const ptBR: Record<I18nKey, string> = {
   'settings.quickAddMacros': '{kcal} kcal · {protein} g de proteína',
   'settings.quickAddFull': 'São todos os {n}. Toque em um para trocá-lo.',
   'settings.quickAddWidgetHint': 'O primeiro da lista é o que o botão do widget e o bloco de Configurações Rápidas registram.',
-  'settings.quickAddSignedOut': 'Seu último toque no widget ou no bloco não pôde ser registrado — não deu para ler o seu login. Abra o Ignia uma vez e tente de novo.',
-  'settings.quickAddNoSlot': 'Seu último toque no widget ou no bloco não registrou nada — a refeição do Registro rápido configurada não existe mais. Escolha uma acima.',
+  'settings.quickAddSignedOut': 'Seu último toque de Registro rápido fora do app não pôde ser registrado — não deu para ler o seu login. Abra o Ignia uma vez e tente de novo.',
+  'settings.quickAddNoSlot': 'Seu último toque de Registro rápido fora do app não registrou nada — a refeição configurada não existe mais. Escolha uma acima.',
   'settings.calorieFloorSection': 'Piso de calorias',
   'settings.calorieFloor': 'Mínimo diário de calorias',
   'settings.calorieFloorSub': 'Sua meta nunca cai abaixo disso, mesmo que um pico de retenção de água faça a sua manutenção medida parecer baixa.',
@@ -2078,8 +2066,7 @@ export const ptBR: Record<I18nKey, string> = {
   'refine.customNote': "Você está usando suas próprias metas (Ajustes → Metas diárias). Salvar aqui atualiza a sugestão automática, não as metas que você definiu.",
   'refine.paceFloorCapped':
     'Seu mínimo de {floor} kcal segura isso em {pace}. Diminua-o em Ajustes → Limites mínimos para realmente ir mais rápido.',
-  'refine.paceFloorNoDeficit':
-    'Seu mínimo de {floor} kcal está igual ou acima do seu gasto estimado de {maintenance} kcal, então esse ritmo não consegue criar déficit.',
+  'refine.paceFloorNoDeficit': 'Seu mínimo de {floor} kcal está igual ou acima da sua manutenção estimada de {maintenance} kcal, então esse ritmo não consegue criar déficit.',
   'refine.maintain': 'Manter',
   'refine.save': 'Salvar metas',
   'refine.saveErr': 'Não foi possível salvar. Verifique a sua conexão e tente de novo.',
@@ -2137,7 +2124,6 @@ export const ptBR: Record<I18nKey, string> = {
   'verify.resendFailed': 'Não foi possível reenviar o e-mail. Tente de novo.',
   'verify.initialSendFailed': 'Não conseguimos enviar o seu e-mail de verificação. Toque em Reenviar para tentar de novo.',
   'verify.resendTooSoon': 'Você acabou de pedir um — confira a caixa de entrada e o spam. Você pode reenviar em um minuto.',
-  'onboarding.saveErrVerify': 'Confirme o seu e-mail primeiro (veja a caixa de entrada ou o spam) e tente de novo.',
 
   // ── daily targets (targetMode: custom vs automatic) ──
   'targets.title': 'Metas diárias',
@@ -2849,7 +2835,6 @@ export const ptBR: Record<I18nKey, string> = {
   'train.unitSwitchA11y': 'kg ou lb, mostrar este exercício em {unit}',
   'train.plateSwitch': 'placa #',
   'train.plateSwitchA11y': 'Placa número, registrar este exercício pela posição na pilha em vez do peso',
-  'train.plateHead': '#',
   'train.swapTo': 'Trocar por {name}',
   'train.swapped': '{from} → {to}. O histórico segue {to}.',
   'train.timeCap': 'Passou de {min} min — corte nesta ordem: {order}.',
@@ -3063,7 +3048,7 @@ export const ptBR: Record<I18nKey, string> = {
   'settings.workoutImportPreview': '{n} treinos · {sets} séries · {from} → {to}',
   'settings.workoutImportSkipped': '{n} linhas ignoradas (sem exercício, data ou repetições).',
   'settings.workoutImportUnitAsk': 'Este arquivo não diz a unidade de peso. Em qual o outro app estava?',
-  'settings.workoutImportNote': 'Treinos que já estão aqui são ignorados, então importar um arquivo duas vezes não adiciona nada. Os exercícios são associados pelo nome; um nome que o Ignia não tem vira um exercício novo que você pode mesclar depois.',
+  'settings.workoutImportNote': 'Treinos que já estão aqui são ignorados, então importar um arquivo duas vezes não adiciona nada. Os exercícios são associados pelo nome, em qualquer ordem das palavras ("Bench Press (Barbell)" é o seu "Barbell Bench Press"); um nome que o Ignia não tem vira um exercício novo que você pode mesclar depois.',
   'settings.workoutImportProgress': 'Importando {done} de {total}…',
   'settings.workoutImportDone': '{n} treinos importados.',
   'settings.workoutImportDup': '{n} já estavam aqui.',

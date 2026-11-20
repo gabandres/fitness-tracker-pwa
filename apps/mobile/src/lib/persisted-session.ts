@@ -53,9 +53,10 @@ export function parsePersistedSession(raw: string | null): PersistedSession | nu
     if (!parsed || typeof parsed !== 'object') return null;
     const uid = (parsed as Record<string, unknown>)['uid'];
     if (typeof uid !== 'string' || uid.length === 0) return null;
-    // Absent means "not verified" rather than "unknown": treating a missing
-    // flag as verified would route an unverified signup straight into the app,
-    // where every write then fails the rules' email_verified gate.
+    // Absent means "not verified" rather than "unknown". Since 2026-11-19
+    // (UX_AUDIT S24-1) an unverified account is let into the app and its own
+    // writes pass the rules; the flag still decides what is locked (photo
+    // scan, Coach), so a missing one must not read as verified.
     return { uid, emailVerified: (parsed as Record<string, unknown>)['emailVerified'] === true };
   } catch {
     // A corrupt blob is not an error worth surfacing — it just means we wait

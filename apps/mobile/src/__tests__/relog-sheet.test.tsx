@@ -63,9 +63,11 @@ describe('RelogSheet', () => {
     expect(ui.getByTestId('relog-confirm')).toHaveTextContent('Pick what to add');
   });
 
-  it('a row says its name and calories to a screen reader', async () => {
+  it('a row says its name, its meal and its calories to a screen reader', async () => {
     const ui = await render(<RelogSheet visible logs={LOGS} onClose={jest.fn()} onConfirm={jest.fn()} />);
-    expect(ui.getByTestId('relog-row-1').props.accessibilityLabel).toBe('Chicken bowl, 650 kcal');
+    expect(ui.getByTestId('relog-row-1').props.accessibilityLabel).toBe('Chicken bowl, Lunch, 650 kcal');
+    // Which meal it was, on the row (S24-16 follow-up, 2026-11-20).
+    expect(ui.getByTestId('relog-meal-1')).toHaveTextContent('Lunch');
     expect(ui.getByTestId('relog-row-1').props.accessibilityRole).toBe('checkbox');
   });
 });
