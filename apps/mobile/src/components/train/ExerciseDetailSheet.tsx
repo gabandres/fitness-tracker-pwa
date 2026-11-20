@@ -358,6 +358,17 @@ export const ExerciseDetailSheet = memo(function ExerciseDetailSheet({
           </>
         ) : (
           <>
+            {/* How to do it (UX_AUDIT S24-12): the lift's own cues, here as
+                well as on the workout card — this sheet is where someone
+                looks a lift up before they have ever done it. */}
+            {(exercise?.defaultCues ?? []).length > 0 ? (
+              <View style={styles.cuesList} testID="exercise-cues">
+                <Text style={styles.panelLabel}>{t('train.cuesShow')}</Text>
+                {(exercise?.defaultCues ?? []).map((c, i) => (
+                  <Text key={i} style={styles.blockedText}>{`• ${c}`}</Text>
+                ))}
+              </View>
+            ) : null}
             {history.length === 0 ? (
               <Text style={styles.empty}>{t('train.noExHistory')}</Text>
             ) : (

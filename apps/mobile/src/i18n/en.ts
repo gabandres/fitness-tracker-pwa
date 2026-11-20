@@ -184,7 +184,6 @@ export const en = {
 
   // ── onboarding ──
   'onboarding.titleEdit': 'Edit your goals',
-  'onboarding.tagline': "Two questions and you're set — we'll do the math.",
   'onboarding.goalQ': "What's your goal?",
   'onboarding.weightQ': 'What do you weigh now?',
   'onboarding.goalWeightQ': "What's your goal weight?",
@@ -211,14 +210,6 @@ export const en = {
   'onboarding.planBasisOwn': "These are your own targets, and they stay as they are. Tap a number to change it.",
   'onboarding.planSub': 'You can change these numbers any time.',
   'onboarding.continue': 'Continue',
-  'onboarding.remindersQ': 'Want a nudge at meal times?',
-  'onboarding.remindersBody': 'Ignia can remind you on this phone, quietly. No account needed for it, and nothing leaves the device.',
-  'onboarding.remindersLunch': 'Lunch · {t}',
-  'onboarding.remindersDinner': 'Dinner · {t}',
-  'onboarding.remindersStreak': 'Only if a day is about to go unlogged · {t}',
-  'onboarding.remindersNote': 'Change the times or switch them off any time in Settings.',
-  'onboarding.remindersOn': 'Turn on reminders',
-  'onboarding.remindersNotNow': 'Not now',
   'onboarding.firstLogQ': 'Log what you last ate',
   'onboarding.firstLogBody': 'One entry is enough to see your plan working. It takes under a minute.',
   'onboarding.firstLogSearch': 'Search a food',
@@ -394,8 +385,7 @@ export const en = {
   'targetNotice.why.userSet': 'Why: you set your own target.',
   'targetNotice.ack': 'Got it',
   'targetNotice.setOwn': 'Set my own',
-  'recalibration.trend.metabolism-slowed':
-    'Your measured burn is running lower than expected — that is common, not a warning. Your target follows it so progress stays steady.',
+  'recalibration.trend.metabolism-slowed': 'Your measured maintenance is running lower than expected — that is common, not a warning. Your target follows it so progress stays steady.',
   'recalibration.trend.metabolism-faster':
     "You're burning more than expected — the target moves up so you're not under-eating.",
   'recalibration.trend.steady': 'Your maintenance is holding steady with what we projected.',
@@ -531,8 +521,7 @@ export const en = {
   'numbers.glossary.atTargetBody':
     'A past day with nothing logged counts as if you ate your target, not zero. An empty day would otherwise look like a huge saving that never happened.',
   'numbers.glossary.milestoneMark': 'Milestone marks',
-  'numbers.glossary.milestoneMarkBody':
-    'The small diamonds on a chart mark the days you hit a milestone — a streak, a first measured burn, a goal. Drag to one to read which.',
+  'numbers.glossary.milestoneMarkBody': 'The small diamonds on a chart mark the days you hit a milestone — a streak, your first measured maintenance, a goal. Drag to one to read which.',
   'numbers.glossary.composition': 'Composition-adjusted',
   'numbers.glossary.compositionBody': 'A second maintenance number, shown under the measured one and never used for your target. It counts fat and lean mass separately — fat stores about five times more energy per kilogram — using body fat from your tapes or a DXA scan. From tapes it stays Low confidence, because a tape is too rough to read small changes in body fat. Two DXA scans a month or more apart can reach Medium or High.',
   'numbers.glossary.recomp': 'Recomp signal',
@@ -754,7 +743,6 @@ export const en = {
   'recipe.servings': 'Servings',
   'recipe.perServing': 'Per serving',
   'recipe.roundsToZero': 'One serving rounds to 0 kcal. Use fewer servings.',
-  'recipe.invalidNumbers': 'Some numbers aren\'t valid. Fix the highlighted fields.',
   'recipe.useThis': 'Use this',
 
   // ── barcode ──
@@ -1821,7 +1809,7 @@ export const en = {
   'train.volume.gateNotMet': 'Not yet.',
   'settings.trainingSection': 'Training',
   'settings.trainingPhase': 'Phase',
-  'settings.trainingPhaseSub': 'Follows your goal until you pick one. A cut never adds weekly volume — recovery comes first. Maintenance and bulk may suggest one more cluster.',
+  'settings.trainingPhaseSub': 'Follows your goal until you pick one. A cut never adds sets to your week — recovery comes first. Maintenance and bulk may suggest one more.',
   'settings.autoApply': 'Auto-apply progression',
   'settings.autoApplySub': 'When off, the template only changes when you tap Update and finish at the end of a workout.',
   'settings.dumbbellHalfSteps': "Dumbbells: 2.5-lb steps (17.5, 22.5…)",
@@ -2119,8 +2107,8 @@ export const en = {
   'settings.quickAddMacros': '{kcal} kcal · {protein} g protein',
   'settings.quickAddFull': 'That’s all {n}. Tap one to swap it out.',
   'settings.quickAddWidgetHint': 'The first one in the list is what your widget button and the Quick Settings tile log.',
-  'settings.quickAddSignedOut': 'Your last widget or tile tap could not be logged — it could not read your sign-in. Open Ignia once, then try again.',
-  'settings.quickAddNoSlot': 'Your last widget or tile tap logged nothing — the Quick add meal it was set to no longer exists. Pick one above.',
+  'settings.quickAddSignedOut': 'Your last Quick add tap from outside the app could not be logged — it could not read your sign-in. Open Ignia once, then try again.',
+  'settings.quickAddNoSlot': 'Your last Quick add tap from outside the app logged nothing — the meal it was set to no longer exists. Pick one above.',
   'settings.calorieFloorSection': 'Calorie floor',
   'settings.calorieFloor': 'Daily calorie minimum',
   'settings.calorieFloorSub': 'Your target never drops below this, even if a water-weight spike makes your measured maintenance look low.',
@@ -2261,8 +2249,7 @@ export const en = {
   'refine.customNote': "You're on your own targets (Settings → Daily targets). Saving here updates the automatic suggestion, not the targets you set.",
   'refine.paceFloorCapped':
     'Your {floor} kcal minimum holds this to {pace}. Lower it in Settings → Safety floors to actually go faster.',
-  'refine.paceFloorNoDeficit':
-    "Your {floor} kcal minimum is at or above your {maintenance} kcal estimated burn, so this pace can't create a deficit.",
+  'refine.paceFloorNoDeficit': 'Your {floor} kcal minimum is at or above your estimated maintenance of {maintenance} kcal, so this pace can\'t create a deficit.',
   'refine.maintain': 'Maintain',
   'refine.save': 'Save targets',
   'refine.saveErr': 'Could not save. Check your connection and try again.',
@@ -2324,7 +2311,6 @@ export const en = {
   'verify.resendFailed': "Couldn't resend the email. Try again.",
   'verify.initialSendFailed': "We couldn't send your verification email. Tap Resend to try again.",
   'verify.resendTooSoon': 'You just asked for one — check your inbox and spam folder. You can resend again in a minute.',
-  'onboarding.saveErrVerify': 'Please verify your email first (check your inbox or spam), then try again.',
 
   // ── daily targets (targetMode: custom vs automatic) ──
   'targets.title': 'Daily targets',
@@ -3065,7 +3051,6 @@ export const en = {
   'train.unitSwitchA11y': 'kg or lb, show this lift in {unit}',
   'train.plateSwitch': 'plate #',
   'train.plateSwitchA11y': 'Plate number, log this lift by stack position instead of weight',
-  'train.plateHead': '#',
   'train.swapTo': 'Swap to {name}',
   'train.swapped': '{from} → {to}. History follows {to}.',
   'train.timeCap': 'Past {min} min — drop in this order: {order}.',
@@ -3279,7 +3264,7 @@ export const en = {
   'settings.workoutImportPreview': '{n} workouts · {sets} sets · {from} → {to}',
   'settings.workoutImportSkipped': '{n} rows skipped (no exercise, date or reps).',
   'settings.workoutImportUnitAsk': 'This file does not say its weight unit. Which was the other app set to?',
-  'settings.workoutImportNote': 'Workouts already here are skipped, so importing a file twice adds nothing. Lifts are matched by name; a name Ignia does not have becomes a new lift you can merge later.',
+  'settings.workoutImportNote': 'Workouts already here are skipped, so importing a file twice adds nothing. Lifts are matched by name, in any word order ("Bench Press (Barbell)" is your "Barbell Bench Press"); a name Ignia does not have becomes a new lift you can merge later.',
   'settings.workoutImportProgress': 'Importing {done} of {total}…',
   'settings.workoutImportDone': 'Imported {n} workouts.',
   'settings.workoutImportDup': '{n} were already here.',

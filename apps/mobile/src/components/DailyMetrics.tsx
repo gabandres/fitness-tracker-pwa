@@ -946,7 +946,8 @@ function SleepModal({
           style={styles.input}
           placeholder="8"
           placeholderTextColor={colors.faint}
-          keyboardType="numeric"
+          // Hours take a decimal (7.5): the numeric pad has no point on iOS.
+          keyboardType="decimal-pad"
           value={value}
           // Prefilled with last night's value, so the first keystroke must
           // REPLACE it rather than append to it — 7 becoming 78 is not an

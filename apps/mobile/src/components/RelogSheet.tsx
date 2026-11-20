@@ -5,7 +5,8 @@ import type { DailyLog } from '@macrolog/core';
 import { BottomSheet } from '@/components/BottomSheet';
 import { SheetHeader } from '@/components/SheetHeader';
 import { Touchable } from '@/components/Touchable';
-import { useLocale, useT } from '@/i18n';
+import { type I18nKey, useLocale, useT } from '@/i18n';
+import { capitalizeFirst } from '@/i18n/grammar';
 import { formatNumber } from '@/lib/date-format';
 import * as haptics from '@/lib/haptics';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -86,6 +87,8 @@ export function RelogSheet({
           const on = selected.has(key);
           const name = log.mealLabel || t('today.entry');
           const amount = t('relog.kcal', { n: formatNumber(log.calories, locale) });
+          // Which meal it was: two "Chicken bowl" rows are told apart by it.
+          const meal = log.mealType ? capitalizeFirst(t(`meal.${log.mealType}` as I18nKey), locale) : null;
           return (
             <Touchable
               key={key}
@@ -93,11 +96,14 @@ export function RelogSheet({
               onPress={() => toggle(key)}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: on }}
-              accessibilityLabel={`${name}, ${amount}`}
+              accessibilityLabel={meal ? `${name}, ${meal}, ${amount}` : `${name}, ${amount}`}
               testID={`relog-row-${i}`}
             >
               <Ionicons name={on ? 'checkbox' : 'square-outline'} size={24} color={on ? colors.tealSolid : colors.muted} />
-              <Text style={styles.name} numberOfLines={2}>{name}</Text>
+              <View style={styles.nameCol}>
+                <Text style={styles.name} numberOfLines={2}>{name}</Text>
+                {meal ? <Text style={styles.meal} testID={`relog-meal-${i}`}>{meal}</Text> : null}
+              </View>
               <Text style={styles.kcal}>{amount}</Text>
             </Touchable>
           );
@@ -144,7 +150,9 @@ const createStyles = ({ colors }: Theme) =>
       backgroundColor: colors.card,
     },
     rowOn: { borderColor: colors.tealSolid },
-    name: { flex: 1, fontSize: font.body, color: colors.ink, fontWeight: '600' },
+    nameCol: { flex: 1, gap: 2 },
+    name: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
+    meal: { fontSize: font.small, color: colors.muted },
     kcal: { fontSize: font.small, color: colors.muted, fontVariant: ['tabular-nums'] },
     cta: {
       minHeight: TARGET,

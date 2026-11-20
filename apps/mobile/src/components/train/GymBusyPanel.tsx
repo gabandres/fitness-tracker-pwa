@@ -4,7 +4,7 @@ import { gymBusyRows } from '@macrolog/core';
 import { type I18nKey, useT } from '@/i18n';
 import type { MuscleGroup, SessionExercise } from '@/lib/workout';
 import { useTheme } from '@/lib/theme-context';
-import { font, space } from '@/theme';
+import { font, space, TARGET } from '@/theme';
 import { Touchable } from './Touchable';
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -78,7 +78,7 @@ export function GymBusyPanel({
             onPress={() => onJump(r.exerciseIndex)}
             accessibilityRole="button"
             accessibilityLabel={`${t('train.gymBusy.jumpA11y', { name })}, ${t('train.gymBusy.left', { done: r.done, total: r.total })}, ${rest}`}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs, minHeight: TARGET }}
             testID={`gym-busy-row-${r.exerciseIndex}`}
           >
             <View style={{ flex: 1 }}>
