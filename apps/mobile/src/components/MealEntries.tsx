@@ -23,7 +23,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 import { type DailyLog, type MealGroup, type MealSlot, type MealType, groupByMealSlot } from '@macrolog/core';
 import { type I18nKey, type Locale, type TFn, useLocale, useT } from '@/i18n';
-import { capitalizeFirst } from '@/i18n/grammar';
+import { capitalizeFirst, spokenGrams } from '@/i18n/grammar';
 import * as haptics from '@/lib/haptics';
 import { enterUp, PressScale, springLayout } from '@/lib/motion';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -132,9 +132,9 @@ function macroLine(log: DailyLog, t: TFn, locale: Locale, spoken = false): strin
   const parts: string[] = [];
   // `spoken`: the screen-reader label says "grams", since "g" is read as a
   // letter. The visible line keeps the abbreviation.
-  if (log.protein != null) parts.push(t(spoken ? 'entry.proteinA11y' : 'entry.proteinAmount', { n: n(log.protein) }));
-  if (log.carbs != null) parts.push(t(spoken ? 'entry.carbsA11y' : 'entry.carbsAmount', { n: n(log.carbs) }));
-  if (log.fat != null) parts.push(t(spoken ? 'entry.fatA11y' : 'entry.fatAmount', { n: n(log.fat) }));
+  if (log.protein != null) parts.push(spoken ? spokenGrams(t, 'protein', n(log.protein)) : t('entry.proteinAmount', { n: n(log.protein) }));
+  if (log.carbs != null) parts.push(spoken ? spokenGrams(t, 'carbs', n(log.carbs)) : t('entry.carbsAmount', { n: n(log.carbs) }));
+  if (log.fat != null) parts.push(spoken ? spokenGrams(t, 'fat', n(log.fat)) : t('entry.fatAmount', { n: n(log.fat) }));
   return parts.join(' · ');
 }
 

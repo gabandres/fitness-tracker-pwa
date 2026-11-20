@@ -60,6 +60,7 @@ import { repeatPrefill } from '@/lib/repeat-servings';
 import { captureError } from '@/lib/sentry';
 import { showToast } from '@/components/Toast';
 import { type I18nKey, type TFn, useLocale, useT } from '@/i18n';
+import { spokenGrams } from '@/i18n/grammar';
 import * as haptics from '@/lib/haptics';
 import {
   analyzeMealPhoto,
@@ -1495,21 +1496,21 @@ export default function Scan() {
               <TotalChip
                 label={t('history.protein')}
                 value={total.protein}
-                a11yLabel={t('entry.proteinA11y', { n: formatNumber(Math.round(total.protein), locale) })}
+                a11yLabel={spokenGrams(t, 'protein', formatNumber(Math.round(total.protein), locale))}
                 styles={styles}
                 testID="scan-protein"
               />
               <TotalChip
                 label={t('today.carbs')}
                 value={total.carbs}
-                a11yLabel={t('entry.carbsA11y', { n: formatNumber(Math.round(total.carbs), locale) })}
+                a11yLabel={spokenGrams(t, 'carbs', formatNumber(Math.round(total.carbs), locale))}
                 styles={styles}
                 testID="scan-carbs"
               />
               <TotalChip
                 label={t('today.fat')}
                 value={total.fat}
-                a11yLabel={t('entry.fatA11y', { n: formatNumber(Math.round(total.fat), locale) })}
+                a11yLabel={spokenGrams(t, 'fat', formatNumber(Math.round(total.fat), locale))}
                 styles={styles}
                 testID="scan-fat"
               />

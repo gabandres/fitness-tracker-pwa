@@ -48,8 +48,9 @@ export const sendWelcomeEmail = onDocumentUpdated(
     //
     // Unverified addresses are skipped (2026-11-19, lifecycle-recipient.ts):
     // an unverified account can now finish onboarding. The latch is NOT set
-    // on a skip, but this trigger only fires on the completion flip, so an
-    // account that verifies later does not get a welcome mail retroactively.
+    // on a skip, and this trigger only fires on the completion flip, so an
+    // account that verifies later gets its welcome from the hourly sweep
+    // instead (late-welcome.ts, 2026-11-20).
     const authUser = await getAuth().getUser(uid).catch(() => null);
     const email = lifecycleRecipient(authUser);
     if (!authUser || !email) {

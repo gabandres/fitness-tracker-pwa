@@ -62,6 +62,23 @@ export function pluralKeyFor(base: PluralKey, locale: Locale, n: number): I18nKe
   return (cat === 'one' ? `${base}.one` : `${base}.other`) as I18nKey;
 }
 
+const SPOKEN_GRAMS = {
+  protein: ['entry.proteinA11y', 'entry.proteinA11yOne'],
+  carbs: ['entry.carbsA11y', 'entry.carbsA11yOne'],
+  fat: ['entry.fatA11y', 'entry.fatA11yOne'],
+} as const satisfies Record<string, readonly [I18nKey, I18nKey]>;
+
+/**
+ * A macro amount for a screen reader: "32 grams of protein", and "1 gram of
+ * fat" when it is exactly one — the spoken keys had no singular, and a fat of
+ * 1 g is common (UX_AUDIT S24-27). `n` is the number as it will be shown,
+ * already formatted for the locale.
+ */
+export function spokenGrams(t: TFn, macro: keyof typeof SPOKEN_GRAMS, n: string): string {
+  const [many, one] = SPOKEN_GRAMS[macro];
+  return n === '1' ? t(one) : t(many, { n });
+}
+
 /**
  * Translate a plural string. `n` selects the form and is passed through as
  * `{n}`, formatted with the locale's grouping (`1.200` in pt-BR) unless

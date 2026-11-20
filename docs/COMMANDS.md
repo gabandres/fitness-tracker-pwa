@@ -230,10 +230,18 @@ cd apps/mobile && CI=1 npx expo start --web --port 8097     # http://localhost:8
   the old bundle; without `CI=1` the command waits on a terminal. The first page render after a start can take minutes.
 - A long script outlives the 15 s evaluate limit: start it without awaiting, push progress to `window.__log`, and poll.
 - Drive it by `data-testid` (the app's `testID`s). The dev error toast sits over the bottom button: hide `#error-toast`.
+- Stopping the background task does not stop the server: the `node` child keeps port 8097, and the next `expo start`
+  exits at once while the OLD process goes on serving the old code. Stop it by port (PowerShell:
+  `Stop-Process -Id (Get-NetTCPConnection -LocalPort 8097 -State Listen).OwningProcess -Force`). The first page after a
+  fresh start can sit on the splash for over a minute while the bundle builds.
 - A phone-only call that crashes the web run gets an optional call at the call site (`Keyboard.metrics?.()`), which is
   the same call on a phone.
-- Sign up with a throwaway `…@example.com` address and delete it afterwards through the `deleteAccount` callable; a
-  leftover unverified account counts in the signup numbers (`UX_AUDIT.md` S24-1c).
+- Sign up with a throwaway `delivered+<label>@resend.dev` address (the mail provider's own test inbox) and delete it
+  afterwards through the `deleteAccount` callable; a leftover unverified account counts in the signup numbers
+  (`UX_AUDIT.md` S24-1c). **Not `…@example.com`**: the provider refuses that domain with a 422, so
+  `sendVerificationEmail` returns 500 and logs an ERROR for every check account (five of them on 2026-11-20, read as a
+  production error until the uid was matched). The browser run itself reports nothing to Sentry since that day
+  (`lib/sentry.ts` returns early on web).
 - The AI callables can be checked without the UI: `analyzePhoto` with `{ data: { photoBase64: "…" } }` and an
   unverified token returns `failed-precondition` / `EMAIL_NOT_VERIFIED` before any quota is spent.
 

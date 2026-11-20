@@ -58,6 +58,7 @@ import { MealText } from '@/components/MealText';
 import { RecipeBuilder } from '@/components/RecipeBuilder';
 import { RecipeImport } from '@/components/RecipeImport';
 import { type Locale, useLocale, useT } from '@/i18n';
+import { spokenGrams } from '@/i18n/grammar';
 import { starterFoods } from '@/lib/starterFoods';
 import { productFromLibrary, setScanLibrary } from '@/lib/barcode';
 import { normalizeName } from '@/lib/libraryMatch';
@@ -1764,7 +1765,7 @@ export function EntrySheet({
                         : [
                             p.name,
                             t('entry.caloriesA11y', { n: formatNumber(p.calories, locale) }),
-                            p.protein != null ? t('entry.proteinA11y', { n: formatNumber(p.protein, locale) }) : null,
+                            p.protein != null ? spokenGrams(t, 'protein', formatNumber(p.protein, locale)) : null,
                           ]
                             .filter(Boolean)
                             .join(', ')
@@ -1841,7 +1842,7 @@ export function EntrySheet({
                       row.name,
                       row.tag,
                       t('entry.caloriesA11y', { n: formatNumber(row.kcal, locale) }),
-                      row.protein != null ? t('entry.proteinA11y', { n: formatNumber(row.protein, locale) }) : null,
+                      row.protein != null ? spokenGrams(t, 'protein', formatNumber(row.protein, locale)) : null,
                     ]
                       .filter(Boolean)
                       .join(', ')

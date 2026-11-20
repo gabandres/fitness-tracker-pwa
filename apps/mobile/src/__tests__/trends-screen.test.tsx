@@ -188,7 +188,7 @@ describe('the hero', () => {
     mockTrends.mockReturnValue(state());
     const view = await render(<Trends />);
     const top = view.getByTestId('tdee-open-body');
-    expect(top.props.accessibilityLabel).toBe('Maintenance estimate, Measured, 2,017 kcal, plus or minus 180');
+    expect(top.props.accessibilityLabel).toBe('Maintenance estimate, Measured, 2,017 calories, plus or minus 180');
     expect(view.getByTestId('tdee-ci')).toHaveTextContent('±180 kcal, 95% range');
     // Behind the hero's one disclosure since S24-5.
     await fireEvent.press(view.getByTestId('tdee-method-toggle'));
