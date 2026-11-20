@@ -70,10 +70,10 @@ it('lists every load change for the lift, newest first, with who made it, why an
 
   // A first load has nothing to move from: it says what it was set to.
   expect(rows[1]).toHaveTextContent(/Set to 25 lb/);
-  expect(rows[1]).toHaveTextContent(/Engine · Legs B/);
+  expect(rows[1]).toHaveTextContent(/Ignia · Legs B/);
 
   expect(rows[2]).toHaveTextContent(/20 lb → 25 lb/);
-  expect(rows[2]).toHaveTextContent(/Engine · Legs A/);
+  expect(rows[2]).toHaveTextContent(/Ignia · Legs A/);
   expect(rows[2]).toHaveTextContent(/Both clusters reached 12; add load\./);
 });
 

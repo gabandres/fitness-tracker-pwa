@@ -249,6 +249,12 @@ describe('copy', () => {
     mockProfile = { sex: 'female', heightIn: 64, unitSystem: 'metric' };
     mockState = body({ bodyFatMissing: ['waist', 'neck', 'hip'] });
     const s = await render(<BodyScreen />);
+    // UX_AUDIT S24-11: with nothing measured, the whole section is one
+    // optional row, and the section behind it is unchanged.
+    expect(s.queryByTestId('no-measurements')).toBeNull();
+    expect(s.queryByTestId('add-measurement')).toBeNull();
+    await fireEvent.press(s.getByTestId('measurements-optional'));
+    expect(s.getByTestId('add-measurement')).toBeTruthy();
     expect(s.getByTestId('no-measurements').props.children).toBe(
       'No measurements yet. Tape your waist, neck and hip (centimeters) to estimate body fat.',
     );

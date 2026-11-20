@@ -16,7 +16,7 @@ import type { TFn } from '@/i18n';
 const t = ((key: keyof typeof en, vars?: Record<string, string | number>) =>
   String(en[key]).replace(/\{(\w+)\}/g, (_, k) => String(vars?.[k] ?? ''))) as unknown as TFn;
 
-const base = { loggedThisWeek: 5, weighIns: 4, hasTarget: true, unitSystem: 'imperial' as const, t, locale: 'en' as const };
+const base = { loggedThisWeek: 5, weighIns: 4, hasTarget: true, unitSystem: 'us' as const, t, locale: 'en' as const };
 const plain = (s: string) => s.replace(/ /g, ' ');
 
 describe('trendsAnswer', () => {

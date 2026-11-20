@@ -3010,4 +3010,10 @@ export const ptBR: Record<I18nKey, string> = {
   'trends.answer.stepFood': 'Registre comida em {needed} dias',
   'trends.answer.stepWeigh': 'Pese-se duas vezes',
   'trends.answer.stepCount': '{n} de {needed}',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'body.measureOptional': 'Registrar medidas (opcional)',
+  'body.measureOptionalSub': 'Cintura, pescoço e mais com uma fita métrica. Mostram mudanças que a balança não vê e dão uma estimativa de gordura corporal.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'trends.methodShow': 'Como este número é calculado',
+  'trends.methodHide': 'Ocultar o cálculo',
 };

@@ -3027,4 +3027,10 @@ export const esPR: Record<I18nKey, string> = {
   'trends.answer.stepFood': 'Registra comida en {needed} días',
   'trends.answer.stepWeigh': 'Pésate dos veces',
   'trends.answer.stepCount': '{n} de {needed}',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'body.measureOptional': 'Registrar medidas (opcional)',
+  'body.measureOptionalSub': 'Cintura, cuello y más con una cinta métrica. Muestran cambios que la báscula no ve y dan un estimado de grasa corporal.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'trends.methodShow': 'Cómo se calcula este número',
+  'trends.methodHide': 'Ocultar el cálculo',
 };

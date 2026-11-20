@@ -53,7 +53,7 @@ describe('RecalibrationCard', () => {
     mockDigest = digest({ deltaSinceAck: null });
     const screen = await render(<RecalibrationCard recalibration={{ digest: mockDigest, acknowledge: jest.fn(), previous: null }} />);
 
-    expect(screen.getByText('Your measured burn is ready')).toBeTruthy();
+    expect(screen.getByText('Your measured maintenance is ready')).toBeTruthy();
     // The regression: this account's target did not move, so the event wording
     // must not appear. Revert the split and this fails.
     expect(screen.queryByText('Your target just recalibrated')).toBeNull();
@@ -64,7 +64,7 @@ describe('RecalibrationCard', () => {
     const screen = await render(<RecalibrationCard recalibration={{ digest: mockDigest, acknowledge: jest.fn(), previous: null }} />);
 
     expect(screen.getByText('Your target just recalibrated')).toBeTruthy();
-    expect(screen.queryByText('Your measured burn is ready')).toBeNull();
+    expect(screen.queryByText('Your measured maintenance is ready')).toBeNull();
   });
 
   it('renders nothing when the digest has nothing worth surfacing', async () => {

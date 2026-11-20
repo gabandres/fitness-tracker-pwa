@@ -134,6 +134,12 @@ export default function Trends() {
 
 function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const [glossaryOpen, setGlossaryOpen] = useState(false);
+  // The hero's method lines — the arithmetic, the smoothing note, logging
+  // completeness, ignored weigh-ins — sit behind one disclosure (UX_AUDIT
+  // S24-5): the number and its range are the answer, the rest is how it was
+  // reached. States that ask something of the user (not enough complete days,
+  // travel, holding, days to go) are never hidden.
+  const [methodOpen, setMethodOpen] = useState(false);
   const t = useT();
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
@@ -377,6 +383,9 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const ci95 = tdee.source === 'measured' && tdee.ci95Tdee != null ? tdee.ci95Tdee : null;
   const holding = tdee.source === 'measured' && tdee.estimateState === 'holding';
   const outliers = tdee.source === 'measured' ? tdee.outliersDropped : 0;
+  const smoothedNote = display != null && display.displayed !== display.raw;
+  const completenessNote = !holding && tdee.source === 'measured' && tdee.loggingCompletenessPct != null;
+  const hasMethod = !incomplete && (breakdown != null || smoothedNote || completenessNote || outliers > 0);
   const heroA11y = incomplete
     ? t('today.maintenanceIncomplete', { n: incomplete.valid, needed: incomplete.needed })
     : tdee.trueTdee > 0
@@ -482,7 +491,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 estimator already produced (sim review 2026-10-06: the hint
                 named the inputs and showed neither). Formula/seed keep the
                 one-line hint. */}
-            {display && display.displayed !== display.raw ? (
+            {methodOpen && display && smoothedNote ? (
               <Text style={styles.heroSub} testID="tdee-smoothed">
                 {t('trends.maintenanceSmoothed', { raw: formatNumber(display.raw, locale) })}
               </Text>
@@ -502,26 +511,40 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 <Text style={styles.heroSub}>{t('today.maintenanceIncompleteHint')}</Text>
               </View>
             ) : breakdown ? (
-              <View style={styles.breakdown} accessible testID="tdee-breakdown">
-                <Text style={styles.heroHint}>{breakdown.line}</Text>
-                {breakdown.blended ? <Text style={styles.heroSub}>{breakdown.blended}</Text> : null}
-              </View>
+              methodOpen ? (
+                <View style={styles.breakdown} accessible testID="tdee-breakdown">
+                  <Text style={styles.heroHint}>{breakdown.line}</Text>
+                  {breakdown.blended ? <Text style={styles.heroSub}>{breakdown.blended}</Text> : null}
+                </View>
+              ) : null
             ) : (
               <Text style={styles.heroHint}>{t(mode.hintKey)}</Text>
             )}
             {holding ? (
               <Text style={styles.heroSub} testID="tdee-holding">{t('today.maintenanceHolding')}</Text>
-            ) : tdee.source === 'measured' && tdee.loggingCompletenessPct != null ? (
-              <Text style={styles.heroSub}>
+            ) : methodOpen && tdee.source === 'measured' && tdee.loggingCompletenessPct != null ? (
+              <Text style={styles.heroSub} testID="tdee-completeness">
                 {tdee.reliable
                   ? t('trends.completeness', { pct: Math.round(tdee.loggingCompletenessPct) })
                   : t('trends.completenessThin', { pct: Math.round(tdee.loggingCompletenessPct) })}
               </Text>
             ) : null}
-            {outliers > 0 ? (
+            {methodOpen && outliers > 0 ? (
               <Text style={styles.heroSub} testID="tdee-outliers">
                 {outliers === 1 ? t('today.maintenanceOutlier') : t('today.maintenanceOutliers', { n: outliers })}
               </Text>
+            ) : null}
+            {hasMethod ? (
+              <TouchableOpacity
+                onPress={() => { haptics.tap(); setMethodOpen((v) => !v); }}
+                style={styles.methodToggle}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: methodOpen }}
+                testID="tdee-method-toggle"
+              >
+                <Text style={styles.methodToggleText}>{t(methodOpen ? 'trends.methodHide' : 'trends.methodShow')}</Text>
+                <Glyph ios={methodOpen ? 'chevron.up' : 'chevron.down'} android={methodOpen ? 'chevron-up' : 'chevron-down'} size={14} color={colors.heroText} />
+              </TouchableOpacity>
             ) : null}
             {/* Formula mode: how far the measured burn is — the same readout
                 as Today's hero footer, off the same thresholds. */}
@@ -1474,6 +1497,8 @@ const createStyles = ({ colors, shadow }: Theme) =>
     // 0.8 it dropped under AA on the panel.
     heroSub: { textAlign: 'center', color: colors.heroMuted, fontSize: font.small },
     breakdown: { alignSelf: 'stretch', gap: 2 },
+    methodToggle: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: TARGET, paddingHorizontal: space.md },
+    methodToggleText: { color: colors.heroText, fontSize: font.small, fontWeight: '700', textDecorationLine: 'underline' },
     heroChips: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap', justifyContent: 'center', marginTop: space.sm },
     trendChip: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm, backgroundColor: colors.heroTrack, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.xs },
     trendChipLabel: { fontSize: font.small, color: colors.heroMuted },

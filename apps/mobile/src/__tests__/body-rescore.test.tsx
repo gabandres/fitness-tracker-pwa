@@ -197,6 +197,8 @@ describe('bug 5 — the chart gets a stable loader, not a fresh closure', () => 
       ],
     });
     const s = await render(<BodyScreen />);
+    // Measurements are one collapsed row until first use (S24-11).
+    await fireEvent.press(s.getByTestId('measurements-optional'));
     await fireEvent.press(s.getByTestId('measure-how-toggle'));
     expect(mockChartProps.length).toBeGreaterThanOrEqual(2);
     for (const p of mockChartProps) expect(p.onNeedAll).toBe(loadAll);

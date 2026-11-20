@@ -154,6 +154,8 @@ describe('why the maintenance number is what it is', () => {
   it('renders under the hero, with the unit from i18n', async () => {
     mockTrends.mockReturnValue(state());
     const view = await render(<Trends />);
+    // Behind the hero's one disclosure since S24-5.
+    await fireEvent.press(view.getByTestId('tdee-method-toggle'));
     expect(view.getByTestId('tdee-breakdown')).toHaveTextContent(/You averaged 1,850\skcal\u2060\/\u2060day/);
   });
 });

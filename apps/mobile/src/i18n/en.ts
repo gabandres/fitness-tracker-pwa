@@ -3226,6 +3226,12 @@ export const en = {
   'trends.answer.stepFood': 'Log food on {needed} days',
   'trends.answer.stepWeigh': 'Weigh in twice',
   'trends.answer.stepCount': '{n} of {needed}',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'body.measureOptional': 'Track measurements (optional)',
+  'body.measureOptionalSub': 'Waist, neck and more with a tape measure. They show change the scale misses, and give a body-fat estimate.',
+  // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
+  'trends.methodShow': 'How this number is worked out',
+  'trends.methodHide': 'Hide the working',
 } as const;
 
 export type I18nKey = keyof typeof en;
