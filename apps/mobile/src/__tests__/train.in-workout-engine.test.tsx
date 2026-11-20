@@ -41,6 +41,29 @@ describe('RecommendationNote — Accept', () => {
     expect(ui.queryByTestId('rec-accept')).toBeNull();
   });
 
+  // UX_AUDIT S24-15 (2026-11-19): the instruction in a plain sentence, above
+  // the numbers — and only on the open note.
+  it('says the call in a plain sentence first', async () => {
+    const ui = await render(<RecommendationNote rec={hold25} testID="rec" />);
+    expect(ui.getByTestId('rec-plain')).toHaveTextContent("Repeat last session's weight.");
+    const up: Recommendation = { ...hold25, action: 'add-load', load: 30 };
+    const more = await render(<RecommendationNote rec={up} testID="up" />);
+    expect(more.getByTestId('up-plain')).toHaveTextContent('Add weight today.');
+  });
+
+  it('tells a first-timer how to pick a weight', async () => {
+    const first: Recommendation = {
+      action: 'calibrate', last: [], assisted: false, approximate: false, warnings: [], reason: { kind: 'no-history' },
+    };
+    const ui = await render(<RecommendationNote rec={first} testID="rec" />);
+    expect(ui.getByTestId('rec-plain')).toHaveTextContent(/pick a weight you can lift about 10 times with 2 reps to spare/);
+  });
+
+  it('a collapsed note does not carry the sentence', async () => {
+    const ui = await render(<RecommendationNote rec={hold25} compact testID="rec" />);
+    expect(ui.queryByTestId('rec-plain')).toBeNull();
+  });
+
   it('nothing to offer once every set is ticked', async () => {
     const ui = await render(<RecommendationNote rec={hold25} onAccept={jest.fn()} testID="rec" />);
     expect(ui.queryByTestId('rec-accept')).toBeNull();

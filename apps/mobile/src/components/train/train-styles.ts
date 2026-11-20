@@ -688,6 +688,11 @@ export const createStyles = ({ colors, scheme, shadow }: Theme) => StyleSheet.cr
   recHeadline: { fontSize: font.small, color: colors.ink, fontWeight: '800', letterSpacing: 0.3 },
   recHeadlineInvalid: { color: colors.muted },
   recReason: { fontSize: font.small, color: colors.muted, lineHeight: font.small * 1.4 },
+  // The call in a plain sentence, above its numbers (UX_AUDIT S24-15).
+  recPlain: { fontSize: font.small, color: colors.ink, lineHeight: font.small * 1.4 },
+  cuesToggle: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: TARGET, alignSelf: 'flex-start' },
+  cuesToggleText: { fontSize: font.small, color: colors.muted, fontWeight: '700' },
+  cuesList: { gap: 2, paddingBottom: space.xs },
   recLast: { fontSize: font.tiny, color: colors.faint, marginTop: 1 },
   recStall: { marginTop: space.xs, gap: 1, borderLeftWidth: 2, borderLeftColor: colors.line, paddingLeft: space.sm },
   recStallHead: { fontSize: font.small, color: colors.ink, fontWeight: '700' },

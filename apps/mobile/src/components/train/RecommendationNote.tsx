@@ -7,6 +7,23 @@ import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { TARGET } from '@/theme';
 import { createStyles } from '@/components/train/train-styles';
 import { recommendationText } from '@/components/train/recommendation-text';
+import type { I18nKey } from '@/i18n';
+
+/**
+ * The call as one plain sentence (UX_AUDIT S24-15, 2026-11-19). The note led
+ * with "145 lb · INCREASE" and a reason full of numbers; someone who does not
+ * know the vocabulary needs the instruction first. Nothing is taken away —
+ * the headline, target and reason stay — and a collapsed card (`compact`)
+ * does not carry it.
+ */
+const PLAIN: Partial<Record<string, I18nKey>> = {
+  increase: 'train.rec.plain.increase',
+  hold: 'train.rec.plain.hold',
+  drop: 'train.rec.plain.drop',
+  'repeat-invalid': 'train.rec.plain.repeat',
+  stalled: 'train.rec.plain.stalled',
+  start: 'train.rec.plain.start',
+};
 
 /**
  * The engine's call for one exercise: load · ACTION, "Target: ≥ N reps", the
@@ -70,6 +87,7 @@ export function RecommendationNote({
   if (!text) return null;
 
   const invalid = rec.action === 'repeat-invalid';
+  const plainKey = compact ? undefined : PLAIN[text.call];
   const differs = (a: number | undefined, b: number | undefined) => a != null && b != null && Math.abs(a - b) >= 0.01;
   const canAccept = onAccept != null && differs(rec.load, currentLoad);
   // Only beside a call that names a different load: a template that agrees
@@ -125,6 +143,9 @@ export function RecommendationNote({
         ) : (
           <Text style={styles.recNote} testID={testID ? `${testID}-template` : undefined}>{templateLine}</Text>
         )
+      ) : null}
+      {plainKey ? (
+        <Text style={styles.recPlain} testID={testID ? `${testID}-plain` : undefined}>{t(plainKey)}</Text>
       ) : null}
       {text.target ? (
         <Text style={styles.recTarget} testID={testID ? `${testID}-target` : undefined}>{text.target}</Text>

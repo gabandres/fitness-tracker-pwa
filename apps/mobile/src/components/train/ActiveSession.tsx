@@ -5,6 +5,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useReducedMotion } from 'react-native-reanimated';
 import { Touchable } from './Touchable';
 import { GymBusyPanel } from './GymBusyPanel';
+import { unitSwitchInline } from './train-shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addActionsFor,
@@ -129,7 +130,7 @@ const menuHandoff = (run: () => void) => {
 /** The rows an exercise's ⋯ can carry. */
 type ExerciseMenuKey =
   | 'move-up' | 'move-down' | 'history' | 'replace' | 'cluster' | 'block'
-  | 'plates' | 'rest' | 'rest-now' | 'lift' | 'remove' | 'unpair-today'
+  | 'plates' | 'rest' | 'rest-now' | 'lift' | 'remove' | 'unpair-today' | 'unit'
   // One-tap swap to the row's alternative N (core `row-options.ts`).
   | `swap-${number}`;
 
@@ -160,6 +161,9 @@ interface ExerciseMenuShape {
   unpairToday: string | null;
   /** The row's one-tap swaps, while nothing is ticked ("Swap to One-arm DB Row"). */
   swaps: { label: string; desc?: string }[];
+  /** "Log this lift in kg" — where the card does not carry the switch
+   *  itself (`unitSwitchInline`); null on a card that does, or no loaded lift. */
+  unitSwitch: { unit: 'kg' | 'lb'; label: string } | null;
 }
 
 /** The ⋯ rows for a shape, each pressing through `run`. */
@@ -194,6 +198,7 @@ function exerciseMenuActions(shape: ExerciseMenuShape, run: (key: ExerciseMenuKe
     // template editor gives, actionable without editing the template.
     ...(shape.unpairToday ? [row('unpair-today', 'git-branch-outline', 'train.superset.unpairToday', { desc: shape.unpairToday })] : []),
     ...(shape.lift ? [row('lift', 'options-outline', 'train.lift.title')] : []),
+    ...(shape.unitSwitch ? [row('unit', 'scale-outline', 'train.unitSwitchMenu', { label: shape.unitSwitch.label })] : []),
     row('remove', 'trash-outline', 'train.removeExercise', { destructive: true }),
   ];
 }
@@ -1298,6 +1303,11 @@ export function ActiveSession({
       history: catalogEx != null,
       cluster: canAdd.cluster,
       block: canAdd.block,
+      unitSwitch: (() => {
+        if ((ex.logStyle ?? 'weight-reps') !== 'weight-reps' || unitSwitchInline(ex, catalogEx?.unitByGym, unitSystem === 'metric' ? 'kg' : 'lb')) return null;
+        const to = unitSystem === 'metric' ? 'lb' : 'kg';
+        return { unit: to, label: t('train.unitSwitchMenu', { unit: to }) } as const;
+      })(),
       platesOpen: (ex.logStyle ?? 'weight-reps') === 'weight-reps' ? platesOpen === index : null,
       restDesc: rests
         ? t('train.superset.restDesc', { switch: `${rests.transitionRestSec} s`, round: `${rests.roundRestSec} s` })
@@ -1417,6 +1427,9 @@ export function ActiveSession({
         return;
       case 'lift':
         menuHandoff(() => setLiftFor(index));
+        return;
+      case 'unit':
+        onSwitchUnit(index, unitSystem === 'metric' ? 'lb' : 'kg');
         return;
       case 'remove':
         removeExercise(index);
@@ -1759,8 +1772,10 @@ export function ActiveSession({
           ) : null}
           {/* "Gym busy" (2026-11-10): the remaining lifts in any order, with
               each muscle's rest. Off by default, on for a `gymBusy` template;
-              not while editing history. */}
-          {!train.editingExisting && session.exercises.length > 1 ? (
+              not while editing history. Offered only to an account that has
+              a `gymBusy` template (UX_AUDIT S24-14): it sat above every
+              workout of two lifts or more, for lifters who had never set one. */}
+          {!train.editingExisting && session.exercises.length > 1 && train.templates.some((tp) => tp.gymBusy === true) ? (
             <GymBusyPanel
               exercises={session.exercises}
               tags={sessionTags}

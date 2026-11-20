@@ -41,6 +41,7 @@ import {
 import type { TrainState } from '@/hooks/useTrain';
 import type { LoadUnit } from '@macrolog/core/workout';
 import { RecommendationNote } from '@/components/train/RecommendationNote';
+import { unitSwitchInline } from '@/components/train/train-shared';
 import { useLocale, useT } from '@/i18n';
 import { plural } from '@/i18n/grammar';
 import { formatDecimal } from '@/lib/entry-input';
@@ -163,7 +164,8 @@ export const ExerciseCard = memo(function ExerciseCard({
   const locale = useLocale();
   const styles = useThemedStyles(createStyles);
   // A row in another unit (a gym's kg rack) shows and takes that unit.
-  const unitSystem = rowUnitSystem(ex.loadUnit, useUnitSystem()) ?? 'us';
+  const accountUnits = useUnitSystem();
+  const unitSystem = rowUnitSystem(ex.loadUnit, accountUnits) ?? 'us';
   const { colors } = useTheme();
   const style = ex.logStyle ?? DEFAULT_LOG_STYLE;
   const setLabels = useMemo(() => setRowLabels(ex.sets), [ex.sets]);
@@ -255,7 +257,19 @@ export const ExerciseCard = memo(function ExerciseCard({
     () => (quiet ? null : flatRepsWarning(recentSessions, ex.exerciseId, structure)),
     [quiet, recentSessions, ex.exerciseId, structure],
   );
-  const flatWarning = flat && !ex.sets.some((s) => s.kind === 'working' && s.rir != null) ? flat : null;
+  // Only on a lift that tracks RIR (UX_AUDIT S24-14): the question is "are
+  // these close to RIR {n}?", and a lifter who has never logged one on this
+  // lift was being asked it in a word the card had not shown them.
+  const flatWarning = flat && rirColumn && !ex.sets.some((s) => s.kind === 'working' && s.rir != null) ? flat : null;
+  // Form cues, on the card (S24-12): they shipped for ~70 lifts in three
+  // locales and were readable only in the template editor's More options.
+  const cues = ex.cues ?? [];
+  const [cuesOpen, setCuesOpen] = useState(false);
+  // The kg | lb switch sits on the card only for a lift that uses it — a row
+  // already in another unit, an away gym, or a unit remembered for a gym.
+  // Everywhere else it is one row in the ⋯ menu: on every card it switched
+  // the lift's unit on a stray tap (S24-14).
+  const unitInline = unitSwitchInline(ex, catalogEx?.unitByGym, accountUnits === 'metric' ? 'kg' : 'lb');
   // "Use the range" (owner, 2026-11-05; core `rangeNudge`): three sets running
   // at exactly 10 reps and RIR ≥ 2, across the last session and this one.
   const nudge = useMemo(() => {
@@ -537,6 +551,29 @@ export const ExerciseCard = memo(function ExerciseCard({
             </View>
           ) : null}
 
+          {cues.length > 0 ? (
+            <View testID={`cues-${exerciseIndex}`}>
+              <Touchable
+                style={styles.cuesToggle}
+                onPress={() => setCuesOpen((v) => !v)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: cuesOpen }}
+                testID={`cues-toggle-${exerciseIndex}`}
+              >
+                <Ionicons name="help-circle-outline" size={16} color={colors.muted} />
+                <Text style={styles.cuesToggleText}>{t(cuesOpen ? 'train.cuesHide' : 'train.cuesShow')}</Text>
+                <Ionicons name={cuesOpen ? 'chevron-up' : 'chevron-down'} size={14} color={colors.muted} />
+              </Touchable>
+              {cuesOpen ? (
+                <View style={styles.cuesList} testID={`cues-list-${exerciseIndex}`}>
+                  {cues.map((c, i) => (
+                    <Text key={i} style={styles.blockedText}>{`• ${c}`}</Text>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
           {ex.calibration ? (
             <View style={styles.blockedRow} testID={`gym-calibration-${exerciseIndex}`}>
               <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
@@ -580,7 +617,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               <Text style={styles.recReason} testID={`lb-equivalent-${exerciseIndex}`}>
                 {keyWeight != null && keyWeight > 0 ? dualLoadText(keyWeight, rowUnit, locale) : ''}
               </Text>
-              {onSwitchUnit ? (
+              {onSwitchUnit && unitInline ? (
                 <Touchable
                   style={styles.unitSwitchHit}
                   onPress={() => onSwitchUnit(exerciseIndex, rowUnit === 'kg' ? 'lb' : 'kg')}
