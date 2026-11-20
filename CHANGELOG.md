@@ -4,6 +4,23 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — protein-first mode; the public user count counts verified accounts (`9ed28fa5`; rules + functions deploy, OTA on iOS build 75, Android vc 53)
+
+**Protein first** (core `protein-first.ts`, 22 tests): the day read the other way round — the hero's centre counts
+protein left (or "target met"), the calorie line is a range, and neither the centre nor the maintenance line says
+"over", "left" or "under maintenance". Presentation only: no target, estimate or stored number moves. Two triggers,
+the dated one winning: a `homePlan.nutrition` window (its own protein target, floor and calorie range — the owner's
+trip 11/28 → 12/06), or the profile's new `proteinFirst` switch in Settings (range = the calorie safety minimum to the
+day's target; floor = the 1.6 g/kg minimum when it is under the target). It is the first half of the GLP-1 item the
+owner asked for: the people it is for eat little by appetite, and their risk is too little protein, never too many
+calories. A medication log is not built. `firestore.rules` gained `proteinFirst is bool`, deployed before the client.
+**Public user count** (`ops.ts`): verified, enabled Auth accounts, capped by the profile count — the owner's call now
+that an unverified account can own a profile. A read-only check before the deploy gave 98 before and 98 after.
+**Owner data:** `scripts/owner-data-2026-11-20-calendar.mts` wrote the calendar for 11/20 → 12/08 (re-entry week,
+two local trips as dated notes — deliberately NOT travel periods, which would freeze the estimate and make 12/07 a
+re-entry session — Travel A restored as a four-row optional session, the review counting from 11/30, weight alerts
+quiet until 12/10, the volume waiver through 12/06). Tests: mobile 343 suites / 3,520, core 2,793, rules 1,315.
+
 ## 2026-11-20 — the workout import, checked against real Hevy and Strong exports (`a1d8a64e`; OTA on iOS build 75, Android vc 53)
 
 The import shipped that morning had only ever read a hand-made sample. Real exports were found in public

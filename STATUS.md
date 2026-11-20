@@ -35,7 +35,7 @@ run 2026-11-19).
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Functions and rules last deployed 2026-11-19 with the activation batch (`CHANGELOG.md`): unverified owners may write; AI callables refuse an unverified email |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
-| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-20, import failure sets (`a1d8a64e`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
+| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-20, protein-first mode (`9ed28fa5`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Publishing:** OTAs for both platforms go out from the Windows PC (`winbox`,
@@ -117,6 +117,12 @@ track = 53, and the public listing reads 1.2.10, updated Nov 19). **The
 Android minimum can be raised to 53 in `/admin`** (Overview → System → Update
 required) — an owner action: the callable needs the admin sign-in and writes
 the audit log. Until then vc 52 stays on its last JS.
+**Protein-first mode shipped 2026-11-20 (`9ed28fa5`):** Settings → Protein
+first, or a dated `homePlan.nutrition` window (the owner's is 11/28 → 12/06:
+140 g, floor 120, 1,850–2,150 kcal). The first half of the GLP-1 item
+(`UX_AUDIT.md` S24-19); a medication log is not built. The public user count
+counts verified accounts only (98 before and after). The owner's calendar for
+11/20 → 12/08 was written by `scripts/owner-data-2026-11-20-calendar.mts`.
 **Error sweep 2026-11-20:** no production error needed a fix. Four of the six
 open Sentry issues and all five `sendVerificationEmail` errors were the
 browser check itself (resolved; the browser run no longer reports, and check
