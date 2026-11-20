@@ -4,6 +4,22 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — market gaps: re-log from a past day, Hevy / Strong workout import (`3762bca3`; OTA on iOS build 75, Android vc 53)
+
+Fifth and last batch from `UX_AUDIT.md` §S24, JS only. **Re-log:** a past day in History has "Log again…" — a
+checklist of that day's entries (nothing picked to start, Select all, a button that says how many and what they come
+to), added to today through `useDiaryActions.onSaveMany`: one receipt, one Undo. **Workout import:** Settings → Import
+now recognises a Hevy or Strong workout CSV (core `parseWorkoutCsv`, 13 tests) and writes each workout as a completed
+session (`lib/workout-import.ts`). Neither app documents its export, so the parser finds columns by NAME with the
+aliases their files are known by, detects `,` or `;`, takes the unit from the header (`weight_lbs`, `Weight (kg)`) or
+asks when it is a bare `Weight`, and returns `null` for anything that is not a workout file. Lifts match the catalog by
+name (a new name becomes a new lift, mergeable later); a workout that starts the same minute as a completed session
+is skipped, so the same file twice adds nothing; weights are stored in pounds. **Not tested on a real export** — the
+owner is asked to try one. **Not done: exercise stills** (S24-18) — the candidate image set does not say where its
+pictures came from. The Android bundle crossed its 5 % budget (+5.22 % gzipped since 2026-10-11) and the baseline was
+re-set on the record. Browser check: a sample Hevy file imported as 3 workouts and 5 new lifts, a second import added
+nothing, two entries re-logged with one receipt. Tests: mobile 341 suites / 3,504, core 2,774.
+
 ## 2026-11-19 — Train for someone who is not the owner (`2cd8511c`; OTA on iOS build 75, Android vc 53)
 
 Fourth batch from `UX_AUDIT.md` §S24, JS only. **Says how to train:** every call on a lift opens with one plain
