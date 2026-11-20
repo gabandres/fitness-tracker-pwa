@@ -4,6 +4,28 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — tooling from the session retro: one release script, a shared data module, two skills, three checks (no app change)
+
+**Release:** `scripts/ota-release.sh "<what changed>"` is the OTA recipe that lived in a scratch file — clean tree,
+core + mobile tests, the iOS fingerprint gate, the Android export and size budget, one publish per runtime with the
+Android pin restored by a trap, the read-back, and the two ledger rows (`scripts/ota-ledger.mjs`, which fails when a
+platform went out under another runtime). `--dry-run` runs every gate and publishes nothing.
+**Account data:** `scripts/lib/user-data.mts` holds what 44 dated scripts each copied (auth, the Puerto Rico clock —
+set in the module, because Git Bash drops an inline `TZ=` — and a plan that is dry-run by default, backs up, refuses
+on a mismatch and writes in one batch); `scripts/user-state.mts` reads an account's days first. The procedure is the
+`owner-data` skill.
+**Rendered check:** `scripts/web-check/` (`server.ps1 start|stop|status`, `helpers.js`, `cleanup-account.mjs`) and the
+`test-mobile-web` skill replace the prose in `docs/COMMANDS.md`. `stop` kills the launcher tree and the port holder:
+killing only the listener left its parents holding the log file, and the next start died at once.
+**Checks:** `npm run doctor` fails when `STATUS.md` passes 200 lines or 35 KB (it was 288; now 195).
+`i18n-parity.test.ts` fails on a NEW English key that no source file reads; the 125 already unread on this date are
+the baseline `i18n-unreferenced.json`, which only shrinks. Jest runs silent (`jest.config.js`).
+**A trap found on the way:** the `scripts` block of `apps/mobile/package.json` is a fingerprint input — changing the
+`test` script moved iOS off build 75's runtime (reverted before any publish; `apps/mobile/AGENTS.md`).
+**Docs:** the "this said X until <date>" clauses are out of `CLAUDE.md` and `apps/mobile/AGENTS.md`; the cost
+history moved to `docs/cost-discipline.md` behind a pointer; `CONTEXT.md` gained **Protein first** and says when a
+trip is NOT a travel period.
+
 ## 2026-11-20 — protein-first mode; the public user count counts verified accounts (`9ed28fa5`; rules + functions deploy, OTA on iOS build 75, Android vc 53)
 
 **Protein first** (core `protein-first.ts`, 22 tests): the day read the other way round — the hero's centre counts

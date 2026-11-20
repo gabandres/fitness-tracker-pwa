@@ -1456,6 +1456,32 @@ function checkNoCorrectionHeadings() {
   else pass(G6, name, `${gitFiles('*.md').length} markdown files scanned`);
 }
 
+/**
+ * STATUS.md's own budget. The file says "200 lines and 35 KB" and nothing
+ * enforced it: it reached 941 lines (2026-08-15), 328 (2026-11-19) and 288
+ * (2026-11-20), each time by keeping an entry for work that had shipped. A
+ * status file nobody can hold in their head stops being read.
+ */
+const STATUS_MAX_LINES = 200;
+const STATUS_MAX_BYTES = 35_000;
+
+function checkStatusBudget() {
+  const name = `STATUS.md <= ${STATUS_MAX_LINES} lines and ${STATUS_MAX_BYTES / 1000} KB`;
+  if (!has('STATUS.md')) return fail(G6, name, 'STATUS.md not found');
+  const text = read('STATUS.md');
+  const lines = text.replace(/\r?\n$/, '').split('\n').length;
+  const bytes = Buffer.byteLength(text, 'utf8');
+  if (lines > STATUS_MAX_LINES || bytes > STATUS_MAX_BYTES) {
+    return fail(
+      G6,
+      name,
+      `${lines} lines, ${bytes} bytes — delete the entries whose work has shipped ` +
+        '(the outcome goes to CHANGELOG.md); do not raise the budget',
+    );
+  }
+  pass(G6, name, `${lines} lines, ${bytes} bytes`);
+}
+
 function checkNoShippedPlanDocs() {
   const name = 'no *_PLAN.md for work already in CHANGELOG.md';
   if (!has('CHANGELOG.md')) return skip(G6, name, 'CHANGELOG.md not found');
@@ -1596,6 +1622,7 @@ if (NO_CLOUD) {
 guard(G4, 'web i18n', checkWebI18n);
 guard(G4, 'mobile i18n', checkMobileI18n);
 guard(G6, 'no CORRECTION headings', checkNoCorrectionHeadings);
+guard(G6, 'STATUS.md budget', checkStatusBudget);
 guard(G6, 'no shipped plan docs', checkNoShippedPlanDocs);
 guard(G6, 'relative md links', checkRelativeMarkdownLinks);
 

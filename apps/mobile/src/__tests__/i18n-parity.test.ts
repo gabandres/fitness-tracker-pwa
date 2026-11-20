@@ -75,6 +75,81 @@ describe('i18n registry', () => {
   });
 });
 
+/**
+ * A key nothing reads is invisible too: it ships in three dictionaries, gets
+ * translated, and no screen ever shows it. This scans the source for every
+ * key-shaped token and fails when a NEW key is named nowhere.
+ *
+ * A key counts as read when the source holds
+ *   - the key itself, as text (`t('today.title')`),
+ *   - a template or concatenation that starts it (`t(\`meal.${slot}\`)`),
+ *   - a namespace literal it lives under (`prefix="numbers.glossary"`), or
+ *   - a dynamic ending it carries (`\`${base}.one\``).
+ * That is generous on purpose: a false "read" costs a few bytes, a false
+ * "unread" would fail the suite on a working screen.
+ *
+ * `i18n-unreferenced.json` is the baseline of keys that were already unread on
+ * 2026-11-20. It only shrinks: delete a key from all three dictionaries (or
+ * start reading it) and remove it from the baseline. To rewrite the file after
+ * such a cleanup: `UPDATE_I18N_BASELINE=1 npx jest i18n-parity`.
+ */
+describe('every English key is read somewhere', () => {
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  const fs = require('fs') as typeof import('fs');
+  const path = require('path') as typeof import('path');
+  /* eslint-enable @typescript-eslint/no-require-imports */
+  const mobile = path.resolve(__dirname, '../..');
+  const baselineFile = path.join(__dirname, 'i18n-unreferenced.json');
+  const roots = ['src', 'index.js', 'modules', 'plugins', '../../packages/core/src'].map((r) => path.join(mobile, r));
+  const skip = /(__tests__|\.test\.|\.spec\.|node_modules|[\\/]i18n[\\/](en|es-PR|pt-BR)\.ts$)/;
+
+  const sources: string[] = [];
+  const walk = (p: string) => {
+    if (!fs.existsSync(p)) return;
+    if (fs.statSync(p).isDirectory()) {
+      for (const entry of fs.readdirSync(p)) walk(path.join(p, entry));
+    } else if (/\.(ts|tsx|js|jsx|mjs)$/.test(p) && !skip.test(p)) {
+      sources.push(fs.readFileSync(p, 'utf8'));
+    }
+  };
+  roots.forEach(walk);
+
+  const tokens = new Set<string>();
+  const starts = new Set<string>();
+  const endings = new Set<string>();
+  for (const s of sources) {
+    for (const m of s.matchAll(/[A-Za-z_][\w-]*(?:\.[\w-]+)+/g)) tokens.add(m[0]);
+    for (const m of s.matchAll(/([A-Za-z_][\w-]*(?:\.[\w-]+)*\.)\$\{/g)) starts.add(m[1]);
+    for (const m of s.matchAll(/['"]([A-Za-z_][\w-]*(?:\.[\w-]+)*\.)['"]\s*\+/g)) starts.add(m[1]);
+    for (const m of s.matchAll(/\}((?:\.[\w-]+)+)[`'"]/g)) endings.add(m[1]);
+  }
+  const keySet = new Set(EN_KEYS);
+  // A dotted literal that is not itself a key names a namespace (`prefix="numbers.glossary"`).
+  for (const t of tokens) if (!keySet.has(t)) starts.add(`${t}.`);
+  const startList = [...starts];
+  const endingList = [...endings];
+  const unread = EN_KEYS.filter(
+    (k) => !tokens.has(k) && !startList.some((p) => k.startsWith(p)) && !endingList.some((e) => k.endsWith(e)),
+  ).sort();
+
+  if (process.env.UPDATE_I18N_BASELINE === '1') fs.writeFileSync(baselineFile, `${JSON.stringify(unread, null, 2)}\n`);
+  const baseline = new Set<string>(JSON.parse(fs.readFileSync(baselineFile, 'utf8')) as string[]);
+
+  it('scans a real tree', () => {
+    expect(sources.length).toBeGreaterThan(300);
+    expect(tokens.has('today.pf.kcalRange')).toBe(true);
+  });
+
+  it('adds no key that nothing reads', () => {
+    expect(unread.filter((k) => !baseline.has(k))).toEqual([]);
+  });
+
+  it('keeps the baseline to keys that are still unread', () => {
+    const unreadSet = new Set(unread);
+    expect([...baseline].filter((k) => !unreadSet.has(k))).toEqual([]);
+  });
+});
+
 describe('normalizeLocale', () => {
   it('matches on the primary subtag, not the exact tag', () => {
     // The region we ship is not the region most speakers are in.

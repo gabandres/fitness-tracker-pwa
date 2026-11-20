@@ -16,6 +16,11 @@
 module.exports = {
   preset: 'jest-expo',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  // Console output from 340 suites buried the pass/fail summary. For one
+  // file's console, `npx jest <file> --silent=false`. It lives HERE and not in
+  // the `test` script because package.json's `scripts` are a fingerprint
+  // input: editing one moved the iOS runtime off build 75 (2026-11-20).
+  silent: true,
   // Jest's default is 5s, which is a generic number and not a budget anyone
   // chose for rendering React Native trees under `jest-expo`. On a contended
   // CI runner these suites take 27s wall-clock where they take 4s locally, and
