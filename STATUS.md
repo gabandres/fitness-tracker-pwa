@@ -35,7 +35,7 @@ run 2026-11-19).
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Functions and rules last deployed 2026-11-19 with the activation batch (`CHANGELOG.md`): unverified owners may write; AI callables refuse an unverified email |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
-| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-20, spoken labels (`cae457e0`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
+| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52` (set 2026-11-07 in `/admin`). **Newest: 2026-11-20, import failure sets (`a1d8a64e`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks `0c30979d`). **Next step, once the Play listing shows vc 53: raise the Android minimum to 53** (`/admin` → System → *Update required*, after "Sync now") — then every OTA comes from `main` and reaches every user. Do NOT raise it while vc 53 is still in review: vc 52 users would be sent to a store page with nothing to install. "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Publishing:** OTAs for both platforms go out from the Windows PC (`winbox`,
@@ -51,7 +51,10 @@ raw-Gradle path is unverified since vc 45 and `winbox` has no Android SDK
 installed beyond `platform-tools` (`Z:\packages\android-sdk`, 2026-11-19).
 **No screen can be looked at before a publish:** there is no simulator, and the
 Android emulator for this ARM64 PC (preview-channel `emulators;latest` 37.1.9 +
-an `arm64-v8a` image) needs the Windows Hypervisor Platform, which is OFF —
+an `arm64-v8a` image) needs the Windows Hypervisor Platform, which is OFF
+(read 2026-11-20 without elevation: `Get-CimInstance Win32_OptionalFeature`
+gives `HypervisorPlatform` 2 = disabled, `VirtualMachinePlatform` 1 = enabled —
+the second is what WSL uses and is NOT the one the emulator needs) —
 `Enable-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform -All`
 in an elevated PowerShell, then a reboot (owner). Even then a release binary
 only loads PUBLISHED updates, so the emulator checks an OTA after it goes out,
@@ -104,12 +107,16 @@ Behaviour changes the owner will meet: with no phase picked in Settings the
 training phase follows the diet goal; the kg | lb switch is on a lift's card
 only when that lift already uses another unit (else its ⋯ menu); "Gym busy"
 is offered only to an account with a `gymBusy` template.
-**Owed by the owner:** try the workout import with a REAL Hevy or Strong
-export — neither app documents its file, so the parser was built to the
-column names their exports are known by and tested on a hand-made sample.
-A file it does not recognise is refused, not half-read. Since `12ad5720` a lift
-is also matched by the same words in another order ("Bench Press (Barbell)" →
-"Barbell Bench Press"), only when exactly one of the account's lifts has them.
+**The workout import is verified on real files (2026-11-20, `a1d8a64e`):** a
+7,211-row Hevy export and four Strong exports from public repositories parse
+correctly, and the two big ones were imported end to end in the app (335 and
+86 workouts, none failed; the same file again adds nothing). Nothing is owed
+by the owner on it any more.
+**Play shows vc 53 live** (checked 2026-11-20: `androidpublisher` production
+track = 53, and the public listing reads 1.2.10, updated Nov 19). **The
+Android minimum can be raised to 53 in `/admin`** (Overview → System → Update
+required) — an owner action: the callable needs the admin sign-in and writes
+the audit log. Until then vc 52 stays on its last JS.
 **Error sweep 2026-11-20:** no production error needed a fix. Four of the six
 open Sentry issues and all five `sendVerificationEmail` errors were the
 browser check itself (resolved; the browser run no longer reports, and check
@@ -174,7 +181,7 @@ gzipped (`scripts/perf-budget.json`; the reason is in that commit).
 
 ### Owner calls
 
-- **Raise the Android minimum to 53** once the Play listing shows vc 53 live (§1).
+- **Raise the Android minimum to 53** in `/admin`: Play shows vc 53 live (checked 2026-11-20, §3).
 - **Enable the Windows Hypervisor Platform + reboot** so the Android emulator can run (§1).
 - **After the trip (ended 2026-11-18):** home v2.4 is locked in and the travel
   templates are archived and tagged (`CHANGELOG.md` 2026-11-19). First Push /

@@ -4,6 +4,20 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — the workout import, checked against real Hevy and Strong exports (`a1d8a64e`; OTA on iOS build 75, Android vc 53)
+
+The import shipped that morning had only ever read a hand-made sample. Real exports were found in public
+repositories — a 7,211-row Hevy file (kg, 335 workouts, 86 lifts) and four Strong files (the twelve-column export, the
+older ten-column one with decimal reps, and the quoted semicolon one with the unit in its header) — and the parser read
+all of them as it stood: 7,210 of 7,211 Hevy rows (the one dropped has 0 reps), every Strong row, and all three
+duration spellings ("2h 38m", "1h", "38min"). A "42h 13m" workout somebody never ended keeps its sets and loses its
+length (the 24 h cap). **One change:** Hevy's `failure` set type — 15 % of that file's sets — and Strong's "F" now
+import as RIR 0 when no RPE was typed. Tests in the shape of the real files were added to core (2,782 green). End to
+end in a browser against production: the Hevy file imported in 60 s with none failed, Train listed the history and a
+lift's chart, the same file again added nothing, and the Strong file asked for its unit and imported 86 workouts with
+three lifts matched to ones already there. Also that day: Play was confirmed to show vc 53 (API and the public
+listing), and the Windows Hypervisor Platform was confirmed still off (it is "Virtual Machine Platform" that is on).
+
 ## 2026-11-20 — error sweep, late welcome mail, spoken labels (`bff138f8`, `cae457e0`; functions deploy + OTA on iOS build 75, Android vc 53)
 
 **Sweep:** Sentry (mobile 6 open, web 0), Cloud Functions errors since 11-17 and `npm run doctor` (23 of 24, 0 failed).
