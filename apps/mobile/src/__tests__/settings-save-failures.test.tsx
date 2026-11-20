@@ -49,6 +49,7 @@ jest.mock('@/hooks/useDailyTargets', () => ({ useDailyTargets: () => ({ loaded: 
 jest.mock('@/hooks/useProgram', () => ({
   useProgram: () => ({ version: undefined, rows: [], switchTo: jest.fn(), busy: false }),
 }));
+jest.mock('@/hooks/useHasTemplates', () => ({ useHasTemplates: () => true }));
 jest.mock('@/lib/connectivity', () => ({ useIsOffline: () => false, isOffline: () => false }));
 jest.mock('@/lib/reminders', () => ({
   getReminderSettings: jest.fn().mockResolvedValue({ enabled: false, meals: undefined }),

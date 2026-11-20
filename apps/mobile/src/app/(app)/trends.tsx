@@ -58,7 +58,8 @@ import {
 } from '@/components/charts/TrendsCharts';
 import { SegmentedControl } from '@/components/charts/SegmentedControl';
 import { TrendsSkeleton } from '@/components/charts/TrendsSkeleton';
-import { maintenanceBreakdown, maintenanceLine, slopeLabel, targetLine } from '@/components/charts/trend-copy';
+import { maintenanceBreakdown, maintenanceLine, slopeLabel, targetLine, trendsAnswer } from '@/components/charts/trend-copy';
+import { TrendsAnswerCard } from '@/components/TrendsAnswerCard';
 import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
 import { useTrends } from '@/hooks/useTrends';
 import { usePersistedTab } from '@/hooks/usePersistedTab';
@@ -288,6 +289,23 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
   const incomplete = tdee.source !== 'measured' ? (tdee.notEnoughCompleteDays ?? null) : null;
   const breakdown = useMemo(() => maintenanceBreakdown(tdee, compUnits, t, locale), [tdee, compUnits, t, locale]);
 
+  // The answer before the method (UX_AUDIT S24-5): which way the weight is
+  // going and how the eating compares with the target, or — below the insight
+  // gate — the two things that produce that sentence.
+  const answer = useMemo(
+    () =>
+      trendsAnswer({
+        insights,
+        loggedThisWeek,
+        weighIns: weightSeries.reduce((n, p) => (p.scale != null ? n + 1 : n), 0),
+        hasTarget: targetCalories > 0,
+        unitSystem: compUnits,
+        t,
+        locale,
+      }),
+    [insights, loggedThisWeek, weightSeries, targetCalories, compUnits, t, locale],
+  );
+
   // Activity-level correction.
   //
   // Historically pre-measured ONLY: in measured mode energy balance already
@@ -415,6 +433,9 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
 
           {/* A state readout, same slot it has on Today (UX_AUDIT S18-12). */}
           <OfflineBanner />
+
+          {/* 0. The answer, then the method (UX_AUDIT S24-5). */}
+          <TrendsAnswerCard answer={answer} onLogFood={logFood} onLogWeight={logWeight} />
 
           {/* 1. Maintenance hero — the anchor, always populated with at least
               a formula estimate (never a dash once onboarding is done). */}
