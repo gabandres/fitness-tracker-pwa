@@ -55,6 +55,23 @@ export interface HomePlanEstimatedMeal {
   note?: string;
 }
 
+/**
+ * Days the day's numbers read protein first (owner, 2026-11-20: a trip with
+ * no kitchen): protein is the headline, calories are a range, and nothing
+ * about a deficit is said (`protein-first.ts`).
+ */
+export interface HomePlanNutrition {
+  from: string;
+  to: string;
+  /** Protein to aim for, g. Absent → the profile's target. */
+  proteinTarget?: number;
+  /** The least that still counts as a good day, g. */
+  proteinFloor?: number;
+  kcalMin: number;
+  kcalMax: number;
+  note?: string;
+}
+
 export interface HomePlan {
   label?: string;
   notes?: HomePlanNote[];
@@ -72,6 +89,7 @@ export interface HomePlan {
   weightQuietUntil?: string;
   checkIn?: HomePlanCheckIn;
   estimatedMeals?: HomePlanEstimatedMeal[];
+  nutrition?: HomePlanNutrition[];
 }
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -131,7 +149,31 @@ export function homePlanOf(profile: { homePlan?: unknown } | null | undefined): 
       .map((m) => ({ from: m['from'] as string, to: m['to'] as string, slot: str(m['slot'], 20)!, ...(str(m['note'], 200) ? { note: str(m['note'], 200)! } : {}) }));
     if (meals.length) plan.estimatedMeals = meals;
   }
+  if (Array.isArray(r['nutrition'])) {
+    const windows: HomePlanNutrition[] = [];
+    for (const n of r['nutrition'].map(obj).slice(0, 10)) {
+      if (!n || !span(n)) continue;
+      const lo = num(n['kcalMin'], 800, 10000);
+      const hi = num(n['kcalMax'], 800, 10000);
+      if (lo == null || hi == null || lo > hi) continue;
+      const target = num(n['proteinTarget'], 1, 999);
+      const floor = num(n['proteinFloor'], 1, 999);
+      windows.push({
+        from: n['from'] as string, to: n['to'] as string, kcalMin: Math.round(lo), kcalMax: Math.round(hi),
+        ...(target != null ? { proteinTarget: Math.round(target) } : {}),
+        // A floor above the target is not a floor.
+        ...(floor != null && (target == null || floor <= target) ? { proteinFloor: Math.round(floor) } : {}),
+        ...(str(n['note'], 200) ? { note: str(n['note'], 200)! } : {}),
+      });
+    }
+    if (windows.length) plan.nutrition = windows;
+  }
   return Object.keys(plan).length ? plan : null;
+}
+
+/** The protein-first window covering today, or null. */
+export function nutritionWindowToday(plan: HomePlan | null, today: string): HomePlanNutrition | null {
+  return (plan?.nutrition ?? []).find((n) => today >= n.from && today <= n.to) ?? null;
 }
 
 /** The notes showing today. */

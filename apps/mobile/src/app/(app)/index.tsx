@@ -12,7 +12,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
-import { activeTravel, addDays, calendarDateKey, checkInToday, dayBoundaryOf, estimatedMealToday, fastLengthHours, homePlanOf, maintenanceView, parseYmd, travelPeriodsOf, usualSteps, USUAL_STEPS_WINDOW_DAYS } from '@macrolog/core';
+import { activeTravel, addDays, calendarDateKey, calorieFloor, checkInToday, dayBoundaryOf, estimatedMealToday, fastLengthHours, homePlanOf, maintenanceView, nutritionWindowToday, parseYmd, proteinFirstView, travelPeriodsOf, usualSteps, USUAL_STEPS_WINDOW_DAYS } from '@macrolog/core';
 import { HomePlanTodayCard } from '@/components/HomePlanCards';
 import { useActivityRange } from '@/hooks/useActivityRange';
 import { refreshStepsSoon } from '@/lib/steps-background';
@@ -383,6 +383,21 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // a meal may be logged as an estimate (the eyeballed-meal sheet, off-trip).
   const homePlan = useMemo(() => homePlanOf(todayProfile as { homePlan?: unknown } | null), [todayProfile]);
   const estimatedMeal = estimatedMealToday(homePlan, todayKey);
+  // Protein-first mode (core `protein-first.ts`, 2026-11-20): a dated plan
+  // window, or the Settings switch. Presentation only — the targets, the
+  // widget and every stored number are untouched.
+  const proteinFirst = useMemo(
+    () =>
+      proteinFirstView({
+        window: nutritionWindowToday(homePlan, todayKey),
+        enabled: (todayProfile as { proteinFirst?: boolean } | null)?.proteinFirst === true,
+        calorieTarget: targets.calorieTarget || 0,
+        proteinTarget: targets.proteinTarget || 0,
+        calorieFloor: calorieFloor(todayProfile as { calorieFloor?: number } | null),
+        proteinMin: targets.proteinMinTarget,
+      }),
+    [homePlan, todayKey, todayProfile, targets.calorieTarget, targets.proteinTarget, targets.proteinMinTarget],
+  );
   const [eyeballName, setEyeballName] = useState('');
   const [fastSheetOpen, setFastSheetOpen] = useState(false);
   /**
@@ -1116,6 +1131,7 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               // Before the first entry the measure/maintenance line has nothing
               // to say; the card below says the one thing to do.
               hideStatusLine={firstMeal}
+              proteinFirst={proteinFirst}
             />
           </Animated.View>
 

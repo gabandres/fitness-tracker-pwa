@@ -844,6 +844,9 @@ service cloud.firestore {
               // is false; when an accepted deload week started (core
               // deload.ts). Absent means 2.5-lb steps / no deload.
               'dumbbellHalfSteps', 'deloadStartedAt',
+              // Protein-first mode (2026-11-20; core protein-first.ts): Today
+              // leads with protein and shows calories as a range. Absent = off.
+              'proteinFirst',
               // Travel mode (2026-10-26; core travel.ts): every trip, kept so
               // a past trip's days stay out of the maintenance fit. Settings
               // writes it, a completed-profile screen only.
@@ -987,6 +990,7 @@ service cloud.firestore {
           && (!('autoApplyProgression' in keys) ||
               data.autoApplyProgression is bool)
           && (!('dumbbellHalfSteps' in keys) || data.dumbbellHalfSteps is bool)
+          && (!('proteinFirst' in keys) || data.proteinFirst is bool)
           && (!('deloadStartedAt' in keys) || data.deloadStartedAt is timestamp)
           // Rules cannot loop over a list, so — as with `dayBoundary` — this
           // is a capped list of maps and `travelPeriodsOf` (packages/core)
