@@ -4,6 +4,23 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-19 — Train for someone who is not the owner (`2cd8511c`; OTA on iOS build 75, Android vc 53)
+
+Fourth batch from `UX_AUDIT.md` §S24, JS only. **Says how to train:** every call on a lift opens with one plain
+sentence ("Same weight as last time. Aim for one more rep."), and a first session says "pick a weight you can lift
+about 10 times with 2 reps to spare. Ignia adjusts from there." The ~70 seeded lifts' form cues open from "How to
+do it" on the card (they were readable only in the template editor). **Offers a plan:** the starters sheet leads with
+"Push / Pull / Legs — Add all 3", added last-first so Push Day is "Next up", and each starter says its muscles and sets
+× reps. **Advanced controls only where used:** the kg | lb switch is on a card only when the lift is in another unit,
+at an away gym or has a remembered unit — otherwise it is "Log this lift in kg" in the ⋯ menu (it saved the unit on a
+stray tap); the flat-reps question shows only on a lift that tracks RIR; "Gym busy" only for an account with a
+`gymBusy` template. Glossary: PREV, Gym busy, calibration, deload, rotation, Zone 2. What's-new gained a row for the
+moved switch; its version was not bumped. **The browser check paid for itself:** it found the switch still on every
+card (every row is stamped with a unit at start, so "has a unit" was always true) and the plan starting on Leg Day
+("Next up" takes the newest never-done template) — neither visible to 3,480 passing tests. Also corrected in
+`docs/COMMANDS.md`: the web server ignores edits because `CI=1` disables reloads, not because of the `Z:` drive.
+Tests: mobile 339 suites / 3,489. The Android bundle is at +4.96 % gzipped of a 5 % budget.
+
 ## 2026-11-19 — legibility batch (`7ebe7c86`; OTA on iOS build 75, Android vc 53); first rendered check without a device
 
 Third batch from `UX_AUDIT.md` §S24, JS only. **Trends answers first:** a card on top says which way the weight is

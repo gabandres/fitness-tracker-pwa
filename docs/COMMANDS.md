@@ -226,7 +226,9 @@ the keyboard, native menus and screen readers are not covered.
 cd apps/mobile && CI=1 npx expo start --web --port 8097     # http://localhost:8097, first bundle ~40 s
 ```
 
-- **Restart the server after every edit.** Metro does not see file changes on `Z:` and keeps serving the old bundle.
+- **Restart the server after every edit.** `CI=1` turns reloads off ("Metro is running in CI mode"), so it keeps serving
+  the old bundle; without `CI=1` the command waits on a terminal. The first page render after a start can take minutes.
+- A long script outlives the 15 s evaluate limit: start it without awaiting, push progress to `window.__log`, and poll.
 - Drive it by `data-testid` (the app's `testID`s). The dev error toast sits over the bottom button: hide `#error-toast`.
 - A phone-only call that crashes the web run gets an optional call at the call site (`Keyboard.metrics?.()`), which is
   the same call on a phone.
