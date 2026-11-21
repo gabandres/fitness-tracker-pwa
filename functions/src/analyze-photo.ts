@@ -7,6 +7,7 @@ import { callerAccess, dailyQuota, db, geminiApiKey, withCostGuards } from "./in
 import { GEMINI_MODEL, getGeminiClient } from "./gemini-client";
 import { loadFoods } from "./usda-db";
 import { resolveItems, totalsOf, type DraftItem, type ResolvedItem } from "./photo-resolve";
+import { readLabelWithGemini } from "./label-scan";
 
 // ─── Photo-to-Macros ────────────────────────────────────────────────
 
@@ -691,12 +692,20 @@ export const analyzePhoto = onCall(
     // a refund would be the wrong shape for a request that never ran.
     // `?? {}`: a null payload destructured raw is a TypeError, i.e. an
     // untyped 500 for what is a missing-photo request.
-    const { photoBase64, photosBase64, locale, note } = (request.data ?? {}) as {
+    const { photoBase64, photosBase64, locale, note, mode } = (request.data ?? {}) as {
       photoBase64?: string;
       photosBase64?: string[];
       locale?: string;
       note?: string;
+      mode?: string;
     };
+    /**
+     * `mode: "label"` (2026-11-20, label-scan.ts): the photo is a nutrition
+     * facts panel to TRANSCRIBE, not a meal to estimate. Same rate limit, same
+     * quota slot, same ceiling unit as a meal scan — one image. Absent on
+     * every binary shipped before it, which is the meal scan unchanged.
+     */
+    const labelMode = mode === "label";
 
     /**
      * One meal, up to {@link MAX_PHOTOS} images (ADR-0029 item 5).
@@ -712,10 +721,10 @@ export const analyzePhoto = onCall(
     if (!photos.length) {
       throw new HttpsError("invalid-argument", "photoBase64 is required.", { code: ErrorCode.PHOTO_MISSING });
     }
-    if (photos.length > MAX_PHOTOS) {
+    if (photos.length > (labelMode ? 1 : MAX_PHOTOS)) {
       throw new HttpsError(
         "invalid-argument",
-        `At most ${MAX_PHOTOS} photos per scan.`,
+        labelMode ? "One photo per label." : `At most ${MAX_PHOTOS} photos per scan.`,
         { code: ErrorCode.PHOTO_TOO_LARGE },
       );
     }
@@ -789,6 +798,26 @@ export const analyzePhoto = onCall(
         // treats that as decorative since nothing blocks them. Admin holds a
         // real reservation — it is subject to the daily quota like anyone else.
         const photosRemaining = reservation?.remaining ?? dailyQuota.limitFor("photo", true);
+
+        // ── The label read (label-scan.ts). Its own short path: no USDA index,
+        // no item resolution. `label: null` means the provider answered and
+        // found no legible panel — a spent slot, like a meal scan of a cat.
+        if (labelMode) {
+          try {
+            const label = await readLabelWithGemini(photos[0], markBilled);
+            console.log(`analyzePhoto label uid=${uid}: ${label ? `read${label.check ? " (flagged)" : ""}` : "no panel"}`);
+            return { label, photosRemaining };
+          } catch (err) {
+            if (err instanceof HttpsError) throw err;
+            console.error("analyzePhoto label error:", err);
+            if (isProviderExhausted(err)) {
+              throw new HttpsError("unavailable", "AI provider refused the request.", {
+                code: ErrorCode.PHOTO_PROVIDER_UNAVAILABLE,
+              });
+            }
+            throw new HttpsError("internal", "Label read failed.", { code: ErrorCode.PHOTO_ANALYZE_FAILED });
+          }
+        }
 
         // Locale-aware naming. The macros are locale-agnostic — they come from the
         // database — so only the human-readable text flips language.

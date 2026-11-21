@@ -516,14 +516,30 @@ These three windows look similar and are NOT interchangeable. See
   logged as an estimate (the eyeballed-meal sheet, off-trip), and dated
   `nutrition` windows that switch **Protein first** on. Owner-data written
   (`owner-data` skill); the app only reads it.
+- **Medication log** (2026-11-20) — What a person takes, on which days, and
+  what they logged (core `medication.ts`; `apps/mobile/src/lib/medication.ts`).
+  A RECORD: no dose is suggested and a late one gets no instruction. **On the
+  phone only** — no Firestore collection, no health-store export — so it does
+  not follow the account to another phone and an explicit sign-out removes
+  it. A **dose day** is a scheduled day (weekly, every N days, daily); one
+  with no entry is *open*, never "missed" on screen. Its reminders name no
+  medication.
+- **Label scan** (2026-11-20) — A photo of a packaged food's nutrition panel,
+  TRANSCRIBED into the review form (`functions/src/label-scan.ts`,
+  `apps/mobile/src/lib/labelScan.ts`). Not a **photo scan** of a meal, which
+  names foods and takes its numbers from the database: here the numbers are
+  printed and the model copies them. The same callable (`analyzePhoto`,
+  `mode: 'label'`), the same daily scans and ceiling. Saved as a
+  `source: 'label'` custom food only after the person has looked at it.
 - **Protein first** (2026-11-20) — The day read the other way round (core
   `protein-first.ts`): the hero counts protein left, calories are a range, and
   nothing says "over", "left" or "under maintenance". **Presentation only** —
   no target, estimate or stored number moves. Two triggers, the dated one
   winning: a home plan `nutrition` window (its own protein target, floor and
   calorie range), or `profile.proteinFirst` (Settings; range = the calorie
-  safety minimum to the day's target). Trends, the widgets and the share card
-  still lead with calories.
+  safety minimum to the day's target). Read for a day by ONE function,
+  `proteinFirstForDay`: Today's hero, Trends and the Android widget call it.
+  The iOS widget is native and still leads with calories.
 - **Day fully logged?** — The Today row that answers whether a day is a
   **Complete day** (see Targets + derivations); stored per day in
   `dailyLogged`. Unlike Evening hunger it is NOT display-only: it is an input

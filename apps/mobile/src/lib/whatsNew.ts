@@ -205,7 +205,7 @@ import type { I18nKey } from '@/i18n';
 // finds unless told, and the first thing here made for someone on a GLP-1
 // medication. The reminder card's row goes (the card announces itself); the
 // tracker switches, Log again and the Train row stay, a day old.
-export const WHATS_NEW_VERSION = '2026-11-20-protein-first';
+export const WHATS_NEW_VERSION = '2026-11-20-medication';
 
 const KEY = 'whatsNew.seen';
 
@@ -235,10 +235,9 @@ export interface WhatsNewItem {
 }
 
 export const WHATS_NEW_ITEMS: readonly WhatsNewItem[] = [
-  { icon: 'fish-outline', titleKey: 'whatsNew.proteinFirst.title', bodyKey: 'whatsNew.proteinFirst.body' },
-  { icon: 'eye-off-outline', titleKey: 'whatsNew.trackers.title', bodyKey: 'whatsNew.trackers.body' },
-  { icon: 'barbell-outline', titleKey: 'whatsNew.trainPlain.title', bodyKey: 'whatsNew.trainPlain.body' },
-  { icon: 'copy-outline', titleKey: 'whatsNew.relog.title', bodyKey: 'whatsNew.relog.body' },
+  { icon: 'medical-outline', titleKey: 'whatsNew.medication.title', bodyKey: 'whatsNew.medication.body' },
+  { icon: 'document-text-outline', titleKey: 'whatsNew.labelScan.title', bodyKey: 'whatsNew.labelScan.body' },
+  { icon: 'fish-outline', titleKey: 'whatsNew.proteinSurfaces.title', bodyKey: 'whatsNew.proteinSurfaces.body' },
 ];
 
 /**

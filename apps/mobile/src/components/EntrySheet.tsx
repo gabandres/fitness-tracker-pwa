@@ -57,7 +57,7 @@ import { showToast } from '@/components/Toast';
 import { MealText } from '@/components/MealText';
 import { RecipeBuilder } from '@/components/RecipeBuilder';
 import { RecipeImport } from '@/components/RecipeImport';
-import { type Locale, useLocale, useT } from '@/i18n';
+import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { spokenGrams } from '@/i18n/grammar';
 import { starterFoods } from '@/lib/starterFoods';
 import { productFromLibrary, setScanLibrary } from '@/lib/barcode';
@@ -66,6 +66,7 @@ import { type GramBasis, parseGrams, rescaleFromBasis } from '@/lib/grams-rescal
 import { useA11yFocus } from '@/lib/use-a11y-focus';
 import { useDeferredFocus } from '@/lib/use-deferred-focus';
 import { FEATURES } from '@/lib/features';
+import { labelEstimate, scanLabel } from '@/lib/labelScan';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
 import { clearLogTimer, startLogTimer } from '@/lib/log-timer';
@@ -435,6 +436,12 @@ export function EntrySheet({
   // here — in the app's own UI, not as a gate in front of an OS prompt
   // (App Review 5.1.1(iv), submission 5ba1c7f5).
   const [cameraDenied, setCameraDenied] = useState(false);
+  // The nutrition-label scan (`lib/labelScan.ts`, 2026-11-20): while a photo
+  // is being read, what came of a read that produced no form, and whether the
+  // read that DID produce one disagrees with its own macros.
+  const [labelBusy, setLabelBusy] = useState(false);
+  const [labelNotice, setLabelNotice] = useState<{ key: I18nKey; params?: Record<string, string | number> } | null>(null);
+  const [labelCheck, setLabelCheck] = useState(false);
   // Serving context from the last search/scan prefill + the calories it
   // produced. If the user later edits calories the context is stale (a
   // different portion) → fall back to a manual serving:1 save.
@@ -1354,6 +1361,26 @@ export function EntrySheet({
     if (!cameraDenied) setScannerOpen(true);
   }
 
+  /**
+   * Photograph a nutrition label and open the review form on what it says.
+   * `barcode` is the code a barcode scan just missed, when the scan started
+   * there: the food saved from the form is then found by the next scan of it.
+   * Spends one of the day's photo scans (the server's guards, not this).
+   */
+  async function readLabel(barcode?: string) {
+    setMoreOpen(false);
+    setLabelNotice(null);
+    setLabelCheck(false);
+    const outcome = await scanLabel(locale, () => setLabelBusy(true));
+    setLabelBusy(false);
+    if (outcome.kind === 'cancelled') return;
+    if (outcome.kind === 'denied') return setCameraDenied(true);
+    if (outcome.kind === 'none') return setLabelNotice({ key: 'label.notRead' });
+    if (outcome.kind === 'error') return setLabelNotice(outcome.message);
+    setLabelCheck(outcome.facts.check === true);
+    openBarcodeReview(labelEstimate(outcome.facts, t('label.fallbackName'), barcode));
+  }
+
   function backToBrowse() {
     setVoiceSeed(undefined);
     setMode('browse');
@@ -2013,6 +2040,23 @@ export function EntrySheet({
             <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.scanBarcode')}</Text>
           </Tappable>
         ) : null}
+        {/* A packaged food the barcode database does not have: photograph its
+            label and have it read. Behind the photo scan's switch and its
+            daily scans (`lib/labelScan.ts`). */}
+        {FEATURES.photoScan && Platform.OS !== 'web' ? (
+          <Tappable
+            style={styles.moreRow}
+            onPress={() => {
+              haptics.tap();
+              void readLabel();
+            }}
+            accessibilityRole="button"
+            testID="open-label"
+          >
+            {moreIcon('doc.text.viewfinder', 'document-text-outline')}
+            <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('label.scan')}</Text>
+          </Tappable>
+        ) : null}
         <Tappable style={styles.moreRow} onPress={() => { haptics.tap(); setMoreOpen(false); setMode('recipe'); }} accessibilityRole="button" testID="open-recipe">
           {moreIcon('list.bullet.clipboard', 'calculator-outline')}
           <Text style={styles.moreRowText} maxFontSizeMultiplier={2.2}>{t('entry.recipeBuilder')}</Text>
@@ -2024,6 +2068,14 @@ export function EntrySheet({
           </Tappable>
         ) : null}
       </View>
+    ) : null}
+    {labelBusy ? (
+      <Text style={styles.camDeniedText} accessibilityLiveRegion="polite" testID="label-reading">{t('label.reading')}</Text>
+    ) : null}
+    {labelNotice && !labelBusy ? (
+      <Text style={styles.camDeniedText} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="label-notice">
+        {t(labelNotice.key, labelNotice.params)}
+      </Text>
     ) : null}
     {cameraDenied ? (
       <View style={styles.camDenied}>
@@ -2243,6 +2295,14 @@ export function EntrySheet({
                   </Text>
                   <View style={styles.backSpacer} />
                 </View>
+                {/* Read off a photo by a model: the numbers are a transcription
+                    to check against the package, and the sentence is stronger
+                    when the read disagrees with its own macros. */}
+                {!editing && pendingServing?.ctx.source === 'label' ? (
+                  <Text style={styles.labelNote} testID="label-note">
+                    {t(labelCheck ? 'label.reviewCheck' : 'label.review')}
+                  </Text>
+                ) : null}
 
                 {/* Scrolls so the fields can never push Save/Delete out of the
                     sheet when the keyboard is up — the actions row below stays
@@ -2690,6 +2750,17 @@ export function EntrySheet({
             setScannerOpen(false);
             openCustomBlank('', { source: 'barcode', barcode: code });
           }}
+          // …or have the label read. The system camera opens after the
+          // scanner has left: on iOS two presentations in one tick can strand
+          // one (SCANNER_EXIT_MS).
+          onScanLabel={
+            FEATURES.photoScan
+              ? (code) => {
+                  setScannerOpen(false);
+                  setTimeout(() => void readLabel(code), Platform.OS === 'ios' ? SCANNER_EXIT_MS : 0);
+                }
+              : undefined
+          }
           // …or the product is in the database under its name (U8): back to
           // the search, keyboard up.
           onSearchByName={() => {
@@ -2970,6 +3041,7 @@ const createStyles = ({ scheme, colors, shadow }: Theme) => StyleSheet.create({
   // Camera-denied notice (shown in place, after the scan icon bows out).
   camDenied: { marginTop: space.sm, gap: 2 },
   camDeniedText: { fontSize: font.tiny, color: colors.muted },
+  labelNote: { fontSize: font.small, color: colors.muted, marginBottom: space.sm },
   camDeniedBtn: { alignSelf: 'flex-start', minHeight: TARGET, justifyContent: 'center' },
   camDeniedLink: { fontSize: font.tiny, color: colors.ink, fontWeight: '700', textDecorationLine: 'underline' },
   // custom

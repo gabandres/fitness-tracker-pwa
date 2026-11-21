@@ -323,8 +323,6 @@ export const en = {
   'whatsNew.hunger.body': "Rate how hungry you are each evening, 0 (full) to 10 (starving), right under Sleep on Today. Trends shows your 7-day average. It never changes your target on its own.",
   'whatsNew.rirCheck.title': "No blank RIR slips through",
   'whatsNew.rirCheck.body': "Finish now also asks about sets you typed reps into but did not tick, so none is saved without an RIR.",
-  'whatsNew.trackers.title': "Hide what you don't track",
-  'whatsNew.trackers.body': "Fasting, water, sleep, evening hunger and the \"Day fully logged?\" check each have a switch now: Settings → On your Today screen. Nothing is deleted.",
   'whatsNew.reminderAsk.title': "Meal reminders in one tap",
   'whatsNew.reminderAsk.body': "If reminders are off, Today asks once after you log whether you want a nudge at meal times. Say no and it does not ask again.",
   'whatsNew.effortTarget.title': "Your effort target",
@@ -3157,8 +3155,6 @@ export const en = {
   'a11y.heroPfKcalOne': '{kcal} of {max} calories',
   'settings.proteinFirst': 'Protein first',
   'settings.proteinFirstSub': 'Today leads with protein and shows calories as a range, from your minimum to your target. For days you eat little, by plan or by appetite (on a GLP-1 medication, for example). Your targets do not change.',
-  'whatsNew.proteinFirst.title': 'Protein first',
-  'whatsNew.proteinFirst.body': 'A new way to read the day: protein is the big number and calories are a range, from your minimum to your target. Made for days you eat little, by plan or by appetite (a GLP-1 medication, for example). Settings → Protein first. Your targets do not change.',
   'entry.caloriesKcal': 'Calories (kcal)',
   'mealText.proteinA11y': 'Protein, grams',
   'mealText.carbsA11y': 'Carbs, grams',
@@ -3268,8 +3264,6 @@ export const en = {
   'train.glossary.zone2': 'Zone 2',
   'train.glossary.zone2Body': 'Easy cardio, at a pace you could hold a conversation at. Ignia uses an average heart rate of 120–130 as the band, and Trends shows how many recent sessions stayed in it.',
   // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
-  'whatsNew.trainPlain.title': 'Train, in plain words',
-  'whatsNew.trainPlain.body': 'Each lift\'s call now opens with one plain sentence, and its form cues are under "How to do it". The kg | lb switch moved into the lift\'s ⋯ menu unless that lift already uses another unit.',
   // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
   'relog.open': 'Log again…',
   'relog.title': 'Add to today',
@@ -3290,8 +3284,6 @@ export const en = {
   'settings.workoutImportLifts': '{n} new lifts added.',
   'settings.workoutImportFailed': '{n} could not be saved. Import the file again to retry them.',
   // ── UX_AUDIT §S24 standards sweep (2026-11-19) ──
-  'whatsNew.relog.title': 'Log a past day again',
-  'whatsNew.relog.body': 'Open any past day in History and tap "Log again…" to pick several of its entries and add them to today in one go.',
   'medication.title': 'Medication',
   'medication.settingsSub': 'Dose days and what you logged. Kept on this phone.',
   'medication.intro': 'A record of what you take and when. Ignia does not give medical advice.',
@@ -3360,6 +3352,20 @@ export const en = {
   'trends.pfRangeBelow': 'Below your {min}–{max} range',
   'trends.pfRangeAbove': 'Above your {min}–{max} range',
   'trends.pfProteinTarget': 'Target {n} g',
+  'label.scan': 'Scan a nutrition label',
+  'label.reading': 'Reading the label…',
+  'label.notRead': 'Couldn\'t read a nutrition label in that photo. Fill the frame with the panel and try again, or type it in.',
+  'label.failed': 'The label could not be read. Try again, or type it in.',
+  'label.review': 'Read from the label. Compare the numbers with the package before you save.',
+  'label.reviewCheck': 'The calories and the macros in this read do not add up. Compare every number with the package.',
+  'label.fallbackName': 'Packaged food',
+  'barcode.scanLabel': 'Scan the label',
+  'whatsNew.medication.title': 'A medication log',
+  'whatsNew.medication.body': 'Keep track of what you take and when: dose days, what you logged, and a reminder if you want one. It stays on this phone and is never sent to Ignia. Settings → Medication.',
+  'whatsNew.labelScan.title': 'Scan a nutrition label',
+  'whatsNew.labelScan.body': 'A packaged food the barcode does not find? Photograph its label and Ignia fills in the numbers for you to check and save. It uses one of your daily photo scans. Tap +, then More ways.',
+  'whatsNew.proteinSurfaces.title': 'Protein first, in more places',
+  'whatsNew.proteinSurfaces.body': 'With Protein first on, Trends and the Android home-screen widget now lead with protein too, and show calories as a range. Settings → Protein first.',
 } as const;
 
 export type I18nKey = keyof typeof en;

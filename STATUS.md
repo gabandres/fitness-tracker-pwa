@@ -23,8 +23,8 @@ Read from the APIs, never edited from memory (`docs/COMMANDS.md`);
 | **TestFlight** | **Not re-read since 2026-09-08.** Read the group's builds AND each build's `externalBuildState` (`asc-testflight-external.mjs`) — `VALID` + in the group ≠ installable |
 | **Play** | **Production: vc 53 / 1.2.10 LIVE** (2026-11-20: `androidpublisher` production track = 53 and the public listing reads 1.2.10). Alpha: vc 53. The tracks API cannot tell "in review" from "live", so the store page is the read. Upload path: `play-upload-bundle.mjs`, then `play-production-release.mjs --complete --commit --vc N`; `eas submit` has exited 0 on failure three times |
 | **Web `ignia.fit`** | **Shell + `/admin`** (ADR-0036). 113 prerendered pages, EN + es-PR, both store badges. Grep `public/` as well as `src/` before claiming copy is gone |
-| **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Last deployed 2026-11-20 (rules: `proteinFirst`; functions: `lateWelcome` in `hourlyTasks`, the verified-only public user count) |
-| **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
+| **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Last deployed 2026-11-20 (rules: `proteinFirst`; functions: `lateWelcome` in `hourlyTasks`, the verified-only public user count, and `analyzePhoto` with the label mode) |
+| **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling`. **A nutrition-label read is the same function (`mode: 'label'`) and spends the same scans** |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
 | **OTA (EAS Update)** | **Two runtimes take OTAs: iOS build 75 (`e6d2973e…`) and Android vc 53 (`e989353d…`, PINNED).** Update-required minimum: iOS `1.2.11`, Android vc `53` (raised 2026-11-20; read from the live `app-version.json`). Every OTA comes from `main` and reaches every user who is not behind the update screen. **Newest: 2026-11-20, the active session module (`cc8ff46f`).** Android vc 52 is below the minimum and owed nothing more (its last JS: `25a93848`, tag `archive/ota/vc52-2026-11-10`). "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
@@ -69,12 +69,15 @@ both screen readers are unseen.
 (owner's call): no rendered check of start → log a set → finish. Rollback:
 republish the previous groups (ledger, top rows).
 
-**Open, in order:** `UX_AUDIT.md` §S24 "what is left" (S24-1b/1c/1d); the rest
-of the GLP-1 item (S24-19): a medication log with a dose-day reminder, and
-protein first on Trends, the widgets and the share card; an AI label scan into
-a custom food; exercise stills once an image source with a clear licence is
-found (S24-18); the owner calls S24-27b and S24-28. **Re-measure activation**
-(`config/retention`) about two weeks after 2026-11-19.
+**Open, in order:** `UX_AUDIT.md` §S24 "what is left" (S24-1c/1d); exercise
+stills once an image source with a clear licence is found (S24-18); the owner
+calls S24-27b and S24-28. **Re-measure activation** (`config/retention`) about
+two weeks after 2026-11-19.
+**The three features of 2026-11-20 evening have been seen on NO screen** — the
+medication log, protein first on Trends and the Android widget, the label
+scan. Tests only, plus the label reader run for real against the deployed
+function on GENERATED panels (not phone photos). First things to look at on a
+phone: Settings → Medication; + → More ways → Scan a nutrition label.
 
 ### Blocked on a Mac
 

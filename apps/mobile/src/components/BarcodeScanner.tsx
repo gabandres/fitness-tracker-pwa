@@ -78,6 +78,11 @@ interface Props {
    * it just cannot do it for the user.
    */
   onEnterFromLabel?: (barcode: string) => void;
+  /** Optional third way out of a miss: photograph the nutrition label and
+   *  have it read (`lib/labelScan.ts`). Receives the barcode, so the food
+   *  saved from the read is found by the next scan of it. Not offered for
+   *  an offline miss: the read needs the network too. */
+  onScanLabel?: (barcode: string) => void;
   /** Optional other next step after a miss: back to the name search (U8). A
    *  product the barcode database lacks is often in the food index by name. */
   onSearchByName?: () => void;
@@ -87,7 +92,7 @@ interface Props {
  *  looks it up on OpenFoodFacts, and emits a BarcodeEstimate that prefills
  *  the entry form. A `handled` latch makes the first scan win so the lookup
  *  fires once. */
-export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFromLabel, onSearchByName }: Props) {
+export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFromLabel, onSearchByName, onScanLabel }: Props) {
   const t = useT();
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
@@ -362,6 +367,16 @@ export function BarcodeScanner({ visible, onClose, onPick, onDenied, onEnterFrom
                       testID="barcode-enter-label"
                     >
                       <Text style={styles.labelText}>{t('barcode.enterFromLabel')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {onScanLabel && !offlineMiss ? (
+                    <TouchableOpacity
+                      style={styles.label}
+                      onPress={() => onScanLabel(missed)}
+                      accessibilityRole="button"
+                      testID="barcode-scan-label"
+                    >
+                      <Text style={styles.labelText}>{t('barcode.scanLabel')}</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>

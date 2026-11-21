@@ -4,6 +4,39 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — a medication log, protein first on Trends and the Android widget, and a nutrition-label scan (functions deploy; OTA on iOS build 75, Android vc 53)
+
+The rest of the GLP-1 set the owner asked for (`UX_AUDIT.md` S24-19). **None of it has been seen on a screen** —
+no simulator, and no browser check was made: tests, the compiler report, and one real run of the label reader.
+**Medication log** (`386ebc68`). Core `medication.ts` (27 tests): a schedule (weekly on a weekday, every N days,
+daily), where a medication stands today (`due`, `taken`, `open`, `upcoming`), the next reminders, and the stored
+shape. `lib/medication.ts` keeps one log per account in device storage and nowhere else — no collection, no rule, no
+health-store export. The price, said on the screen: it does not follow the account to another phone, and an explicit
+sign-out removes it (the rule every device store here follows); a session that ends on its own keeps the log and
+cancels the reminders. "Share log" is how a copy leaves. It gives no advice: a dose day with no entry reads "No dose
+logged for Tuesday", and a dose taken a day late accounts for the day it was due. Dose-day reminders name no
+medication and no dose on the lock screen, and are put back after the meal-reminder sync cancels everything
+(`medication-reminders.ts`, imported BY `reminders.ts`). Screen `app/medication.tsx`, a Today card on days with
+something to say, a Settings row. 18 screen and store tests.
+**Protein first on Trends and the Android widget** (`4863b639`). Core `proteinFirstForDay(profile, day, targets)` is
+now the one place the two triggers are read; Today, the Trends hook and the widget sync call it. Trends: the answer
+card talks about protein and places calories in the range ("inside", "below", "above" — no verdict, nothing in
+red), and the weekly tiles lead with protein. The widget snapshot gained an optional `proteinFirst` range (additive,
+wire version not bumped) and carries the mode's own protein target; the Android face leads with protein left. **The
+iOS widget is native and unchanged**, and the share card never had a calorie number to change.
+**Nutrition-label scan.** A mode of `analyzePhoto` (`{ mode: 'label' }`, `functions/src/label-scan.ts`), not a new
+callable: it rides the photo scan's rate limit, its `dailyQuota` slot, its `photo` `spendCeiling` unit and its warm
+instances — one image per read. The model TRANSCRIBES: the prompt forbids estimating, the sanitiser drops an
+out-of-range value instead of clamping it, and a read whose calories disagree with its own macros is flagged. The
+result only prefills the review form (`source: 'label'`, which the rules already accepted); nothing is saved until
+the person has looked. Two doors: + → More ways, and the barcode scanner's "not in the database" exit, which carries
+the barcode so the next scan finds the saved food. Checked for real before the OTA: the built reader against the live
+model on three generated images (a US panel, a per-100 g panel in kJ → 380 kcal, a non-label → nothing; ~1.5 s,
+~1,500 tokens each, under a meal scan), then the DEPLOYED function with a throwaway verified account (a second photo
+refused before any charge; one read, 2 of 3 scans left; account deleted). Not checked: a real phone photo of a real
+package.
+Tests: core 2,829 · functions 1,331 (52 files) · mobile — see the ledger row.
+
 ## 2026-11-20 — the Android minimum is vc 53; vc 52 is retired
 
 The owner raised `android.minVersionCode` to 53 in `/admin` (the live `app-version.json` reads 53 / 53). vc 52
