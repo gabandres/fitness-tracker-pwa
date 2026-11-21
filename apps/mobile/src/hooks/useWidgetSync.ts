@@ -119,16 +119,29 @@ export function useWidgetSync(
   // made the React Compiler skip this hook.) After a rollover this summary can
   // still be yesterday's — `dayStamp` labels it as such, and Today's re-key
   // re-runs the effect below with the new day.
+  /**
+   * Nothing is written without a signed-in profile.
+   *
+   * At sign-out the profile goes first, the targets fall back to the seed
+   * (1,800 kcal, 0 g protein) and this hook, still mounted for a frame, wrote
+   * that to the widget AFTER `clearWidget()` had blanked it: a signed-out
+   * phone whose home screen read "1,800 kcal left". Seen on the OnePlus 8T,
+   * 2026-11-20. A seed is nobody's day; the empty face is the honest one.
+   */
+  const signedIn = uid != null && profile != null;
+
   const onForeground = useEffectEvent(() => {
+    if (!signedIn) return;
     const { key, endsMs } = dayStamp(boundary, summary);
     void syncWidget(summary, targets, key, locale, Date.now(), quickAdd, endsMs, proteinFirst);
     if (uid) void flushPendingLogs(uid);
   });
 
   useEffect(() => {
+    if (!signedIn) return;
     const { key, endsMs } = dayStamp(boundary, summary);
     void syncWidget(summary, targets, key, locale, Date.now(), quickAdd, endsMs, proteinFirst);
-  }, [summary, targets, locale, quickAdd, boundary, proteinFirst]);
+  }, [signedIn, summary, targets, locale, quickAdd, boundary, proteinFirst]);
 
   // The Quick Settings tile's label mirror (ADR-0020). Driven from the same
   // resolved slots as the snapshot above, so the tile and the widget can never
