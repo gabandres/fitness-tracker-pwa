@@ -553,7 +553,8 @@ describe('iOS keyboard bar on the number pads', () => {
       (f) => screen.getByTestId(`entry-${f}`).props.inputAccessoryViewID,
     );
     expect(new Set(ids).size).toBe(4);
-    for (const id of ids) expect(screen.getByTestId(`${id}-done`)).toBeTruthy();
+    // The id carries a per-mount suffix after '#' (S23-14); test ids do not.
+    for (const id of ids) expect(screen.getByTestId(`${id.split('#')[0]}-done`)).toBeTruthy();
 
     // Grams and the typed factor keep RN's own toolbar, with its button in the
     // user's language (it was hardcoded English).
@@ -569,7 +570,7 @@ describe('iOS keyboard bar on the number pads', () => {
     const onSave = jest.fn();
     const screen = await render(<EntrySheet visible editing={null} onSave={onSave} onClose={jest.fn()} />);
     await fireEvent.press(screen.getByTestId('open-manual'));
-    const bar = (f: string) => screen.getByTestId(`entry-${f}`).props.inputAccessoryViewID as string;
+    const bar = (f: string) => (screen.getByTestId(`entry-${f}`).props.inputAccessoryViewID as string).split('#')[0];
     const state = (id: string) => screen.getByTestId(id).props.accessibilityState;
 
     // A7: Name sits above Calories, so ‹ there is live, not greyed out.

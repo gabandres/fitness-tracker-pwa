@@ -75,10 +75,9 @@ async function toWeight(screen: Screen) {
   await fireEvent.press(screen.getByTestId('onboarding-goal-lose'));
   await fireEvent.press(screen.getByTestId('onboarding-next'));
 }
-/** From the weight step to the plan, no goal weight, body/activity prefilled. */
+/** From the weight step to the plan, body/activity prefilled. */
 async function weightToPlan(screen: Screen) {
   await fireEvent.press(screen.getByTestId('onboarding-next')); // weight
-  await fireEvent.press(screen.getByTestId('onboarding-next')); // goal weight, blank
   await fireEvent.press(screen.getByTestId('onboarding-next')); // body
   await fireEvent.press(screen.getByTestId('onboarding-next')); // activity
   await flush();
@@ -111,8 +110,10 @@ describe('the weight step on a redo', () => {
   });
 });
 
-describe('goal weight is optional, and must point the right way', () => {
-  it('Lose continues with it blank and saves no goal weight', async () => {
+// The goal weight is not asked in onboarding since 2026-11-21 (Settings →
+// Daily targets). What is left here is what a redo does with a stored one.
+describe('a redo and the stored goal weight', () => {
+  it('saves none when none is stored', async () => {
     const screen = await render(<Onboarding />);
     await toWeight(screen);
     await weightToPlan(screen);
@@ -121,22 +122,30 @@ describe('goal weight is optional, and must point the right way', () => {
     expect(mockSave.mock.calls[0][1].goalDirection).toBe('lose');
   });
 
-  it('a loss goal above the current weight is refused, with the reason', async () => {
+  it('carries a stored goal through: the save would clear it otherwise', async () => {
+    mockProfile = { ...OWNER, goalDirection: 'lose', targetWeightLbs: 148 };
     const screen = await render(<Onboarding />);
     await toWeight(screen);
-    await fireEvent.press(screen.getByTestId('onboarding-next'));
-    await fireEvent.changeText(screen.getByTestId('onboarding-target-weight'), '160');
-    expect(screen.getByTestId('onboarding-target-weight-error').props.children).toContain('below your current');
-    await fireEvent.press(screen.getByTestId('onboarding-next'));
-    expect(screen.getByTestId('onboarding-target-weight')).toBeTruthy(); // still here
+    await weightToPlan(screen);
+    await fireEvent.press(screen.getByTestId('onboarding-save'));
+    expect(mockSave.mock.calls[0][1].targetWeightLbs).toBe(148);
   });
 
-  it('the skip link clears a typed goal weight and moves on', async () => {
+  it('drops a stored goal that is on the wrong side of the weight for the goal picked', async () => {
+    // 160 lb stored, 153.6 lb now, and the redo picks Lose: 160 is not a loss goal.
+    mockProfile = { ...OWNER, goalDirection: 'gain', targetWeightLbs: 160 };
+    const screen = await render(<Onboarding />);
+    await toWeight(screen);
+    await weightToPlan(screen);
+    await fireEvent.press(screen.getByTestId('onboarding-save'));
+    expect(mockSave.mock.calls[0][1].targetWeightLbs).toBeUndefined();
+  });
+
+  it('has no goal-weight step', async () => {
     const screen = await render(<Onboarding />);
     await toWeight(screen);
     await fireEvent.press(screen.getByTestId('onboarding-next'));
-    await fireEvent.changeText(screen.getByTestId('onboarding-target-weight'), '160');
-    await fireEvent.press(screen.getByTestId('onboarding-skip-goal-weight'));
+    expect(screen.queryByTestId('onboarding-target-weight')).toBeNull();
     expect(screen.getByTestId('onboarding-sex-male')).toBeTruthy();
   });
 });

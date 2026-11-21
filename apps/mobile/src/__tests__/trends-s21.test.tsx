@@ -248,7 +248,8 @@ describe('contrast — the carbs line', () => {
     return (x + 0.05) / (y + 0.05);
   };
   it('light draws carbs in `warn` (≥3:1 on card); dark keeps the ember', () => {
-    expect(ratio(palettes.light.colors.habitFasting, palettes.light.colors.card)).toBeLessThan(3); // why it moved
+    // The ember was under 3:1 on card when the line moved to `warn`; it was
+    // darkened to 3.03 on 2026-11-21 (S24-27b) and the line stays on `warn`.
     expect(ratio(palettes.light.colors.warn, palettes.light.colors.card)).toBeGreaterThanOrEqual(3);
     expect(ratio(palettes.dark.colors.habitFasting, palettes.dark.colors.card)).toBeGreaterThanOrEqual(3);
   });
