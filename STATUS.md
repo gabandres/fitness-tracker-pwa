@@ -73,11 +73,13 @@ republish the previous groups (ledger, top rows).
 stills once an image source with a clear licence is found (S24-18); the owner
 calls S24-27b and S24-28. **Re-measure activation** (`config/retention`) about
 two weeks after 2026-11-19.
-**The three features of 2026-11-20 evening have been seen on NO screen** — the
-medication log, protein first on Trends and the Android widget, the label
-scan. Tests only, plus the label reader run for real against the deployed
-function on GENERATED panels (not phone photos). First things to look at on a
-phone: Settings → Medication; + → More ways → Scan a nutrition label.
+**Seen on the OnePlus 8T, 2026-11-20 (vc 53 from Play, a throwaway account):**
+the medication log (add, the Today card, real OS alarms for the reminder),
+protein first on the hero and on Trends, the label scan up to "couldn't read a
+label" (the lens was covered), a workout started, logged and finished, and a
+workout completed from the server leaving the phone in seconds. **Still unseen:**
+a real label in front of the lens, the Android widget's protein-first face,
+the reminder actually firing, sign-out removing the log, and all of it on iOS.
 
 ### Blocked on a Mac
 
@@ -105,9 +107,11 @@ phone: Settings → Medication; + → More ways → Scan a nutrition label.
 - **`ExerciseLibrarySheet` needs one real finger on an iPhone** — rows were
   dead inside the JS sheet's `Modal` (2026-09-17), revived as a native sheet
   2026-10-04, proven only by a Maestro tap. Fallback: the home screen's rows.
-- **Hosts:** the OnePlus 8T on adb over Tailscale (`apps/mobile/scripts/phone.sh`)
-  holds an adb-installed vc 48 signed with the upload key, so Play's update
-  FAILS on it (OTAs do land). The Maestro suite WRITES: `apps/mobile/.maestro/regression/README.md`.
+- **Hosts:** the OnePlus 8T (serial `49bae1ea`, on `winbox` by adb) holds **vc 53
+  installed by the Play Store** since 2026-11-20, so Play updates it and OTAs
+  land. Drive it with `apps/mobile/scripts/phone.py` (`docs/COMMANDS.md`). Other
+  projects use the same phone: check what is in the foreground first. The
+  Maestro suite WRITES: `apps/mobile/.maestro/regression/README.md`.
 
 ### Bugs known and not fixed
 

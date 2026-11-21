@@ -174,6 +174,16 @@ describe('the last-7-days tile', () => {
     expect(view.getByTestId('insights-card')).toHaveTextContent(/Avg protein.*Avg intake/);
   });
 
+  it('protein first: no calorie streak and no best or off day — those are verdicts against the target', async () => {
+    const pf = { source: 'setting', proteinTarget: 140, proteinFloor: null, kcalMin: 1500, kcalMax: 1850 };
+    // (Without the mode the streak line is there: the test further down.)
+    mockTrends.mockReturnValue(state({ streak: 5, proteinFirst: pf }));
+    const view = await render(<Trends />);
+    expect(view.queryByTestId('insights-streak')).toBeNull();
+    expect(view.queryByTestId('insights-best-day')).toBeNull();
+    expect(view.getByTestId('insights-card')).not.toHaveTextContent(/at or under your target|Off day/);
+  });
+
   it('names its window honestly: "Last 7 days", not "This week"', async () => {
     mockTrends.mockReturnValue(state());
     const view = await render(<Trends />);

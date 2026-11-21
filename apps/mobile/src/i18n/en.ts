@@ -1045,9 +1045,9 @@ export const en = {
   // The 0–2 nights row. Three truths, and they are not interchangeable: nothing
   // connected is an invitation, a connected source with no nights is a fact
   // about the integration (ADR-0026's empty-state rule).
-  'trends.sleepEmpty': 'Sleep · connect Oura or Apple Health, or log a night on Today',
+  'trends.sleepEmpty': 'Sleep · connect Oura or {store}, or log a night on Today',
   'trends.sleepEmptyOura': 'Sleep · connected to Oura — no nights yet',
-  'trends.sleepEmptyHealth': 'Sleep · connected to Apple Health — no nights yet',
+  'trends.sleepEmptyHealth': 'Sleep · connected to {store} — no nights yet',
   'trends.loadErr': "Couldn't load your trends.",
   // Trends review 2026-10-04: charts, deficit vs maintenance, budget, a11y.
   'trends.last7Days': 'Last 7 days',

@@ -919,9 +919,9 @@ export const esPR: Record<I18nKey, string> = {
   'trends.sleepQualifier': 'Tus propios días, lado a lado. Un patrón, no una prueba.',
   'trends.sleepProgress':
     '{n} noches hasta ahora. Al llegar a {need}, Ignia comparará tus noches más cortas con lo que comiste esos días.',
-  'trends.sleepEmpty': 'Sueño · conecta Oura o Apple Health, o anota una noche en Hoy',
+  'trends.sleepEmpty': 'Sueño · conecta Oura o {store}, o anota una noche en Hoy',
   'trends.sleepEmptyOura': 'Sueño · conectado a Oura — aún sin noches',
-  'trends.sleepEmptyHealth': 'Sueño · conectado a Apple Health — aún sin noches',
+  'trends.sleepEmptyHealth': 'Sueño · conectado a {store} — aún sin noches',
   'trends.loadErr': 'No se pudieron cargar tus tendencias.',
   // Trends review 2026-10-04: charts, deficit vs maintenance, budget, a11y.
   'trends.last7Days': 'Últimos 7 días',

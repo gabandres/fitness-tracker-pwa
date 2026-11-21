@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   SLEEP_MIN_NIGHTS,
@@ -171,6 +171,9 @@ export function SleepTrendsCard({
                 : sleep.connectedTo === 'health'
                   ? 'trends.sleepEmptyHealth'
                   : 'trends.sleepEmpty',
+              // The phone's own health store: this said "Apple Health" on
+              // Android too until it was read on a OnePlus (2026-11-20).
+              { store: t(Platform.OS === 'ios' ? 'health.storeIos' : 'health.storeAndroid') },
             )}
           />
           <Glyph ios="chevron.right" android="chevron-forward" size={16} color={colors.faint} />

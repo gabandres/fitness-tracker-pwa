@@ -1129,7 +1129,10 @@ function ThisWeek({
       <Text style={styles.sub}>{t('trends.daysLogged', { n: insights.loggedDays })}</Text>
       {/* The panel's one celebratory line, and only when there is something
           to celebrate — a run that ended says nothing (UX_AUDIT §S12). */}
-      {streak >= TARGET_STREAK_MIN_DAYS ? (
+      {/* Not in protein-first mode: "in a row at or under your target" is a
+          calorie verdict, and that mode scores nothing against the target
+          (seen on the OnePlus, 2026-11-20). */}
+      {streak >= TARGET_STREAK_MIN_DAYS && !proteinFirst ? (
         <View style={styles.streakRow} testID="insights-streak">
           <Glyph ios="flame.fill" android="flame" size={14} color={colors.good} />
           <Text style={styles.streakText}>{t('trends.targetStreak', { n: formatNumber(streak, locale) })}</Text>
@@ -1140,14 +1143,20 @@ function ThisWeek({
       <View style={styles.divider} />
       {isPro ? (
         <>
-          <View style={styles.kv}>
-            <Text style={styles.kvLabel}>{t('trends.bestDay')}</Text>
-            <Text style={styles.kvValue}>{dayLabel(insights.bestDay.dateKey, locale)}</Text>
-          </View>
-          <View style={styles.kv}>
-            <Text style={styles.kvLabel}>{t('trends.offDay')}</Text>
-            <Text style={styles.kvValue}>{dayLabel(insights.worstDay.dateKey, locale)}</Text>
-          </View>
+          {/* Best and off day rank the week by distance from the CALORIE
+              target — verdicts protein-first mode does not give. */}
+          {!proteinFirst ? (
+            <>
+              <View style={styles.kv} testID="insights-best-day">
+                <Text style={styles.kvLabel}>{t('trends.bestDay')}</Text>
+                <Text style={styles.kvValue}>{dayLabel(insights.bestDay.dateKey, locale)}</Text>
+              </View>
+              <View style={styles.kv}>
+                <Text style={styles.kvLabel}>{t('trends.offDay')}</Text>
+                <Text style={styles.kvValue}>{dayLabel(insights.worstDay.dateKey, locale)}</Text>
+              </View>
+            </>
+          ) : null}
           {insights.weightSlopeLbPerWeek != null ? (
             // The row names a trend the Body tab draws — so it goes there.
             <PressScale

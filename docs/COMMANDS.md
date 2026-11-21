@@ -221,6 +221,31 @@ Ground truth is the fingerprint file **inside the artifact**
 in an `.ipa`), never a locally generated hash. The current two-row table lives in
 `apps/mobile/AGENTS.md`; every past row is `apps/mobile/docs/fingerprint-ledger.md`.
 
+## A check on the Android test phone
+
+The OnePlus 8T (serial `49bae1ea`) is on `winbox` by adb. It is shared with other projects:
+look at what is in the foreground first, and stop if another app takes the screen.
+
+```sh
+adb -s 49bae1ea shell "dumpsys activity activities | grep topResumedActivity"      # who has the screen
+python apps/mobile/scripts/phone.py launch | shot <name> | ids [filter] | tap <testID|text> | type <text> | scrollto <testID>
+adb -s 49bae1ea shell "dumpsys alarm | grep -A3 fit.ignia.app"                     # the reminders the OS really holds
+node scripts/play-download-apk.mjs --vc <n>                                         # Play's own APK for a version code
+```
+
+- `phone.py` finds elements by the app's `testID`s (they arrive as Android resource-ids). It cannot list a screen
+  that never goes still — a live workout's clock — so there it is screenshots and coordinates (`shot`, then
+  `adb shell input tap x y`; a screenshot is half scale, so double its coordinates).
+- Type digits one at a time with a pause: `adb shell input text 135` at full speed lost the first digit in a set field.
+- **A sideloaded Play APK does not run.** Play's integrity protection shows "Get this app from Play" on the
+  universal APK from `play-download-apk.mjs`. Its "Get app" button opens the listing, and "Update from Play" there
+  replaces the sideloaded copy in seconds (same signature). An upload-key build (the old vc 48) has to be
+  uninstalled first, which clears the app's data on the phone.
+- A first launch runs the binary's built-in JavaScript and downloads the update; the update applies on the NEXT
+  launch. Check a row that exists only in the new code before testing anything.
+- Use a throwaway `delivered+<label>@resend.dev` account (created verified through the admin SDK when an AI call
+  is part of the check) and delete it afterwards: `node scripts/web-check/cleanup-account.mjs <email> <password>`.
+
 ## A rendered check without a device
 
 There is no simulator or emulator on `winbox`. The Expo app runs in a browser (react-native-web): the same

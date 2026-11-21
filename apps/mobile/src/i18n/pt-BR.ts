@@ -912,9 +912,9 @@ export const ptBR: Record<I18nKey, string> = {
   'trends.sleepQualifier': 'Seus próprios dias, lado a lado. Um padrão, não uma prova.',
   'trends.sleepProgress':
     '{n} noites até agora. Ao chegar a {need}, o Ignia vai comparar suas noites mais curtas com o que você comeu nesses dias.',
-  'trends.sleepEmpty': 'Sono · conecte o Oura ou o Apple Health, ou registre uma noite em Hoje',
+  'trends.sleepEmpty': 'Sono · conecte o Oura ou o {store}, ou registre uma noite em Hoje',
   'trends.sleepEmptyOura': 'Sono · conectado ao Oura — ainda sem noites',
-  'trends.sleepEmptyHealth': 'Sono · conectado ao Apple Health — ainda sem noites',
+  'trends.sleepEmptyHealth': 'Sono · conectado ao {store} — ainda sem noites',
   'trends.loadErr': 'Não foi possível carregar as suas tendências.',
   // Trends review 2026-10-04: charts, deficit vs maintenance, budget, a11y.
   'trends.last7Days': 'Últimos 7 dias',
