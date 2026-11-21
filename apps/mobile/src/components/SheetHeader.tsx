@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Touchable } from './Touchable';
 import { useThemedStyles, type Theme } from '@/lib/theme-context';
@@ -40,10 +41,21 @@ interface Props {
  * buttons take their own row and the title the full width under them, with
  * no line cap: beside "Keep training" a two-word title had a quarter of the
  * row and clipped mid-word ("Finish work…", Train UX v2 QA).
+ *
+ * A leading button that is a PHRASE ("Keep training") with nothing trailing
+ * (the Finish sheet, owner 2026-11-21: "looks cramped"): the empty trailing
+ * slot is dropped so the title has the row to its edge, and a title that
+ * still wraps beside it stacks the same way — "Finish / workout" broken over
+ * two lines against the button read as one run-on line. es-PR and pt-BR
+ * always stack there ("Seguir entrenando" + "Terminar entrenamiento").
  */
 export function SheetHeader({ title, leading, trailing, testID }: Props) {
   const styles = useThemedStyles(createStyles);
-  const stacked = useWindowDimensions().fontScale >= STACK_FONT_SCALE;
+  const phraseLeading = !!leading && !trailing && leading.label.length > PHRASE_LABEL_CHARS;
+  // Set once the title is seen on two lines beside a phrase button, and kept:
+  // stacked, the title is on one line again and must not flip back.
+  const [wraps, setWraps] = useState(false);
+  const stacked = useWindowDimensions().fontScale >= STACK_FONT_SCALE || (phraseLeading && wraps);
   const button = (a: SheetHeaderAction | undefined, side: 'leading' | 'trailing') => {
     if (!a) return <View style={styles.slot} />;
     return (
@@ -90,16 +102,25 @@ export function SheetHeader({ title, leading, trailing, testID }: Props) {
   return (
     <View style={styles.row} testID={testID}>
       {leading ? button(leading, 'leading') : null}
-      <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.6} numberOfLines={2}>
+      <Text
+        style={styles.title}
+        accessibilityRole="header"
+        maxFontSizeMultiplier={1.6}
+        numberOfLines={2}
+        onTextLayout={phraseLeading ? (e) => setWraps((w) => w || e.nativeEvent.lines.length > 1) : undefined}
+      >
         {title}
       </Text>
-      {button(trailing, 'trailing')}
+      {phraseLeading ? null : button(trailing, 'trailing')}
     </View>
   );
 }
 
 /** Where the header stacks (iOS AX1 and up). */
 const STACK_FONT_SCALE = 1.6;
+/** A leading label longer than this is a phrase, not Cancel / Close / Back
+ *  ("Cancelar" is 8). */
+const PHRASE_LABEL_CHARS = 8;
 
 const createStyles = ({ colors }: Theme) =>
   StyleSheet.create({

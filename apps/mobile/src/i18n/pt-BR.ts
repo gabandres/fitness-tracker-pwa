@@ -2499,6 +2499,7 @@ export const ptBR: Record<I18nKey, string> = {
   'train.summaryTopSet': 'Melhor série: {name} {weight} × {reps}',
   'train.unstarted.one': 'Não iniciado: {names}. Fica fora deste treino.',
   'train.unstarted.other': 'Não iniciados: {names}. Ficam fora deste treino.',
+  'train.unstartedMany': '{n} exercícios não iniciados. Ficam fora deste treino.',
   'train.unloggedCardio': '{name} não registrado — fica de fora.',
   'train.skippedSets.one': '{n} série planejada não feita — fica de fora.',
   'train.skippedSets.other': '{n} séries planejadas não feitas — ficam de fora.',

@@ -2713,6 +2713,7 @@ export const en = {
   'train.summaryTopSet': 'Top set: {name} {weight} × {reps}',
   'train.unstarted.one': 'Not started: {names}. It’s left out of this workout.',
   'train.unstarted.other': 'Not started: {names}. They’re left out of this workout.',
+  'train.unstartedMany': '{n} lifts not started. They’re left out of this workout.',
   'train.unloggedCardio': '{name} not logged — it’s left out.',
   'train.skippedSets.one': '{n} planned set not done — it’s left out.',
   'train.skippedSets.other': '{n} planned sets not done — they’re left out.',

@@ -318,6 +318,22 @@ describe('Finish names what will not be saved, and the best set', () => {
     expect(ui.getByText('Not started: Row. It’s left out of this workout.')).toBeTruthy();
     expect(ui.getByText('Top set: Bench 100 lb × 5')).toBeTruthy();
   });
+
+  it('counts the lifts not started once there are more than two (owner, 2026-11-21: the list ran five lines)', async () => {
+    const unstarted = (id: string, name: string) => ({ exerciseId: id, name, logStyle: 'weight-reps', cues: [], sets: [{ kind: 'working' }] });
+    mockTrain.active = session({
+      exercises: [
+        { exerciseId: 'e1', name: 'Bench', logStyle: 'weight-reps', cues: [], sets: [{ kind: 'working', weight: 100, reps: 5, done: true }] },
+        unstarted('e2', 'Row'),
+        unstarted('e3', 'Curl'),
+        unstarted('e4', 'Dip'),
+      ],
+    });
+    const ui = await render(<TrainScreen />);
+    await fireEvent.press(ui.getByTestId('finish-workout'));
+    await waitFor(() => expect(ui.getByTestId('finish-unstarted')).toBeTruthy());
+    expect(ui.getByText('3 lifts not started. They’re left out of this workout.')).toBeTruthy();
+  });
 });
 
 describe('templates off iOS — Duplicate and Delete on the card', () => {

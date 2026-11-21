@@ -88,6 +88,9 @@ export interface FinishExtras {
  */
 const FINISH_DETENTS = Platform.OS === 'android' ? [0.6, 1] : [1];
 
+/** How many unstarted lifts the Finish note names before it counts them. */
+const UNSTARTED_NAMED_MAX = 2;
+
 /** Android at the lower detent: the band below the fold, taken from the
  *  bottom of the sheet so Complete sits on screen (`lib/sheet-detent.ts`).
  *  Renders under the sheet route, where that context lives. */
@@ -521,9 +524,13 @@ export function FinishSheet({
   }
 
   const notes = [
-    summary.unstarted.length > 0
-      ? { id: 'finish-unstarted', text: plural(t, locale, 'train.unstarted', summary.unstarted.length, { names: summary.unstarted.join(', ') }) }
-      : null,
+    // Up to two lifts are named; past that the list ran to five lines on a
+    // sheet that opens at 60 % on Android, so it is a count (owner, 2026-11-21).
+    summary.unstarted.length > UNSTARTED_NAMED_MAX
+      ? { id: 'finish-unstarted', text: t('train.unstartedMany', { n: summary.unstarted.length }) }
+      : summary.unstarted.length > 0
+        ? { id: 'finish-unstarted', text: plural(t, locale, 'train.unstarted', summary.unstarted.length, { names: summary.unstarted.join(', ') }) }
+        : null,
     summary.skippedSets > 0
       ? { id: 'finish-skipped', text: plural(t, locale, 'train.skippedSets', summary.skippedSets) }
       : null,

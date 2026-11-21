@@ -2516,6 +2516,7 @@ export const esPR: Record<I18nKey, string> = {
   'train.summaryTopSet': 'Mejor serie: {name} {weight} × {reps}',
   'train.unstarted.one': 'Sin empezar: {names}. Queda fuera de este entrenamiento.',
   'train.unstarted.other': 'Sin empezar: {names}. Quedan fuera de este entrenamiento.',
+  'train.unstartedMany': '{n} ejercicios sin empezar. Quedan fuera de este entrenamiento.',
   'train.unloggedCardio': '{name} sin registrar — queda fuera.',
   'train.skippedSets.one': 'No hiciste {n} serie planificada — queda fuera.',
   'train.skippedSets.other': 'No hiciste {n} series planificadas — quedan fuera.',

@@ -279,7 +279,7 @@ describe('round 2 — one coherent statement (F4) and the Android partial detent
   const { ptBR } = jest.requireActual('@/i18n/pt-BR') as { ptBR: Record<string, string> };
 
   it('F4: what is left out never says "won\'t be saved" beside "your sets are saved"', () => {
-    const dropped = ['train.unstarted.one', 'train.unstarted.other', 'train.skippedSets.one', 'train.skippedSets.other', 'train.unloggedCardio'] as const;
+    const dropped = ['train.unstarted.one', 'train.unstarted.other', 'train.unstartedMany', 'train.skippedSets.one', 'train.skippedSets.other', 'train.unloggedCardio'] as const;
     for (const k of dropped) expect(en[k]).not.toMatch(/saved/i);
     expect(en['train.invalidHint']).not.toMatch(/saved/i);
     for (const dict of [esPR, ptBR]) {
