@@ -14,6 +14,7 @@ import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
 import { activeTravel, addDays, calendarDateKey, calorieFloor, checkInToday, dayBoundaryOf, estimatedMealToday, fastLengthHours, homePlanOf, maintenanceView, nutritionWindowToday, parseYmd, proteinFirstView, travelPeriodsOf, usualSteps, USUAL_STEPS_WINDOW_DAYS } from '@macrolog/core';
 import { HomePlanTodayCard } from '@/components/HomePlanCards';
+import { MedicationTodayCard } from '@/components/MedicationTodayCard';
 import { useActivityRange } from '@/hooks/useActivityRange';
 import { refreshStepsSoon } from '@/lib/steps-background';
 import { confirmNative } from '@/components/ConfirmSheet';
@@ -1096,6 +1097,9 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
               }}
             />
           )}
+          {/* A dose day, a dose logged today, or a dose day with no entry —
+              and nothing at all for anyone with no medication set up. */}
+          <MedicationTodayCard uid={user?.uid} />
           {/* A workout paused partway (core `session-pause.ts`): resumed on
               Train, in the same record. */}
           {recentSessions.filter((s) => s.status === 'paused').map((s) => (

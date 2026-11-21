@@ -13,6 +13,7 @@ import {
 } from '@macrolog/core';
 import type { I18nKey, TFn } from '@/i18n';
 import { track } from './analytics';
+import { rearmMedicationReminders } from '@/lib/medication-reminders';
 import { REST_DONE_ID_PREFIX } from '@/lib/rest-notification-id';
 import { SESSION_IDLE_ID_PREFIX } from '@/lib/session-idle-notify';
 
@@ -244,6 +245,10 @@ async function syncOnce(state: ReminderLiveState, t: TFn): Promise<void> {
   // the tape reminder, whatever the master switch says.
   if (state.checkIn !== undefined) lastCheckIn = state.checkIn;
   await scheduleCheckIn(lastCheckIn, now).catch(() => undefined);
+  // Dose-day reminders are the person's own schedule, not a nudge: re-armed
+  // here for the same reason, whatever the master switch says.
+  // (`medication-reminders.ts`; never throws.)
+  await rearmMedicationReminders(now);
   if (!enabled) return;
 
   const plans = planReminders({

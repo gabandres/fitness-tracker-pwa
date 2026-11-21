@@ -1325,6 +1325,19 @@ export default function Settings() {
             </View>
             <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
           </Touchable>
+          {/* The medication log (2026-11-20): a record kept on this phone. */}
+          <Touchable
+            style={[styles.navRow, styles.navRowDivided]}
+            onPress={() => router.push('/medication' as Href)}
+            accessibilityRole="button"
+            testID="settings-medication"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t('medication.title')}</Text>
+              <Text style={styles.rowValue}>{t('medication.settingsSub')}</Text>
+            </View>
+            <Ionicons importantForAccessibility="no-hide-descendants" accessibilityElementsHidden name="chevron-forward" size={18} color={colors.faint} />
+          </Touchable>
         </View>
 
         <View style={styles.card}>

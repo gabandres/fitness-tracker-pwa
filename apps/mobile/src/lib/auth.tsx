@@ -75,6 +75,8 @@ import { sendWithLostResponseRetry } from './callable-errors';
 import { clearQuickAdd } from './quick-add';
 import { clearPendingBody } from './pending-body';
 import { clearTapeReminder } from './reminders';
+import { clearMedicationReminders } from './medication-reminders';
+import { clearMedicationLogs } from './medication';
 import { FIRST_PAINT_SLICES, clearOfflineCache, preloadCache, readCache, writeCache } from './offline-cache';
 import * as Updates from 'expo-updates';
 import {
@@ -993,6 +995,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // whoever signs in next (ADR-0043). Idempotent and never throws, so a
         // launch that was signed out all along pays one storage read.
         void clearTapeReminder();
+        // Dose-day reminders likewise. The stored medication log itself stays:
+        // this branch is a session that ended on its own, and losing a dose
+        // history to a token revocation would be the app's doing, not the
+        // person's. An explicit sign-out removes it (`signOutLocal`).
+        void clearMedicationReminders();
         // Signed out with nothing on disk: this may be a fresh install on a
         // NEW device with a session waiting in Block Store. Only ever reached
         // when Firebase itself says there is no session, so it cannot disturb a
@@ -1397,6 +1404,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The weekly tape reminder is device-stored but the account's own
     // (ADR-0043). `clearTapeReminder` never throws.
     await clearTapeReminder();
+    // The medication log exists ONLY on this phone (`lib/medication.ts`), and
+    // it is the most sensitive store here: removed, with its reminders. The
+    // Medication screen says so. Never throws.
+    await clearMedicationLogs();
     // And the read cache — the third store holding this account's food off
     // the network. Namespaced by uid, so the risk it removes is not the next
     // account seeing it but this one's day surviving on a shared or sold

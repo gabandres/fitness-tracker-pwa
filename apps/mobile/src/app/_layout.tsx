@@ -126,6 +126,7 @@ const HEADER_SCREENS: { name: string; titleKey: I18nKey; backTestID: string }[] 
   { name: 'coach', titleKey: 'coach.title', backTestID: 'coach-back' },
   { name: 'milestones', titleKey: 'milestones.title', backTestID: 'milestones-back' },
   { name: 'connected-apps', titleKey: 'connected.title', backTestID: 'connected-apps-back' },
+  { name: 'medication', titleKey: 'medication.title', backTestID: 'medication-back' },
 ];
 
 /**
@@ -354,6 +355,7 @@ function AuthGate({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="coach" options={headerOptions('coach')} />
         <Stack.Screen name="milestones" options={headerOptions('milestones')} />
         <Stack.Screen name="connected-apps" options={headerOptions('connected-apps')} />
+        <Stack.Screen name="medication" options={headerOptions('medication')} />
         <Stack.Screen name="history" options={{ animation: 'default', gestureEnabled: true }} />
         {/* Meal-photo scan: a camera takes the whole screen, so it is presented
             as one — no tab bar, no raised + over the viewfinder, a modal's
