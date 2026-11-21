@@ -52,7 +52,7 @@ import {
   type LibraryItem,
   type SearchSnapshot,
 } from '@/components/FoodSearch';
-import { KeyboardBar, useDoneKeyProps, useKeyboardBarProps } from '@/components/KeyboardBar';
+import { KeyboardBar, useDoneKeyProps, useKeyboardBarId, useKeyboardBarProps } from '@/components/KeyboardBar';
 import { showToast } from '@/components/Toast';
 import { MealText } from '@/components/MealText';
 import { RecipeBuilder } from '@/components/RecipeBuilder';
@@ -411,11 +411,17 @@ export function EntrySheet({
   // Which form field holds the keyboard, so it stays in view while the
   // keyboard shrinks the form (`revealField`). Nothing renders from it.
   const kbFieldRef = useRef<RevealField | null>(null);
+  const kbBarIds = {
+    calories: useKeyboardBarId(kbId('calories')),
+    protein: useKeyboardBarId(kbId('protein')),
+    carbs: useKeyboardBarId(kbId('carbs')),
+    fat: useKeyboardBarId(kbId('fat')),
+  };
   const kbBarProps = {
-    calories: useKeyboardBarProps(kbId('calories')),
-    protein: useKeyboardBarProps(kbId('protein')),
-    carbs: useKeyboardBarProps(kbId('carbs')),
-    fat: useKeyboardBarProps(kbId('fat')),
+    calories: useKeyboardBarProps(kbBarIds.calories),
+    protein: useKeyboardBarProps(kbBarIds.protein),
+    carbs: useKeyboardBarProps(kbBarIds.carbs),
+    fat: useKeyboardBarProps(kbBarIds.fat),
   };
   const doneKeyProps = useDoneKeyProps();
   const formScrollRef = useRef<ScrollView>(null);
@@ -1190,7 +1196,7 @@ export function EntrySheet({
     const next = MACRO_CHAIN[i + 1];
     return (
       <KeyboardBar
-        nativeID={kbId(f)}
+        nativeID={kbBarIds[f]}
         // ‹ from Calories goes up to Name (A7): it was greyed out with the
         // Name field sitting right above it.
         onPrev={prev ? () => macroRefs[prev].current?.focus() : () => nameRef.current?.focus()}

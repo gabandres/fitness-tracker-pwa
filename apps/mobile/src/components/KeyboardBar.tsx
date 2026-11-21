@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useId } from 'react';
 import { InputAccessoryView, Keyboard, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useT } from '@/i18n';
 import * as haptics from '@/lib/haptics';
@@ -27,6 +28,15 @@ import { font, space, TARGET } from '@/theme';
  *    already in the window when the bar looks for it. An input that
  *    `autoFocus`es would take the keyboard before its bar attached, so those
  *    stay on (1) instead.
+ *
+ * 3. The id must be NEW ON EVERY MOUNT (`useKeyboardBarId`). Fabric recycles
+ *    native views: a recycled text input has its native `inputAccessoryViewID`
+ *    cleared (`prepareForRecycle`) but keeps its last props, and the id is
+ *    written again only when the prop differs from those. So an input that
+ *    remounts with the id it had before never gets it back, the bar finds no
+ *    input, and the field shows no bar at all — what a collapsed and
+ *    re-expanded exercise card did (S23-14). Read from
+ *    `RCTTextInputComponentView.mm`; not seen on a device.
  */
 
 /**
@@ -54,6 +64,8 @@ export function KeyboardBar({
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   if (Platform.OS !== 'ios') return null;
+  // Test ids keep the readable part: the mount suffix differs on every run.
+  const testBase = nativeID.split(BAR_ID_SEP)[0];
   const arrow = (dir: 'prev' | 'next', run: (() => void) | undefined) => (
     <TouchableOpacity
       style={styles.btn}
@@ -66,7 +78,7 @@ export function KeyboardBar({
       accessibilityRole="button"
       accessibilityLabel={t(dir === 'prev' ? 'entry.kbPrev' : 'entry.kbNext')}
       accessibilityState={{ disabled: !run }}
-      testID={`${nativeID}-${dir}`}
+      testID={`${testBase}-${dir}`}
     >
       <Ionicons
         name={dir === 'prev' ? 'chevron-back' : 'chevron-forward'}
@@ -86,13 +98,23 @@ export function KeyboardBar({
           onPress={() => Keyboard.dismiss()}
           accessibilityRole="button"
           accessibilityLabel={t('common.done')}
-          testID={`${nativeID}-done`}
+          testID={`${testBase}-done`}
         >
           <Text style={styles.doneText} maxFontSizeMultiplier={1.4}>{t('common.done')}</Text>
         </TouchableOpacity>
       </View>
     </InputAccessoryView>
   );
+}
+
+const BAR_ID_SEP = '#';
+
+/**
+ * The accessory id for one input and its `KeyboardBar`: `base`, plus a suffix
+ * no earlier mount has had (note 3 above). Pass the result to both.
+ */
+export function useKeyboardBarId(base: string) {
+  return `${base}${BAR_ID_SEP}${useId()}`;
 }
 
 /**

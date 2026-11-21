@@ -19,7 +19,7 @@ import {
 } from '@macrolog/core';
 import type { LoadUnit, LogStyle, WorkoutSet } from '@/lib/workout';
 import type { TrainState } from '@/hooks/useTrain';
-import { KeyboardBar, useKeyboardBarProps } from '@/components/KeyboardBar';
+import { KeyboardBar, useKeyboardBarId, useKeyboardBarProps } from '@/components/KeyboardBar';
 import { showToast } from '@/components/Toast';
 import { useLocale, useT } from '@/i18n';
 import { formatDecimal } from '@/lib/entry-input';
@@ -276,8 +276,8 @@ export const SetRow = memo(function SetRow({
 
   const weightSlot = { exerciseIndex, setIndex, field: 'weight' as const };
   const countSlot = { exerciseIndex, setIndex, field: 'count' as const };
-  const weightBarId = `set-kb-${exerciseIndex}-${setIndex}-w`;
-  const countBarId = `set-kb-${exerciseIndex}-${setIndex}-c`;
+  const weightBarId = useKeyboardBarId(`set-kb-${exerciseIndex}-${setIndex}-w`);
+  const countBarId = useKeyboardBarId(`set-kb-${exerciseIndex}-${setIndex}-c`);
   const weightBarProps = useKeyboardBarProps(weightBarId);
   const countBarProps = useKeyboardBarProps(countBarId);
   // Weight → reps → the next row. The last row's reps is the end of the line;

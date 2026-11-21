@@ -18,7 +18,7 @@ import {
 import { BottomSheet, type SheetCloseVia } from '@/components/BottomSheet';
 import { confirm } from '@/components/ConfirmSheet';
 import { SheetHeader } from '@/components/SheetHeader';
-import { KeyboardBar, useKeyboardBarProps } from '@/components/KeyboardBar';
+import { KeyboardBar, useKeyboardBarId, useKeyboardBarProps } from '@/components/KeyboardBar';
 import { type I18nKey, type Locale, useLocale, useT } from '@/i18n';
 import { announce } from '@/lib/a11y';
 import { formatNumber } from '@/lib/date-format';
@@ -442,7 +442,7 @@ function MeasureField({
   placeholderColor: string;
 }) {
   const t = useT();
-  const barId = `measure-${field.key}-bar`;
+  const barId = useKeyboardBarId(`measure-${field.key}-bar`);
   const barProps = useKeyboardBarProps(barId);
   const label = t(field.labelKey);
   return (
