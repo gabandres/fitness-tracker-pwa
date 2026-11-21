@@ -88,13 +88,8 @@ tags:
 - tapOn:
     id: 'onboarding-weight'
 - inputText: '180'
-- tapOn:
-    id: 'onboarding-next'
-- assertVisible: "What's your goal weight.*"
-- tapOn:
-    id: 'onboarding-target-weight'
-- inputText: '165'
 - takeScreenshot: .maestro/regression/shots/empty-02-weights
+# No goal-weight step since 2026-11-21: it is a field on Daily targets.
 - tapOn:
     id: 'onboarding-next'
 # Body step (F1/F2) is skippable and skipping jumps straight to the plan —

@@ -85,8 +85,6 @@ async function walkToBody(screen: Screen, weight: string, target: string) {
   await walkToWeight(screen);
   await fireEvent.changeText(getByTestId('onboarding-weight'), weight);
   await fireEvent.press(getByTestId('onboarding-next'));
-  await fireEvent.changeText(getByTestId('onboarding-target-weight'), target);
-  await fireEvent.press(getByTestId('onboarding-next'));
 }
 
 describe('pure gates', () => {
@@ -168,8 +166,6 @@ describe('the 16+ attestation (S18-9)', () => {
     await fireEvent.press(screen.getByTestId('onboarding-next')); // goal, prefilled
     await fireEvent.changeText(screen.getByTestId('onboarding-weight'), '180');
     await fireEvent.press(screen.getByTestId('onboarding-next'));
-    await fireEvent.changeText(screen.getByTestId('onboarding-target-weight'), '165');
-    await fireEvent.press(screen.getByTestId('onboarding-next'));
     await fireEvent.press(screen.getByTestId('onboarding-skip-body'));
     await fireEvent.press(screen.getByTestId('onboarding-save'));
     expect(mockSave).toHaveBeenCalledTimes(1);
@@ -195,12 +191,12 @@ describe('weight bounds (S18-11)', () => {
       'Enter a weight between 50 and 500 lb',
     );
     await fireEvent.press(screen.getByTestId('onboarding-next'));
-    expect(screen.queryByTestId('onboarding-target-weight')).toBeNull();
+    expect(screen.queryByTestId('onboarding-skip-body')).toBeNull();
 
     await fireEvent.changeText(screen.getByTestId('onboarding-weight'), '180');
     expect(screen.queryByTestId('onboarding-weight-error')).toBeNull();
     await fireEvent.press(screen.getByTestId('onboarding-next'));
-    expect(screen.getByTestId('onboarding-target-weight')).toBeTruthy();
+    expect(screen.getByTestId('onboarding-skip-body')).toBeTruthy();
   });
 
   it('quotes the band in kg on a metric profile', async () => {
@@ -211,17 +207,6 @@ describe('weight bounds (S18-11)', () => {
     expect(screen.getByTestId('onboarding-weight-error').props.children).toBe(
       'Enter a weight between 23 and 226 kg',
     );
-  });
-
-  it('gates the goal-weight step the same way', async () => {
-    const screen = await render(<Onboarding />);
-    await walkToWeight(screen);
-    await fireEvent.changeText(screen.getByTestId('onboarding-weight'), '180');
-    await fireEvent.press(screen.getByTestId('onboarding-next'));
-    await fireEvent.changeText(screen.getByTestId('onboarding-target-weight'), '12');
-    expect(screen.getByTestId('onboarding-target-weight-error')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('onboarding-next'));
-    expect(screen.queryByTestId('onboarding-sex-female')).toBeNull();
   });
 });
 
@@ -274,8 +259,6 @@ describe('metric height (S18-8)', () => {
     const screen = await render(<Onboarding />);
     await fireEvent.press(screen.getByTestId('onboarding-next'));
     await fireEvent.changeText(screen.getByTestId('onboarding-weight'), '82');
-    await fireEvent.press(screen.getByTestId('onboarding-next'));
-    await fireEvent.changeText(screen.getByTestId('onboarding-target-weight'), '75');
     await fireEvent.press(screen.getByTestId('onboarding-next'));
     // 64 in × 2.54 = 162.56 → 163
     expect(screen.getByTestId('onboarding-height-cm').props.value).toBe('163');

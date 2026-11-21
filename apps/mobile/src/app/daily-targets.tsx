@@ -13,7 +13,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import {
+  bodyWeightUnit,
+  goalWeightIssue,
   maintenanceView,
+  parseWeightToLb,
+  toDisplayWeight,
+  weightBoundsFor,
   TARGET_PROTEIN_MAX,
   TARGET_PROTEIN_MIN,
   type TargetIssue,
@@ -63,15 +68,20 @@ export interface TargetsForm {
   mode: TargetMode;
   kcal: string;
   protein: string;
+  /** As typed, in the account's unit. Absent on an account with no goal
+   *  weight field (the goal is "maintain"). */
+  goalWeight?: string;
 }
 
 /**
  * Would leaving now lose something (rule A31)? A mode change always counts.
  * The two numbers count only in Custom: in Automatic the save writes the mode
  * alone, so a value left in a hidden field is not an edit that can be lost.
+ * The goal weight is saved in either mode, so it always counts.
  */
 export function targetsDirty(initial: TargetsForm, now: TargetsForm): boolean {
   if (now.mode !== initial.mode) return true;
+  if ((now.goalWeight ?? '').trim() !== (initial.goalWeight ?? '').trim()) return true;
   if (now.mode !== 'custom') return false;
   return now.kcal.trim() !== initial.kcal.trim() || now.protein.trim() !== initial.protein.trim();
 }
@@ -133,16 +143,25 @@ export default function DailyTargetsScreen() {
   const computed = view.loaded ? view.targets : null;
   const [kcal, setKcal] = useState(() => String(profile?.manualCaloriesTarget ?? ''));
   const [protein, setProtein] = useState(() => String(profile?.manualProteinTarget ?? ''));
+  // The goal weight (moved here from onboarding, S24-4): optional, and only
+  // for a goal that has one. Stored in pounds, typed in the account's unit.
+  const unitSystem = profile?.unitSystem ?? 'us';
+  const weightUnit = bodyWeightUnit(unitSystem);
+  const hasGoalWeight = profile?.goalDirection === 'lose' || profile?.goalDirection === 'gain';
+  const [goalWeight, setGoalWeight] = useState(() => {
+    const g = profile?.targetWeightLbs ?? profile?.goalWeightLbs;
+    return g != null ? String(toDisplayWeight(g, unitSystem)) : '';
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Discard guard (A31): back, swipe-back and the header's back all ask before
   // dropping an edit. A successful save sets `saved` first, so its own
   // `router.back()` goes straight through.
-  const [initial] = useState<TargetsForm>(() => ({ mode, kcal, protein }));
+  const [initial] = useState<TargetsForm>(() => ({ mode, kcal, protein, goalWeight }));
   const saved = useRef(false);
   const navigation = useNavigation();
-  usePreventRemove(targetsDirty(initial, { mode, kcal, protein }), ({ data }) => {
+  usePreventRemove(targetsDirty(initial, { mode, kcal, protein, goalWeight }), ({ data }) => {
     if (saved.current) {
       navigation.dispatch(data.action);
       return;
@@ -192,8 +211,23 @@ export default function DailyTargetsScreen() {
   const belowProteinFloor =
     proteinCheck?.ok === true && proteinNum != null && proteinFloorG != null && proteinNum < proteinFloorG;
 
+  // Checked only once it is edited: a stored goal the trend has since passed
+  // must not lock Save on a screen opened to change something else.
+  const goalWeightEdited = hasGoalWeight && goalWeight.trim() !== (initial.goalWeight ?? '').trim();
+  const goalWeightBlank = goalWeight.trim() === '';
+  const goalWeightLb = parseWeightToLb(goalWeight, unitSystem);
+  const weightBand = weightBoundsFor(unitSystem);
+  const goalWeightTyped = numOrNull(goalWeight);
+  const goalWeightInBand =
+    goalWeightLb != null && goalWeightTyped != null && goalWeightTyped >= weightBand.min && goalWeightTyped <= weightBand.max;
+  // The newest weigh-in the targets were computed from; with none, the
+  // direction cannot be checked and is not.
+  const currentLb = computed?.currentWeight ?? null;
+  const goalWeightDir = goalWeightIssue(profile?.goalDirection ?? null, currentLb, goalWeightLb);
+  const goalWeightBad = goalWeightEdited && !goalWeightBlank && (!goalWeightInBand || goalWeightDir != null);
+
   const custom = mode === 'custom';
-  const canSave = !custom || (kcalCheck.ok && (proteinCheck?.ok ?? true) && !belowProteinFloor);
+  const canSave = (!custom || (kcalCheck.ok && (proteinCheck?.ok ?? true) && !belowProteinFloor)) && !goalWeightBad;
 
   function pickMode(next: TargetMode) {
     haptics.tap();
@@ -214,16 +248,14 @@ export default function DailyTargetsScreen() {
     // component holding a `finally` (and any conditional inside a `try`), so
     // the statement form left this whole screen unmemoized. Same order —
     // success path, else the error, then `busy` cleared either way.
-    await saveTargetMode(
-      user.uid,
-      mode,
-      custom
-        ? { calories: kcalNum, protein: protein.trim() === '' ? null : proteinNum }
-        : // Automatic: the MODE alone changes. The stored numbers are left
-          // exactly where they are, which is what makes this switch
-          // reversible without retyping anything.
-          {},
-    )
+    await saveTargetMode(user.uid, mode, {
+      // Automatic: the MODE alone changes. The stored numbers are left exactly
+      // where they are, which is what makes this switch reversible without
+      // retyping anything.
+      ...(custom ? { calories: kcalNum, protein: protein.trim() === '' ? null : proteinNum } : {}),
+      // Written only when edited; blank clears it.
+      ...(goalWeightEdited ? { goalWeightLb: goalWeightBlank ? null : goalWeightLb } : {}),
+    })
       .then(() => {
         haptics.success();
         saved.current = true;
@@ -393,6 +425,36 @@ export default function DailyTargetsScreen() {
               </Text>
             ) : null}
           </View>
+
+          {hasGoalWeight ? (
+            <View style={styles.field}>
+              <Text style={styles.label} accessibilityRole="header">{t('targets.goalWeight')}</Text>
+              <View style={styles.unitInput}>
+                <TextInput
+                  style={[styles.input, goalWeightBad && styles.inputBad]}
+                  keyboardType="decimal-pad"
+                  value={goalWeight}
+                  onChangeText={setGoalWeight}
+                  placeholder="—"
+                  placeholderTextColor={colors.faint}
+                  accessibilityLabel={t('targets.goalWeight')}
+                  testID="targets-goal-weight"
+                />
+                <Text style={styles.unit}>{weightUnit}</Text>
+              </View>
+              {goalWeightBad ? (
+                <Text style={[styles.note, styles.noteBad]} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="targets-goal-weight-note">
+                  {!goalWeightInBand
+                    ? t('onboarding.weightRange', { min: weightBand.min, max: weightBand.max, unit: weightUnit })
+                    : t(goalWeightDir === 'notAbove' ? 'onboarding.goalWeightAbove' : 'onboarding.goalWeightBelow', {
+                        w: `${toDisplayWeight(currentLb ?? 0, unitSystem)} ${weightUnit}`,
+                      })}
+                </Text>
+              ) : (
+                <Text style={styles.note}>{t('onboarding.goalWeightOptional')}</Text>
+              )}
+            </View>
+          ) : null}
 
           {error ? (
             <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="targets-error">

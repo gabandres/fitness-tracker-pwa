@@ -75,8 +75,6 @@ async function walkToPlan(screen: Screen) {
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.changeText(getByTestId('onboarding-weight'), '180');
   await fireEvent.press(getByTestId('onboarding-next'));
-  await fireEvent.changeText(getByTestId('onboarding-target-weight'), '165');
-  await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.press(getByTestId('onboarding-skip-body'));
 }
 

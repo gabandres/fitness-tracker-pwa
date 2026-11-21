@@ -75,15 +75,13 @@ function firedEvents(): string[] {
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
-/** goal -> weight -> goalWeight, stopping on the body step. */
+/** goal -> weight, stopping on the body step. */
 async function walkToBody(screen: Screen) {
   const { getByTestId } = screen;
   await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9), on the goal step
   await fireEvent.press(getByTestId('onboarding-goal-lose'));
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.changeText(getByTestId('onboarding-weight'), '180');
-  await fireEvent.press(getByTestId('onboarding-next'));
-  await fireEvent.changeText(getByTestId('onboarding-target-weight'), '165');
   await fireEvent.press(getByTestId('onboarding-next'));
 }
 
@@ -106,7 +104,7 @@ describe('onboarding funnel markers', () => {
   it('does not double-count a step revisited via Back', async () => {
     const screen = await render(<Onboarding />);
     await walkToBody(screen);
-    await fireEvent.press(screen.getByTestId('onboarding-back')); // -> goalWeight
+    await fireEvent.press(screen.getByTestId('onboarding-back')); // -> weight
     await fireEvent.press(screen.getByTestId('onboarding-next')); // -> body again
     expect(
       firedEvents().filter((e) => e === 'onboarding_step_body'),
@@ -136,8 +134,6 @@ describe('onboarding funnel markers', () => {
     await fireEvent.press(screen.getByTestId('onboarding-next')); // goal (redo start)
     await fireEvent.changeText(screen.getByTestId('onboarding-weight'), '180');
     await fireEvent.press(screen.getByTestId('onboarding-next'));
-    await fireEvent.changeText(screen.getByTestId('onboarding-target-weight'), '165');
-    await fireEvent.press(screen.getByTestId('onboarding-next')); // -> body
     await fireEvent.press(screen.getByTestId('onboarding-next')); // -> activity, prefilled
     await fireEvent.press(screen.getByTestId('onboarding-next')); // -> plan
     // `onboarding_complete` on save is also redo-guarded, pre-existing.

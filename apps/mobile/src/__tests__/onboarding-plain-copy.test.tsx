@@ -61,7 +61,6 @@ async function toActivity(screen: Screen, goal: 'lose' | 'maintain' | 'gain') {
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.changeText(getByTestId('onboarding-weight'), '180');
   await fireEvent.press(getByTestId('onboarding-next'));
-  if (goal !== 'maintain') await fireEvent.press(getByTestId('onboarding-skip-goal-weight'));
   await fireEvent.press(getByTestId('onboarding-sex-female'));
   await fireEvent.changeText(getByTestId('onboarding-feet'), '5');
   await fireEvent.changeText(getByTestId('onboarding-inches'), '6');

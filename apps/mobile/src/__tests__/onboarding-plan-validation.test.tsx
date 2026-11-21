@@ -60,15 +60,13 @@ import Onboarding from '@/app/onboarding';
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
-/** goal -> weight -> goalWeight -> body, skipped -> plan. */
+/** goal -> weight -> body, skipped -> plan. */
 async function walkToPlan(screen: Screen) {
   const { getByTestId } = screen;
   await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9), on the goal step
   await fireEvent.press(getByTestId('onboarding-goal-lose'));
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.changeText(getByTestId('onboarding-weight'), '180');
-  await fireEvent.press(getByTestId('onboarding-next'));
-  await fireEvent.changeText(getByTestId('onboarding-target-weight'), '165');
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.press(getByTestId('onboarding-skip-body'));
 }

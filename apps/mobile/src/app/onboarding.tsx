@@ -65,11 +65,14 @@ import { font, motion, radius, space, TARGET, type } from '@/theme';
 /** No 'reminders' step since 2026-11-19: it asked for notification permission
  *  before the app had done anything (0 of 43 users said yes). The ask moved to
  *  a card on Today after the first logged food. Plan → first log now. */
-type StepId = 'goal' | 'weight' | 'goalWeight' | 'body' | 'activity' | 'plan' | 'firstLog';
-const ORDER: StepId[] = ['goal', 'weight', 'goalWeight', 'body', 'activity', 'plan'];
+/** No 'goalWeight' step since 2026-11-21 (S24-4): it was optional, nothing in
+ *  the plan reads it, and it stood between a new user and the first log. It is
+ *  a field on Settings → Daily targets now. */
+type StepId = 'goal' | 'weight' | 'body' | 'activity' | 'plan' | 'firstLog';
+const ORDER: StepId[] = ['goal', 'weight', 'body', 'activity', 'plan'];
 /** Steps that get a progress dot. `firstLog` is the last one on a first run;
  *  a redo never reaches it, so it gets no dot there. */
-const DOT_STEPS: StepId[] = ['goal', 'weight', 'goalWeight', 'body', 'activity', 'plan', 'firstLog'];
+const DOT_STEPS: StepId[] = ['goal', 'weight', 'body', 'activity', 'plan', 'firstLog'];
 
 /** Same five buckets, same order, as Settings -> Refine targets. The labels are
  *  shared with that screen; the example lines are this screen's own. Each
@@ -281,11 +284,6 @@ export default function Onboarding() {
     setWeight(v);
   }
   const [goal, setGoal] = useState<GoalDirection | null>(profile?.goalDirection ?? null);
-  const [targetWeight, setTargetWeight] = useState(() => {
-    const g = profile?.targetWeightLbs ?? profile?.goalWeightLbs;
-    // Stored in pounds; shown in the unit this run asks in.
-    return g != null ? String(toDisplayWeight(g, unitSystem)) : '';
-  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -327,16 +325,15 @@ export default function Onboarding() {
   // profile used to build a plan for a 68 lb person (UX_AUDIT F3).
   const weightLbs = parseWeightToLb(weight, unitSystem) ?? undefined;
   const weightOk = weightInBand(weightLbs);
-  // Skip the goal-weight step for "maintain" (there's no target to hit).
-  const skipGoalWeight = goal === 'maintain';
-  const targetWeightLbs = parseWeightToLb(targetWeight, unitSystem);
-  // Goal weight is OPTIONAL (2026-10-15): nothing downstream needs it — the
-  // rules allow a cut with none and the target math never reads it — yet Lose
-  // and Gain could not continue without one. Blank means "no goal weight". A
-  // typed one must be plausible AND on the right side of the current weight.
-  const targetBlank = targetWeight.trim() === '';
-  const targetDirIssue = goalWeightIssue(goal, weightLbs, targetWeightLbs);
-  const targetWeightOk = targetBlank || (weightInBand(targetWeightLbs) && targetDirIssue == null);
+  // The goal weight is not asked here (Settings → Daily targets). A redo
+  // carries the stored one through, because the save clears it when the
+  // submission has none — unless the new goal no longer fits it: "maintain"
+  // has no goal weight, and a goal on the wrong side of the weight is stale.
+  const storedGoalLb = profile?.targetWeightLbs ?? profile?.goalWeightLbs ?? null;
+  const keptGoalLb =
+    storedGoalLb != null && goal !== 'maintain' && goalWeightIssue(goal, weightLbs, storedGoalLb) == null
+      ? storedGoalLb
+      : undefined;
   const weightBand = weightBoundsFor(unitSystem);
   // Onboarding has no pace control, so the pace is derived: 1 lb/wk for a cut
   // unless the user already dialled one in Refine, 0 otherwise. See
@@ -396,7 +393,7 @@ export default function Onboarding() {
       ? {
           weightLbs,
           goalDirection: goal,
-          targetWeightLbs: skipGoalWeight || targetBlank ? undefined : (targetWeightLbs ?? undefined),
+          targetWeightLbs: keptGoalLb,
           manualCaloriesTarget: (kcalEdited ? kcalTyped : suggestedKcal) ?? 0,
           manualProteinTarget: (proteinEdited ? proteinTyped : suggestedProtein) ?? 0,
           // The Mifflin-St Jeor set. Passed unconditionally — `toOnboardingV2Patch`
@@ -489,7 +486,6 @@ export default function Onboarding() {
 
   /** Steps navigation and the dots both walk straight past. */
   function isSkipped(s: StepId): boolean {
-    if (s === 'goalWeight') return skipGoalWeight;
     if (s === 'body' || s === 'activity') return skippedBody;
     return false;
   }
@@ -505,7 +501,6 @@ export default function Onboarding() {
   const canAdvance =
     (step === 'goal' && goal != null && ageGateOpen(isRedo, ageConfirmed)) ||
     (step === 'weight' && weightOk) ||
-    (step === 'goalWeight' && targetWeightOk) ||
     (step === 'body' && bodyComplete) ||
     (step === 'activity' && activity != null) ||
     // A typed calorie number has to clear the floor before it can be saved —
@@ -550,7 +545,6 @@ export default function Onboarding() {
       return lb == null ? typed : String(toDisplayWeight(lb, next));
     };
     setWeight(convert(weight));
-    setTargetWeight(convert(targetWeight));
     const h = parseHeightInput(unitSystem, { cm: heightCm, feet, inches });
     if (h != null) {
       if (next === 'metric') {
@@ -898,32 +892,6 @@ export default function Onboarding() {
                   {t('onboarding.weightRange', { min: weightBand.min, max: weightBand.max, unit: weightUnit })}
                 </Text>
               ) : null}
-            </View>
-          ) : null}
-
-          {step === 'goalWeight' ? (
-            <View style={styles.step}>
-              <Text style={styles.question} accessibilityRole="header">{t('onboarding.goalWeightQ')}</Text>
-              <Text style={styles.stepSub}>{t('onboarding.goalWeightOptional')}</Text>
-              <BigInput value={targetWeight} onChangeText={setTargetWeight} placeholder={String(toDisplayWeight(165, unitSystem))} unit={weightUnit} label={t('onboarding.goalWeightQ')} styles={styles} colors={colors} testID="onboarding-target-weight" />
-              {!targetBlank && !targetWeightOk ? (
-                <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" testID="onboarding-target-weight-error">
-                  {!weightInBand(targetWeightLbs)
-                    ? t('onboarding.weightRange', { min: weightBand.min, max: weightBand.max, unit: weightUnit })
-                    : t(targetDirIssue === 'notAbove' ? 'onboarding.goalWeightAbove' : 'onboarding.goalWeightBelow', {
-                        w: `${weight.trim()} ${weightUnit}`,
-                      })}
-                </Text>
-              ) : null}
-              <SkipLink
-                label={t('onboarding.goalWeightSkip')}
-                onPress={() => {
-                  setTargetWeight('');
-                  go(1);
-                }}
-                styles={styles}
-                testID="onboarding-skip-goal-weight"
-              />
             </View>
           ) : null}
 

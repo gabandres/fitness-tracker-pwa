@@ -186,7 +186,6 @@ export const en = {
   'onboarding.titleEdit': 'Edit your goals',
   'onboarding.goalQ': "What's your goal?",
   'onboarding.weightQ': 'What do you weigh now?',
-  'onboarding.goalWeightQ': "What's your goal weight?",
   'onboarding.planQ': 'Your daily plan',
   // ── The body + activity steps (UX_AUDIT F1/F2) ──────────────────
   // The four Mifflin-St Jeor inputs, asked at first run instead of only in
@@ -201,7 +200,6 @@ export const en = {
   'onboarding.planBasisRough': 'This is a rough estimate from your weight alone. Add your height, age, sex and activity in Settings → Refine targets to sharpen it.',
   'onboarding.planFloor': 'Held at {n} — the lowest daily target we recommend.',
   'onboarding.goalWeightOptional': "Optional — leave it blank if you don't have one.",
-  'onboarding.goalWeightSkip': "I don't have a goal weight",
   'onboarding.goalWeightBelow': "For a loss goal, pick a weight below your current {w}.",
   'onboarding.goalWeightAbove': "For a build goal, pick a weight above your current {w}.",
   'onboarding.weightPrefilled': "Your latest weigh-in. Change it if today's is different — a new number is saved as today's weigh-in.",
@@ -2318,6 +2316,7 @@ export const en = {
   'targets.customBody': 'Your numbers. Ignia keeps measuring in the background, but it will not change what you set.',
   'targets.calories': 'Calories',
   'targets.protein': 'Protein',
+  'targets.goalWeight': 'Goal weight',
   'targets.caloriesUnit': 'kcal',
   'targets.proteinUnit': 'g',
   'targets.measuredNote': 'Ignia estimates your maintenance at {n} kcal.',

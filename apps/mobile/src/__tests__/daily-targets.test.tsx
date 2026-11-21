@@ -181,6 +181,77 @@ describe('Daily targets editor', () => {
   });
 });
 
+// ── The goal weight, moved here from onboarding (S24-4, 2026-11-21) ───────
+describe('goal weight', () => {
+  it('has no field for a maintain goal', async () => {
+    mockProfile = { goalDirection: 'maintain' };
+    const { queryByTestId } = await render(<DailyTargetsScreen />);
+    expect(queryByTestId('targets-goal-weight')).toBeNull();
+  });
+
+  it('saves a typed goal weight in pounds, in either mode', async () => {
+    mockProfile = { goalDirection: 'lose' };
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    await fireEvent.changeText(getByTestId('targets-goal-weight'), '165');
+    await act(async () => {
+      await fireEvent.press(getByTestId('targets-save'));
+    });
+    expect(mockSaveTargetMode).toHaveBeenCalledWith('u1', 'auto', { goalWeightLb: 165 });
+  });
+
+  it('converts a metric goal weight to pounds', async () => {
+    mockProfile = { goalDirection: 'lose', unitSystem: 'metric' };
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    await fireEvent.changeText(getByTestId('targets-goal-weight'), '75');
+    await act(async () => {
+      await fireEvent.press(getByTestId('targets-save'));
+    });
+    const [, , targets] = mockSaveTargetMode.mock.calls[0];
+    expect(targets.goalWeightLb).toBeCloseTo(165.35, 1);
+  });
+
+  it('clearing the field clears the stored goal weight', async () => {
+    mockProfile = { goalDirection: 'lose', targetWeightLbs: 165 };
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    expect(getByTestId('targets-goal-weight').props.value).toBe('165');
+    await fireEvent.changeText(getByTestId('targets-goal-weight'), '');
+    await act(async () => {
+      await fireEvent.press(getByTestId('targets-save'));
+    });
+    expect(mockSaveTargetMode).toHaveBeenCalledWith('u1', 'auto', { goalWeightLb: null });
+  });
+
+  it('refuses a loss goal at or above the current weight (190)', async () => {
+    mockProfile = { goalDirection: 'lose' };
+    const { getByTestId } = await render(<DailyTargetsScreen />);
+    await fireEvent.changeText(getByTestId('targets-goal-weight'), '200');
+    expect(getByTestId('targets-goal-weight-note')).toBeTruthy();
+    await act(async () => {
+      await fireEvent.press(getByTestId('targets-save'));
+    });
+    expect(mockSaveTargetMode).not.toHaveBeenCalled();
+  });
+
+  it('an untouched goal the trend has passed does not lock Save, and is not rewritten', async () => {
+    // Stored 195 on a loss goal at 190 lb: stale, but not what this visit edits.
+    mockProfile = { goalDirection: 'lose', targetWeightLbs: 195, targetMode: 'custom', manualCaloriesTarget: 2000 };
+    const { getByTestId, queryByTestId } = await render(<DailyTargetsScreen />);
+    expect(queryByTestId('targets-goal-weight-note')).toBeNull();
+    await fireEvent.press(getByTestId('targets-mode-auto'));
+    await act(async () => {
+      await fireEvent.press(getByTestId('targets-save'));
+    });
+    expect(mockSaveTargetMode).toHaveBeenCalledWith('u1', 'auto', {});
+  });
+
+  it('counts as an unsaved edit in Automatic too', () => {
+    const base = { mode: 'auto' as const, kcal: '', protein: '', goalWeight: '165' };
+    expect(targetsDirty(base, base)).toBe(false);
+    expect(targetsDirty(base, { ...base, goalWeight: '160' })).toBe(true);
+    expect(targetsDirty(base, { ...base, goalWeight: '165 ' })).toBe(false);
+  });
+});
+
 // ── A31: leaving with unsaved edits asks first (2026-11-19) ───────────────
 describe('discard guard', () => {
   const base = { mode: 'auto' as const, kcal: '', protein: '' };

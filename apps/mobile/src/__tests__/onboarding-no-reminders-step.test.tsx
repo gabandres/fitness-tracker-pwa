@@ -75,7 +75,7 @@ beforeEach(() => {
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
-/** goal → weight → goalWeight → body (skipped) → plan → save. */
+/** goal → weight → body (skipped) → plan → save. */
 async function walkToSavedPlan(screen: Screen, goal: 'lose' | 'maintain' = 'lose') {
   const { getByTestId } = screen;
   if (!mockProfile?.profileCompleted) await fireEvent.press(getByTestId('onboarding-age-attest'));
@@ -83,10 +83,6 @@ async function walkToSavedPlan(screen: Screen, goal: 'lose' | 'maintain' = 'lose
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.changeText(getByTestId('onboarding-weight'), '180');
   await fireEvent.press(getByTestId('onboarding-next'));
-  if (goal === 'lose') {
-    await fireEvent.changeText(getByTestId('onboarding-target-weight'), '165');
-    await fireEvent.press(getByTestId('onboarding-next'));
-  }
   await fireEvent.press(getByTestId('onboarding-skip-body'));
   await fireEvent.press(getByTestId('onboarding-save'));
 }
@@ -110,8 +106,8 @@ describe('onboarding goes from the saved plan straight to the first log', () => 
     await walkToSavedPlan(screen);
     await waitFor(() => expect(screen.getByTestId('onboarding-first-log')).toBeTruthy());
     const dots = screen.getByTestId('onboarding-dots');
-    // lose + skipped body: goal, weight, goalWeight, plan, firstLog.
-    expect(dots.props.accessibilityValue).toEqual({ min: 1, max: 5, now: 5 });
+    // lose + skipped body: goal, weight, plan, firstLog.
+    expect(dots.props.accessibilityValue).toEqual({ min: 1, max: 4, now: 4 });
   });
 
   it('the first-log step reads plainly and promises no reminder', async () => {

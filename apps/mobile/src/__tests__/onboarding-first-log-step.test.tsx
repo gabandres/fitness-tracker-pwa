@@ -71,15 +71,13 @@ beforeEach(() => {
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
-/** goal → weight → goalWeight → body (skipped) → plan → save. */
+/** goal → weight → body (skipped) → plan → save. */
 async function walkToFirstLog(screen: Screen) {
   const { getByTestId } = screen;
   await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9), on the goal step
   await fireEvent.press(getByTestId('onboarding-goal-lose'));
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.changeText(getByTestId('onboarding-weight'), '180');
-  await fireEvent.press(getByTestId('onboarding-next'));
-  await fireEvent.changeText(getByTestId('onboarding-target-weight'), '165');
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.press(getByTestId('onboarding-skip-body'));
   await fireEvent.press(getByTestId('onboarding-save'));
@@ -123,8 +121,6 @@ describe('onboarding ends by offering the first log', () => {
     await fireEvent.press(getByTestId('onboarding-goal-lose'));
     await fireEvent.press(getByTestId('onboarding-next'));
     await fireEvent.changeText(getByTestId('onboarding-weight'), '180');
-    await fireEvent.press(getByTestId('onboarding-next'));
-    await fireEvent.changeText(getByTestId('onboarding-target-weight'), '165');
     await fireEvent.press(getByTestId('onboarding-next'));
     if (queryByTestId('onboarding-skip-body')) await fireEvent.press(getByTestId('onboarding-skip-body'));
     await fireEvent.press(getByTestId('onboarding-save'));

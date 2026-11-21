@@ -174,7 +174,6 @@ export const esPR: Record<I18nKey, string> = {
   // ── onboarding ──
   'onboarding.goalQ': '¿Cuál es tu meta?',
   'onboarding.weightQ': '¿Cuánto pesas ahora?',
-  'onboarding.goalWeightQ': '¿Cuál es tu peso meta?',
   'onboarding.planQ': 'Tu plan diario',
   // Ver en.ts: los cuatro datos de Mifflin-St Jeor, ahora en el primer uso.
   'onboarding.bodyQ': 'Un poco sobre ti',
@@ -185,7 +184,6 @@ export const esPR: Record<I18nKey, string> = {
   'onboarding.planBasisRough': 'Esta es una estimación aproximada basada solo en tu peso. Añade tu estatura, edad, sexo y actividad en Ajustes → Afinar metas para precisarla.',
   'onboarding.planFloor': 'Fijada en {n} — la meta diaria más baja que recomendamos.',
   'onboarding.goalWeightOptional': "Opcional — déjalo en blanco si no tienes uno.",
-  'onboarding.goalWeightSkip': "No tengo un peso meta",
   'onboarding.goalWeightBelow': "Para una meta de pérdida, escoge un peso menor que tu peso actual de {w}.",
   'onboarding.goalWeightAbove': "Para una meta de ganancia, escoge un peso mayor que tu peso actual de {w}.",
   'onboarding.weightPrefilled': "Tu pesaje más reciente. Cámbialo si hoy es distinto — un número nuevo se guarda como el pesaje de hoy.",
@@ -2149,6 +2147,7 @@ export const esPR: Record<I18nKey, string> = {
   'targets.customBody': 'Tus números. Ignia sigue midiendo por detrás, pero no cambia lo que tú pusiste.',
   'targets.calories': 'Calorías',
   'targets.protein': 'Proteína',
+  'targets.goalWeight': 'Peso meta',
   'targets.caloriesUnit': 'kcal',
   'targets.proteinUnit': 'g',
   'targets.measuredNote': 'Ignia estima tu mantenimiento en {n} kcal.',

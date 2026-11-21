@@ -2168,9 +2168,16 @@ export async function saveRefinedTargets(uid: string, s: RefineTargetsSubmission
 export async function saveTargetMode(
   uid: string,
   mode: TargetMode,
-  targets: { calories?: number | null; protein?: number | null } = {},
+  targets: { calories?: number | null; protein?: number | null; goalWeightLb?: number | null } = {},
 ): Promise<void> {
   const patch: Record<string, unknown> = { targetMode: mode, lastSeenAt: Timestamp.now() };
+  // The goal weight lives in two fields (core `toOnboardingV2Patch`): written
+  // and cleared together, or a stale one shadows the other. Absent = untouched.
+  if (targets.goalWeightLb !== undefined) {
+    const v = targets.goalWeightLb == null ? deleteField() : targets.goalWeightLb;
+    patch['targetWeightLbs'] = v;
+    patch['goalWeightLbs'] = v;
+  }
   if (targets.calories !== undefined) {
     patch['manualCaloriesTarget'] = targets.calories == null ? deleteField() : targets.calories;
   }

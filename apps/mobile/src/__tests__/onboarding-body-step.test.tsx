@@ -75,15 +75,13 @@ beforeEach(() => {
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
-/** goal -> weight -> goalWeight, stopping on the body step. */
+/** goal -> weight, stopping on the body step. */
 async function walkToBody(screen: Screen, weightLb = '180') {
   const { getByTestId } = screen;
   await fireEvent.press(getByTestId('onboarding-age-attest')); // 16+ attestation (S18-9), on the goal step
   await fireEvent.press(getByTestId('onboarding-goal-lose'));
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.changeText(getByTestId('onboarding-weight'), weightLb);
-  await fireEvent.press(getByTestId('onboarding-next'));
-  await fireEvent.changeText(getByTestId('onboarding-target-weight'), '165');
   await fireEvent.press(getByTestId('onboarding-next'));
 }
 
@@ -233,8 +231,6 @@ describe('a redo from Settings', () => {
     await fireEvent.press(screen.getByTestId('onboarding-next'));
     await fireEvent.changeText(screen.getByTestId('onboarding-weight'), '180');
     await fireEvent.press(screen.getByTestId('onboarding-next'));
-    await fireEvent.changeText(screen.getByTestId('onboarding-target-weight'), '165');
-    await fireEvent.press(screen.getByTestId('onboarding-next'));
     expect(screen.getByTestId('onboarding-feet').props.value).toBe('5');
     expect(screen.getByTestId('onboarding-inches').props.value).toBe('4');
     expect(screen.getByTestId('onboarding-age').props.value).toBe('45');
@@ -244,8 +240,6 @@ describe('a redo from Settings', () => {
     const screen = await render(<Onboarding />);
     await fireEvent.press(screen.getByTestId('onboarding-next'));
     await fireEvent.changeText(screen.getByTestId('onboarding-weight'), '180');
-    await fireEvent.press(screen.getByTestId('onboarding-next'));
-    await fireEvent.changeText(screen.getByTestId('onboarding-target-weight'), '165');
     await fireEvent.press(screen.getByTestId('onboarding-next'));
     await fireEvent.press(screen.getByTestId('onboarding-next')); // body, prefilled
     await fireEvent.press(screen.getByTestId('onboarding-next')); // activity, prefilled
@@ -272,15 +266,14 @@ describe('onboarding weight entry in kilograms', () => {
     await fireEvent.press(getByTestId('onboarding-next'));
     await fireEvent.changeText(getByTestId('onboarding-weight'), '82');
     await fireEvent.press(getByTestId('onboarding-next'));
-    await fireEvent.changeText(getByTestId('onboarding-target-weight'), '75');
-    await fireEvent.press(getByTestId('onboarding-next'));
     await fireEvent.press(getByTestId('onboarding-skip-body'));
     await fireEvent.press(getByTestId('onboarding-save'));
 
     const payload = mockSave.mock.calls[0][1];
-    // 82 kg = 180.8 lb, 75 kg = 165.3 lb. Storing 82 and 75 is the defect.
+    // 82 kg = 180.8 lb. Storing 82 is the defect. No goal weight is asked
+    // here since 2026-11-21 (Settings → Daily targets), so a first run has none.
     expect(payload.weightLbs).toBeCloseTo(180.8, 1);
-    expect(payload.targetWeightLbs).toBeCloseTo(165.3, 1);
+    expect(payload.targetWeightLbs).toBeUndefined();
   });
 
   it('builds the calorie seed off the converted weight, not the typed number', async () => {

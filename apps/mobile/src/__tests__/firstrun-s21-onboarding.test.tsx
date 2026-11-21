@@ -110,8 +110,6 @@ async function walkToFirstLog(screen: Screen) {
   await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.changeText(getByTestId('onboarding-weight'), '180');
   await fireEvent.press(getByTestId('onboarding-next'));
-  await fireEvent.changeText(getByTestId('onboarding-target-weight'), '165');
-  await fireEvent.press(getByTestId('onboarding-next'));
   await fireEvent.press(getByTestId('onboarding-skip-body'));
   await fireEvent.press(getByTestId('onboarding-save'));
   await waitFor(() => expect(getByTestId('onboarding-first-log')).toBeTruthy());
@@ -192,8 +190,6 @@ describe('#3 the unit a new user is asked in', () => {
     expect(screen.getByTestId('onboarding-unit-weight-metric').props.accessibilityState).toMatchObject({ selected: true });
     await fireEvent.changeText(screen.getByTestId('onboarding-weight'), '80');
     await fireEvent.press(screen.getByTestId('onboarding-next'));
-    await fireEvent.changeText(screen.getByTestId('onboarding-target-weight'), '75');
-    await fireEvent.press(screen.getByTestId('onboarding-next'));
     // The body step asks height in cm.
     expect(screen.getByTestId('onboarding-height-cm')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('onboarding-skip-body'));
@@ -202,7 +198,7 @@ describe('#3 the unit a new user is asked in', () => {
     await waitFor(() => expect(mockSave).toHaveBeenCalledTimes(1));
     const [, sub] = mockSave.mock.calls[0];
     expect(sub.weightLbs).toBeCloseTo(176.37, 1); // stored in POUNDS, always
-    expect(sub.targetWeightLbs).toBeCloseTo(165.35, 1);
+    expect(sub.targetWeightLbs).toBeUndefined(); // not asked in onboarding since 2026-11-21
     expect(mockSetUnitSystem).toHaveBeenCalledWith('u1', 'metric');
   });
 
