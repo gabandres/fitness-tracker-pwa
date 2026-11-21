@@ -8,6 +8,7 @@ import {
   type DayBoundary,
   dayBoundaryOf,
   dayRange,
+  proteinFirstForDay,
   resolveQuickAddTargets,
 } from '@macrolog/core';
 import { useLocale } from '@/i18n';
@@ -100,6 +101,17 @@ export function useWidgetSync(
   // Resolved here rather than in the widget: a slot whose preset was deleted has
   // to disappear from the blob, or the button outlives what it logs.
   const quickAdd = useMemo(() => resolveQuickAddTargets(slots, presets), [slots, presets]);
+  // Protein-first mode (2026-11-20): the same reading the hero has, for the
+  // day the summary describes, so the widget cannot disagree with Today.
+  const proteinFirst = useMemo(
+    () =>
+      proteinFirstForDay(profile as { homePlan?: unknown; proteinFirst?: boolean; calorieFloor?: number } | null, summary.dateKey, {
+        calorieTarget: targets.calorieTarget,
+        proteinTarget: targets.proteinTarget,
+        proteinMin: targets.proteinMinTarget,
+      }),
+    [profile, summary.dateKey, targets.calorieTarget, targets.proteinTarget, targets.proteinMinTarget],
+  );
 
   // An effect event, so the AppState listener below is registered once instead
   // of being torn down and rebuilt on every keystroke that moves a total, and
@@ -109,14 +121,14 @@ export function useWidgetSync(
   // re-runs the effect below with the new day.
   const onForeground = useEffectEvent(() => {
     const { key, endsMs } = dayStamp(boundary, summary);
-    void syncWidget(summary, targets, key, locale, Date.now(), quickAdd, endsMs);
+    void syncWidget(summary, targets, key, locale, Date.now(), quickAdd, endsMs, proteinFirst);
     if (uid) void flushPendingLogs(uid);
   });
 
   useEffect(() => {
     const { key, endsMs } = dayStamp(boundary, summary);
-    void syncWidget(summary, targets, key, locale, Date.now(), quickAdd, endsMs);
-  }, [summary, targets, locale, quickAdd, boundary]);
+    void syncWidget(summary, targets, key, locale, Date.now(), quickAdd, endsMs, proteinFirst);
+  }, [summary, targets, locale, quickAdd, boundary, proteinFirst]);
 
   // The Quick Settings tile's label mirror (ADR-0020). Driven from the same
   // resolved slots as the snapshot above, so the tile and the widget can never

@@ -175,38 +175,67 @@ export function TodayWidget({ view, width }: { view: WidgetView; width?: number 
             alignItems: wide ? 'center' : 'flex-start',
           }}
         >
-          <FlexWidget style={{ flexDirection: 'column', flex: 1 }}>
-            <TextWidget
-              text={groupDigits(view.kcal.value)}
-              style={{ fontSize: wide ? 38 : 34, color: COLORS.kcal, fontWeight: '700' }}
-            />
-            <TextWidget
-              text={`${s.kcal} ${view.kcal.over ? s.over : s.left}`}
-              style={{ fontSize: 12, color: COLORS.muted }}
-            />
-            {/* Bars only on the wide face. A 2×2 cell has no room for them —
-                the same reason iOS `systemSmall` skips them. */}
-            {wide ? (
-              <FlexWidget style={{ width: 'match_parent', marginTop: 7 }}>
-                <MacroBar progress={view.kcal.progress} fill={COLORS.kcal} track={COLORS.kcalTrack} />
-              </FlexWidget>
-            ) : null}
-            <TextWidget
-              text={`${groupDigits(view.protein.value)}g ${s.protein} ${
-                view.protein.over ? s.over : s.left
-              }`}
-              style={{ fontSize: 13, color: COLORS.protein, marginTop: wide ? 12 : 8 }}
-            />
-            {wide ? (
-              <FlexWidget style={{ width: 'match_parent', marginTop: 5 }}>
-                <MacroBar
-                  progress={view.protein.progress}
-                  fill={COLORS.protein}
-                  track={COLORS.proteinTrack}
-                />
-              </FlexWidget>
-            ) : null}
-          </FlexWidget>
+          {view.proteinFirst ? (
+            // Protein-first mode (core `protein-first.ts`): protein is the big
+            // number and calories are what was eaten beside the range — no
+            // "left", no "over". Same slots and sizes as the column below.
+            <FlexWidget style={{ flexDirection: 'column', flex: 1 }}>
+              <TextWidget
+                text={groupDigits(view.protein.over ? view.proteinFirst.proteinConsumed : view.protein.value)}
+                style={{ fontSize: wide ? 38 : 34, color: COLORS.protein, fontWeight: '700' }}
+              />
+              <TextWidget
+                text={view.protein.over ? s.proteinMet : s.proteinLeft}
+                style={{ fontSize: 12, color: COLORS.muted }}
+              />
+              {wide ? (
+                <FlexWidget style={{ width: 'match_parent', marginTop: 7 }}>
+                  <MacroBar progress={view.protein.progress} fill={COLORS.protein} track={COLORS.proteinTrack} />
+                </FlexWidget>
+              ) : null}
+              <TextWidget
+                text={`${groupDigits(view.proteinFirst.kcalConsumed)} ${s.kcal} · ${
+                  view.proteinFirst.kcalMin < view.proteinFirst.kcalMax
+                    ? `${groupDigits(view.proteinFirst.kcalMin)}–${groupDigits(view.proteinFirst.kcalMax)}`
+                    : groupDigits(view.proteinFirst.kcalMax)
+                }`}
+                style={{ fontSize: 13, color: COLORS.muted, marginTop: wide ? 12 : 8 }}
+              />
+            </FlexWidget>
+          ) : (
+            <FlexWidget style={{ flexDirection: 'column', flex: 1 }}>
+              <TextWidget
+                text={groupDigits(view.kcal.value)}
+                style={{ fontSize: wide ? 38 : 34, color: COLORS.kcal, fontWeight: '700' }}
+              />
+              <TextWidget
+                text={`${s.kcal} ${view.kcal.over ? s.over : s.left}`}
+                style={{ fontSize: 12, color: COLORS.muted }}
+              />
+              {/* Bars only on the wide face. A 2×2 cell has no room for them —
+                  the same reason iOS `systemSmall` skips them. */}
+              {wide ? (
+                <FlexWidget style={{ width: 'match_parent', marginTop: 7 }}>
+                  <MacroBar progress={view.kcal.progress} fill={COLORS.kcal} track={COLORS.kcalTrack} />
+                </FlexWidget>
+              ) : null}
+              <TextWidget
+                text={`${groupDigits(view.protein.value)}g ${s.protein} ${
+                  view.protein.over ? s.over : s.left
+                }`}
+                style={{ fontSize: 13, color: COLORS.protein, marginTop: wide ? 12 : 8 }}
+              />
+              {wide ? (
+                <FlexWidget style={{ width: 'match_parent', marginTop: 5 }}>
+                  <MacroBar
+                    progress={view.protein.progress}
+                    fill={COLORS.protein}
+                    track={COLORS.proteinTrack}
+                  />
+                </FlexWidget>
+              ) : null}
+            </FlexWidget>
+          )}
 
           {slots.length > 0 ? (
             <FlexWidget

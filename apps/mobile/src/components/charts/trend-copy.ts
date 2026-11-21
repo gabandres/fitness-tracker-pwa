@@ -1,11 +1,13 @@
 import {
   type BalanceVerdict,
+  type ProteinFirstView,
   type TdeeResult,
   type UnitSystem,
   type WeeklyInsights,
   MIN_INSIGHT_DAYS,
   balanceVerdict,
   bodyWeightUnit,
+  calorieRangeState,
   toDisplayWeight,
 } from '@macrolog/core';
 import type { Locale, TFn } from '@/i18n';
@@ -120,8 +122,32 @@ export type TrendsAnswer =
   | { kind: 'sentence'; weight: string | null; eating: string | null; needsWeighIns: boolean }
   | { kind: 'checklist'; foodDays: number; foodNeeded: number; weighIns: number; weighInsNeeded: number };
 
+/**
+ * Where the week's average calories sit against the protein-first range — a
+ * place, never a verdict: "inside", "below" or "above", with no "over target"
+ * and nothing in red. A range that has collapsed to one number says nothing.
+ */
+export function rangeLine(
+  avgCalories: number,
+  view: Pick<ProteinFirstView, 'kcalMin' | 'kcalMax'>,
+  t: TFn,
+  locale: Locale,
+): string | null {
+  if (!(view.kcalMin < view.kcalMax)) return null;
+  const state = calorieRangeState(avgCalories, view);
+  return keepUnitsTogether(
+    t(state === 'in' ? 'trends.pfRangeIn' : state === 'below' ? 'trends.pfRangeBelow' : 'trends.pfRangeAbove', {
+      min: formatNumber(view.kcalMin, locale),
+      max: formatNumber(view.kcalMax, locale),
+    }),
+  );
+}
+
 export function trendsAnswer(input: {
-  insights: Pick<WeeklyInsights, 'avgUnderTarget' | 'weightSlopeLbPerWeek'> | null;
+  insights: (Pick<WeeklyInsights, 'avgUnderTarget' | 'weightSlopeLbPerWeek'> & Partial<Pick<WeeklyInsights, 'avgCalories' | 'avgProtein'>>) | null;
+  /** Protein-first mode (core `protein-first.ts`): the eating sentence is
+   *  about protein, and calories are placed in the range. */
+  proteinFirst?: ProteinFirstView | null;
   loggedThisWeek: number;
   weighIns: number;
   hasTarget: boolean;
@@ -153,7 +179,23 @@ export function trendsAnswer(input: {
     }
   }
   let eating: string | null = null;
-  if (input.hasTarget) {
+  const pf = input.proteinFirst;
+  if (pf && insights.avgProtein != null && insights.avgCalories != null) {
+    const protein = t('trends.answer.pfProtein', {
+      n: formatNumber(Math.round(insights.avgProtein), locale),
+      target: formatNumber(pf.proteinTarget, locale),
+    });
+    const state = calorieRangeState(insights.avgCalories, pf);
+    const calories =
+      pf.kcalMin < pf.kcalMax
+        ? t(state === 'in' ? 'trends.answer.pfKcalIn' : state === 'below' ? 'trends.answer.pfKcalBelow' : 'trends.answer.pfKcalAbove', {
+            n: formatNumber(Math.round(insights.avgCalories), locale),
+            min: formatNumber(pf.kcalMin, locale),
+            max: formatNumber(pf.kcalMax, locale),
+          })
+        : null;
+    eating = calories ? `${protein} ${calories}` : protein;
+  } else if (input.hasTarget) {
     const v = balanceVerdict(insights.avgUnderTarget);
     const rounded = Math.max(10, Math.round(v.kcal / 10) * 10);
     eating =

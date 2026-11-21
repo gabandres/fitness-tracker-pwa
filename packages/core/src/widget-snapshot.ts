@@ -110,6 +110,18 @@ export interface WidgetSnapshot {
    * to the calendar comparison, which is what that writer meant.
    */
   dayEndsMs?: number;
+  /**
+   * Protein-first mode for this day (core `protein-first.ts`, 2026-11-20): the
+   * calorie RANGE the face shows instead of "kcal left". When present,
+   * `proteinTarget` above is already the mode's protein target (a dated plan
+   * can set its own), so a consumer that ignores this field still counts
+   * protein against the right number.
+   *
+   * **Additive and optional, and the wire version is deliberately NOT bumped**
+   * — same reasoning as `quickAdd`. The Android face reads it; the iOS widget
+   * is native and keeps its calorie-first face until a binary changes it.
+   */
+  proteinFirst?: { kcalMin: number; kcalMax: number };
 }
 
 /** One rendered number: how far from target, and which side of it. */
@@ -156,6 +168,9 @@ export type WidgetView =
        * be logging into a day the widget is explicitly declining to describe.
        */
       quickAdd: QuickAddTarget[];
+      /** Protein-first mode: the face leads with protein and shows calories
+       *  as what was eaten beside the range, with no "left" or "over". */
+      proteinFirst?: { kcalConsumed: number; proteinConsumed: number; kcalMin: number; kcalMax: number };
     };
 
 /** Round to a non-negative integer, mapping any non-finite input to 0. The
@@ -179,14 +194,18 @@ export function buildWidgetSnapshot(
   locale = 'en',
   quickAdd: readonly QuickAddTarget[] = [],
   dayEndsMs?: number,
+  proteinFirst?: { proteinTarget: number; kcalMin: number; kcalMax: number } | null,
 ): WidgetSnapshot {
+  const range = sanitizeProteinFirst(proteinFirst);
   return {
     v: WIDGET_SNAPSHOT_VERSION,
     dateKey,
     kcalConsumed: safeInt(summary.totalCalories),
     kcalTarget: safeInt(targets.calorieTarget),
     proteinConsumed: safeInt(summary.totalProtein),
-    proteinTarget: safeInt(targets.proteinTarget),
+    // The mode's own protein target when it is on — the number the hero counts
+    // against — so every face agrees, the native ones included.
+    proteinTarget: safeInt(range && proteinFirst && proteinFirst.proteinTarget > 0 ? proteinFirst.proteinTarget : targets.proteinTarget),
     updatedMs: Number.isFinite(nowMs) ? Math.round(nowMs) : 0,
     locale,
     // Omitted entirely when empty, so a user with no quick-add slots produces
@@ -201,7 +220,22 @@ export function buildWidgetSnapshot(
     ...(typeof dayEndsMs === 'number' && Number.isFinite(dayEndsMs) && dayEndsMs > 0
       ? { dayEndsMs: Math.round(dayEndsMs) }
       : {}),
+    // Omitted when the mode is off: byte-identical to what an older writer
+    // produced, as with the two fields above.
+    ...(range ? { proteinFirst: range } : {}),
   };
+}
+
+/** The calorie range, or undefined when it is not one a face could draw. A
+ *  malformed value costs the mode, never the whole blob. */
+function sanitizeProteinFirst(raw: unknown): { kcalMin: number; kcalMax: number } | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const o = raw as Record<string, unknown>;
+  const min = o['kcalMin'];
+  const max = o['kcalMax'];
+  if (typeof min !== 'number' || typeof max !== 'number' || !Number.isFinite(min) || !Number.isFinite(max)) return undefined;
+  if (!(max > 0) || min < 0 || min > max) return undefined;
+  return { kcalMin: Math.round(min), kcalMax: Math.round(max) };
 }
 
 function isSnapshot(x: unknown): x is WidgetSnapshot {
@@ -264,7 +298,8 @@ export function parseWidgetSnapshot(raw: string | null | undefined): WidgetSnaps
     return null;
   }
   if (!isSnapshot(parsed)) return null;
-  const { quickAdd: rawQuickAdd, dayEndsMs: rawEnds, ...rest } = parsed;
+  const { quickAdd: rawQuickAdd, dayEndsMs: rawEnds, proteinFirst: rawPf, ...rest } = parsed;
+  const proteinFirst = sanitizeProteinFirst(rawPf);
   const quickAdd = sanitizeQuickAdd(rawQuickAdd);
   // A malformed `dayEndsMs` must DROP to the fallback, never survive: a NaN
   // comparison is false, so a garbage value would make the widget render a day
@@ -272,7 +307,8 @@ export function parseWidgetSnapshot(raw: string | null | undefined): WidgetSnaps
   // field costs its own feature and not the whole blob.
   const dayEndsMs =
     typeof rawEnds === 'number' && Number.isFinite(rawEnds) && rawEnds > 0 ? rawEnds : undefined;
-  const base = dayEndsMs === undefined ? rest : { ...rest, dayEndsMs };
+  const dated = dayEndsMs === undefined ? rest : { ...rest, dayEndsMs };
+  const base = proteinFirst ? { ...dated, proteinFirst } : dated;
   return quickAdd ? { ...base, quickAdd } : base;
 }
 
@@ -330,6 +366,9 @@ export function widgetView(
     updatedMs: snapshot.updatedMs,
     locale: snapshot.locale,
     quickAdd: snapshot.quickAdd ?? [],
+    ...(snapshot.proteinFirst
+      ? { proteinFirst: { kcalConsumed: snapshot.kcalConsumed, proteinConsumed: snapshot.proteinConsumed, kcalMin: snapshot.proteinFirst.kcalMin, kcalMax: snapshot.proteinFirst.kcalMax } }
+      : {}),
   };
 }
 
@@ -382,6 +421,9 @@ export function widgetSnapshotChanged(
     prev.proteinConsumed !== next.proteinConsumed ||
     prev.proteinTarget !== next.proteinTarget ||
     prev.locale !== next.locale ||
+    // Rendered: turning the mode on or off, or a new range, is another face.
+    (prev.proteinFirst ? `${prev.proteinFirst.kcalMin}-${prev.proteinFirst.kcalMax}` : '') !==
+      (next.proteinFirst ? `${next.proteinFirst.kcalMin}-${next.proteinFirst.kcalMax}` : '') ||
     // The buttons are rendered, so a slot change is a redraw — renaming a
     // preset must not leave a stale caption on a tappable button.
     quickAddKey(prev.quickAdd) !== quickAddKey(next.quickAdd) ||

@@ -19,7 +19,8 @@
  * Presentation only: no target, no maintenance estimate and no stored number
  * changes. Pure; no I/O, no clock.
  */
-import type { HomePlanNutrition } from './home-plan';
+import { type HomePlanNutrition, homePlanOf, nutritionWindowToday } from './home-plan';
+import { calorieFloor } from './tdee';
 
 export interface ProteinFirstView {
   /** Why it is on: a dated plan window, or the profile's setting. */
@@ -81,6 +82,29 @@ export function proteinFirstView(input: ProteinFirstInput): ProteinFirstView | n
 }
 
 /** Where today's calories sit against the range. */
+/**
+ * Whether a day reads protein first for this profile, and with which numbers.
+ *
+ * The one place the two triggers are read off a profile. Today's hero was its
+ * only caller until 2026-11-20, and assembled the inputs itself; Trends and
+ * the home-screen widget read the same day, so the assembly lives here — a
+ * surface cannot now disagree with the hero about whether the mode is on.
+ */
+export function proteinFirstForDay(
+  profile: { homePlan?: unknown; proteinFirst?: boolean; calorieFloor?: number } | null | undefined,
+  day: string,
+  targets: { calorieTarget: number; proteinTarget: number; proteinMin?: number | null },
+): ProteinFirstView | null {
+  return proteinFirstView({
+    window: nutritionWindowToday(homePlanOf(profile ?? null), day),
+    enabled: profile?.proteinFirst === true,
+    calorieTarget: targets.calorieTarget || 0,
+    proteinTarget: targets.proteinTarget || 0,
+    calorieFloor: calorieFloor(profile ?? null),
+    proteinMin: targets.proteinMin,
+  });
+}
+
 export type CalorieRangeState = 'below' | 'in' | 'above';
 
 export function calorieRangeState(kcal: number, view: Pick<ProteinFirstView, 'kcalMin' | 'kcalMax'>): CalorieRangeState {

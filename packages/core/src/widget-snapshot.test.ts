@@ -483,3 +483,51 @@ describe('widgetView staleness under a day boundary', () => {
     expect(widgetSnapshotChanged(withEnd, { ...withEnd, dayEndsMs: endsMs + 3600_000 })).toBe(true);
   });
 });
+
+describe('protein first on the snapshot (2026-11-20)', () => {
+  const pf = { proteinTarget: 150, kcalMin: 1850, kcalMax: 2150 };
+
+  it('is absent when the mode is off: the blob an older writer produced', () => {
+    const snap = buildWidgetSnapshot(summary(), targets(), '2026-07-23', 1);
+    expect('proteinFirst' in snap).toBe(false);
+    expect(buildWidgetSnapshot(summary(), targets(), '2026-07-23', 1, 'en', [], undefined, null)).toEqual(snap);
+  });
+
+  it('carries the range, and the mode\'s own protein target', () => {
+    const snap = buildWidgetSnapshot(summary(), targets(), '2026-07-23', 1, 'en', [], undefined, pf);
+    expect(snap.proteinFirst).toEqual({ kcalMin: 1850, kcalMax: 2150 });
+    expect(snap.proteinTarget).toBe(150);
+    // The calorie target is untouched: a face that ignores the field is unchanged.
+    expect(snap.kcalTarget).toBe(buildWidgetSnapshot(summary(), targets(), '2026-07-23', 1).kcalTarget);
+  });
+
+  it('survives a round trip, and a malformed range costs the mode, not the blob', () => {
+    const snap = buildWidgetSnapshot(summary(), targets(), '2026-07-23', 1, 'en', [], undefined, pf);
+    expect(parseWidgetSnapshot(JSON.stringify(snap))).toEqual(snap);
+    for (const bad of [{ kcalMin: 2200, kcalMax: 2000 }, { kcalMin: 'a', kcalMax: 2000 }, { kcalMin: 0, kcalMax: 0 }, 'yes']) {
+      const parsed = parseWidgetSnapshot(JSON.stringify({ ...snap, proteinFirst: bad }));
+      expect(parsed).not.toBeNull();
+      expect(parsed && 'proteinFirst' in parsed).toBe(false);
+    }
+  });
+
+  it('gives the face what was eaten beside the range', () => {
+    const snap = buildWidgetSnapshot(summary({ totalCalories: 1420, totalProtein: 92 }), targets(), '2026-07-23', 1, 'en', [], undefined, pf);
+    const view = widgetView(snap, '2026-07-23');
+    expect(view.state).toBe('ready');
+    if (view.state !== 'ready') return;
+    expect(view.proteinFirst).toEqual({ kcalConsumed: 1420, proteinConsumed: 92, kcalMin: 1850, kcalMax: 2150 });
+    expect(view.protein).toMatchObject({ value: 58, over: false });
+    expect(widgetView(buildWidgetSnapshot(summary(), targets(), '2026-07-23', 1), '2026-07-23')).not.toHaveProperty('proteinFirst');
+  });
+
+  it('turning the mode on or off, or changing the range, is a redraw', () => {
+    const off = buildWidgetSnapshot(summary(), targets({ proteinTarget: 150 }), '2026-07-23', 1);
+    const on = buildWidgetSnapshot(summary(), targets({ proteinTarget: 150 }), '2026-07-23', 1, 'en', [], undefined, pf);
+    const wider = buildWidgetSnapshot(summary(), targets({ proteinTarget: 150 }), '2026-07-23', 1, 'en', [], undefined, { ...pf, kcalMax: 2300 });
+    expect(widgetSnapshotChanged(off, on)).toBe(true);
+    expect(widgetSnapshotChanged(on, off)).toBe(true);
+    expect(widgetSnapshotChanged(on, wider)).toBe(true);
+    expect(widgetSnapshotChanged(on, { ...on })).toBe(false);
+  });
+});

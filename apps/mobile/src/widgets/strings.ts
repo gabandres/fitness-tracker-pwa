@@ -19,6 +19,10 @@ export interface WidgetStrings {
   over: string;
   /** Label for the protein line, e.g. "68g protein left". */
   protein: string;
+  /** Protein-first face: the caption under the big protein number. */
+  proteinLeft: string;
+  /** The same, once the protein target is reached. */
+  proteinMet: string;
   /** Empty state — shown before the app has written anything, and after
    *  midnight until it's opened again. */
   empty: string;
@@ -33,6 +37,8 @@ const en: WidgetStrings = {
   left: 'left',
   over: 'over',
   protein: 'protein',
+  proteinLeft: 'g protein left',
+  proteinMet: 'g protein · target met',
   empty: 'Open Ignia to start',
   quickAddA11y: 'Log',
 };
@@ -42,6 +48,8 @@ const esPR: WidgetStrings = {
   left: 'restantes',
   over: 'de más',
   protein: 'proteína',
+  proteinLeft: 'g de proteína restantes',
+  proteinMet: 'g de proteína · meta cumplida',
   empty: 'Abre Ignia para empezar',
   quickAddA11y: 'Registrar',
 };
@@ -51,6 +59,8 @@ const ptBR: WidgetStrings = {
   left: 'restantes',
   over: 'a mais',
   protein: 'proteína',
+  proteinLeft: 'g de proteína restantes',
+  proteinMet: 'g de proteína · meta atingida',
   empty: 'Abra o Ignia para começar',
   quickAddA11y: 'Registrar',
 };

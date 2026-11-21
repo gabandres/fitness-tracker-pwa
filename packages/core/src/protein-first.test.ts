@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { homePlanOf, nutritionWindowToday } from './home-plan';
-import { calorieRangeState, proteinFirstView, proteinState } from './protein-first';
+import { calorieRangeState, proteinFirstForDay, proteinFirstView, proteinState } from './protein-first';
 
 // 2026-11-20: protein-first mode. Two triggers (a dated plan window, the
 // profile's setting), one view; presentation only.
@@ -91,5 +91,42 @@ describe('homePlan.nutrition', () => {
     expect(nutritionWindowToday(plan, '2026-12-06')?.kcalMin).toBe(1850);
     expect(nutritionWindowToday(plan, '2026-12-07')).toBeNull();
     expect(nutritionWindowToday(null, '2026-11-28')).toBeNull();
+  });
+});
+
+describe('proteinFirstForDay', () => {
+  const targets = { calorieTarget: 1850, proteinTarget: 140, proteinMin: 110 };
+  const plan = { homePlan: { nutrition: [{ from: '2026-11-28', to: '2026-12-06', proteinTarget: 150, proteinFloor: 120, kcalMin: 1850, kcalMax: 2150 }] } };
+
+  it('is off for a profile with neither trigger, and for no profile at all', () => {
+    expect(proteinFirstForDay({}, '2026-11-20', targets)).toBeNull();
+    expect(proteinFirstForDay(null, '2026-11-20', targets)).toBeNull();
+    expect(proteinFirstForDay(undefined, '2026-11-20', targets)).toBeNull();
+  });
+
+  it('reads the Settings switch: the range runs from the safety minimum to the target', () => {
+    expect(proteinFirstForDay({ proteinFirst: true, calorieFloor: 1500 }, '2026-11-20', targets)).toEqual({
+      source: 'setting',
+      proteinTarget: 140,
+      proteinFloor: 110,
+      kcalMin: 1500,
+      kcalMax: 1850,
+    });
+  });
+
+  it('reads a dated plan window on its days only, and it wins over the switch', () => {
+    expect(proteinFirstForDay(plan, '2026-11-27', targets)).toBeNull();
+    expect(proteinFirstForDay({ ...plan, proteinFirst: true }, '2026-11-28', targets)).toMatchObject({
+      source: 'plan',
+      proteinTarget: 150,
+      proteinFloor: 120,
+      kcalMin: 1850,
+      kcalMax: 2150,
+    });
+    expect(proteinFirstForDay({ ...plan, proteinFirst: true }, '2026-12-07', targets)?.source).toBe('setting');
+  });
+
+  it('needs targets to say anything', () => {
+    expect(proteinFirstForDay({ proteinFirst: true }, '2026-11-20', { calorieTarget: 0, proteinTarget: 0 })).toBeNull();
   });
 });

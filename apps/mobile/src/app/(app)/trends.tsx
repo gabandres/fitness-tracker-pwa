@@ -21,6 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  type ProteinFirstView,
   type TdeeResult,
   type WeeklyBudget,
   type WeeklyInsights,
@@ -58,7 +59,7 @@ import {
 } from '@/components/charts/TrendsCharts';
 import { SegmentedControl } from '@/components/charts/SegmentedControl';
 import { TrendsSkeleton } from '@/components/charts/TrendsSkeleton';
-import { maintenanceBreakdown, maintenanceLine, slopeLabel, targetLine, trendsAnswer } from '@/components/charts/trend-copy';
+import { maintenanceBreakdown, maintenanceLine, rangeLine, slopeLabel, targetLine, trendsAnswer } from '@/components/charts/trend-copy';
 import { TrendsAnswerCard } from '@/components/TrendsAnswerCard';
 import { useAdjustableDays } from '@/components/charts/useAdjustableDays';
 import { useTrends } from '@/hooks/useTrends';
@@ -182,7 +183,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
     loading, error, insights, loggedThisWeek, proteinTarget, tdee, targetCalories, budget, basalKcal,
     activityLevel, sleep, fasting, water, composition, chartKeys, weightSeries, intakeSeries,
     proteinSeries, carbsSeries, fatSeries, todayKey, historyClip, insightWindow, streak, settledKey,
-    expenditure, historyDays, milestones, progress, zone2, hunger, travelCheck, display, travelPeriods,
+    expenditure, historyDays, milestones, progress, zone2, hunger, travelCheck, display, travelPeriods, proteinFirst,
   } = useTrends(requestedDays, { maxDays: cap, refreshKey });
   // A new account opened on "1M" and saw 27 blank days of a 30-day axis (sim
   // review 2026-10-06). Under a month of history every fixed range is mostly
@@ -305,11 +306,12 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
         loggedThisWeek,
         weighIns: weightSeries.reduce((n, p) => (p.scale != null ? n + 1 : n), 0),
         hasTarget: targetCalories > 0,
+        proteinFirst,
         unitSystem: compUnits,
         t,
         locale,
       }),
-    [insights, loggedThisWeek, weightSeries, targetCalories, compUnits, t, locale],
+    [insights, loggedThisWeek, weightSeries, targetCalories, proteinFirst, compUnits, t, locale],
   );
 
   // Activity-level correction.
@@ -768,6 +770,7 @@ function TrendsScreen({ onRetry }: { onRetry: () => void }) {
                 window={insightWindow}
                 streak={streak}
                 proteinTarget={proteinTarget}
+                proteinFirst={proteinFirst}
                 isPro={isPro}
                 onUpsell={() => router.push('/coach' as Href)}
                 onOpenBody={openBody}
@@ -997,6 +1000,7 @@ function ThisWeek({
   window,
   streak,
   proteinTarget,
+  proteinFirst,
   isPro,
   onUpsell,
   onOpenBody,
@@ -1005,6 +1009,9 @@ function ThisWeek({
   t,
   locale,
 }: {
+  /** Protein-first mode: protein leads, and calories are placed in a range
+   *  instead of being scored against the target. */
+  proteinFirst?: ProteinFirstView | null;
   insights: WeeklyInsights | null;
   loggedThisWeek: number;
   /** The seven complete days the face reads — named, like the budget's week. */
@@ -1065,32 +1072,57 @@ function ThisWeek({
   // depends on colour (light `accent` and `danger` are 1.13:1 apart — UX_AUDIT
   // S18, 2026-09-28). Maintenance is a fact, not a verdict: it reads in ink.
   const targetColor = vsTarget.kind === 'over' ? colors.danger : colors.good;
+  const intakeTile = proteinFirst ? (
+    // Protein first: the calories are a place in a range. No verdict against
+    // the target or maintenance, and nothing in red.
+    <StatTile
+      label={t('trends.avgIntake')}
+      value={formatNumber(insights.avgCalories, locale)}
+      unit={t('trends.kcalUnit')}
+      sub={rangeLine(insights.avgCalories, proteinFirst, t, locale) ?? undefined}
+      subColor={colors.ink}
+      testID="insights-intake"
+      styles={styles}
+    />
+  ) : (
+    <StatTile
+      label={t('trends.avgIntake')}
+      value={formatNumber(insights.avgCalories, locale)}
+      unit={t('trends.kcalUnit')}
+      sub={vsMaint ? maintenanceLine(vsMaint, t, locale) : targetLine(vsTarget, t, locale)}
+      subColor={vsMaint ? colors.ink : targetColor}
+      sub2={vsMaint ? targetLine(vsTarget, t, locale) : undefined}
+      sub2Color={targetColor}
+      testID="insights-intake"
+      styles={styles}
+    />
+  );
+  const proteinTile = (
+    <StatTile
+      label={t('trends.avgProtein')}
+      value={formatNumber(insights.avgProtein, locale)}
+      unit="g"
+      sub={
+        proteinFirst
+          ? t('trends.pfProteinTarget', { n: formatNumber(proteinFirst.proteinTarget, locale) })
+          : proteinTarget > 0
+            ? t('trends.proteinDays', { hit: insights.proteinGoalDays, days: insights.loggedDays })
+            : undefined
+      }
+      // `good`, not `protein`: the macro green is a DATA colour tuned for
+      // fills and measures 2.72:1 as text on light paper (UX_AUDIT S18-2).
+      subColor={proteinFirst ? colors.ink : colors.good}
+      testID="insights-protein"
+      styles={styles}
+    />
+  );
   return (
     <View style={styles.card} testID="insights-card">
       {windowLine}
       <View style={[styles.tileRow, stacked && styles.tileRowStacked]}>
-        <StatTile
-          label={t('trends.avgIntake')}
-          value={formatNumber(insights.avgCalories, locale)}
-          unit={t('trends.kcalUnit')}
-          sub={vsMaint ? maintenanceLine(vsMaint, t, locale) : targetLine(vsTarget, t, locale)}
-          subColor={vsMaint ? colors.ink : targetColor}
-          sub2={vsMaint ? targetLine(vsTarget, t, locale) : undefined}
-          sub2Color={targetColor}
-          testID="insights-intake"
-          styles={styles}
-        />
+        {proteinFirst ? proteinTile : intakeTile}
         <View style={stacked ? styles.divider : styles.tileDivider} />
-        <StatTile
-          label={t('trends.avgProtein')}
-          value={formatNumber(insights.avgProtein, locale)}
-          unit="g"
-          sub={proteinTarget > 0 ? t('trends.proteinDays', { hit: insights.proteinGoalDays, days: insights.loggedDays }) : undefined}
-          // `good`, not `protein`: the macro green is a DATA colour tuned for
-          // fills and measures 2.72:1 as text on light paper (UX_AUDIT S18-2).
-          subColor={colors.good}
-          styles={styles}
-        />
+        {proteinFirst ? intakeTile : proteinTile}
       </View>
 
       <View style={styles.divider} />

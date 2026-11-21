@@ -12,7 +12,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureAndShare } from '@/lib/shareCapture';
 import type { DateKey, MealSlot } from '@macrolog/core';
-import { activeTravel, addDays, calendarDateKey, calorieFloor, checkInToday, dayBoundaryOf, estimatedMealToday, fastLengthHours, homePlanOf, maintenanceView, nutritionWindowToday, parseYmd, proteinFirstView, travelPeriodsOf, usualSteps, USUAL_STEPS_WINDOW_DAYS } from '@macrolog/core';
+import { activeTravel, addDays, calendarDateKey, checkInToday, dayBoundaryOf, estimatedMealToday, fastLengthHours, homePlanOf, maintenanceView, parseYmd, proteinFirstForDay, travelPeriodsOf, usualSteps, USUAL_STEPS_WINDOW_DAYS } from '@macrolog/core';
 import { HomePlanTodayCard } from '@/components/HomePlanCards';
 import { MedicationTodayCard } from '@/components/MedicationTodayCard';
 import { useActivityRange } from '@/hooks/useActivityRange';
@@ -389,15 +389,12 @@ function TodayScreen({ onRetry }: { onRetry: () => void }) {
   // widget and every stored number are untouched.
   const proteinFirst = useMemo(
     () =>
-      proteinFirstView({
-        window: nutritionWindowToday(homePlan, todayKey),
-        enabled: (todayProfile as { proteinFirst?: boolean } | null)?.proteinFirst === true,
-        calorieTarget: targets.calorieTarget || 0,
-        proteinTarget: targets.proteinTarget || 0,
-        calorieFloor: calorieFloor(todayProfile as { calorieFloor?: number } | null),
+      proteinFirstForDay(todayProfile as { homePlan?: unknown; proteinFirst?: boolean; calorieFloor?: number } | null, todayKey, {
+        calorieTarget: targets.calorieTarget,
+        proteinTarget: targets.proteinTarget,
         proteinMin: targets.proteinMinTarget,
       }),
-    [homePlan, todayKey, todayProfile, targets.calorieTarget, targets.proteinTarget, targets.proteinMinTarget],
+    [todayKey, todayProfile, targets.calorieTarget, targets.proteinTarget, targets.proteinMinTarget],
   );
   const [eyeballName, setEyeballName] = useState('');
   const [fastSheetOpen, setFastSheetOpen] = useState(false);

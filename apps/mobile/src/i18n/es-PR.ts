@@ -3153,4 +3153,12 @@ export const esPR: Record<I18nKey, string> = {
   'medication.limit': 'Hasta {n} medicamentos.',
   'medication.todayLog': 'Registrar dosis',
   'medication.todayOpen': 'Abrir medicamentos',
+  'trends.answer.pfProtein': 'La proteína promedia {n} g al día; tu meta es {target} g.',
+  'trends.answer.pfKcalIn': 'Las calorías promedian {n}, dentro de tu rango de {min}–{max}.',
+  'trends.answer.pfKcalBelow': 'Las calorías promedian {n}, por debajo de tu rango de {min}–{max}.',
+  'trends.answer.pfKcalAbove': 'Las calorías promedian {n}, por encima de tu rango de {min}–{max}.',
+  'trends.pfRangeIn': 'Dentro de tu rango de {min}–{max}',
+  'trends.pfRangeBelow': 'Por debajo de tu rango de {min}–{max}',
+  'trends.pfRangeAbove': 'Por encima de tu rango de {min}–{max}',
+  'trends.pfProteinTarget': 'Meta {n} g',
 };

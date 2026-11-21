@@ -218,13 +218,15 @@ export async function syncWidget(
   nowMs: number = Date.now(),
   quickAdd: readonly QuickAddTarget[] = [],
   dayEndsMs?: number,
+  /** Protein-first mode for this day, or null (core `proteinFirstForDay`). */
+  proteinFirst?: { proteinTarget: number; kcalMin: number; kcalMax: number } | null,
 ): Promise<void> {
   if (!supported) {
     if (__DEV__) console.log('[widget] skipped: unsupported runtime (Expo Go or web)');
     return;
   }
 
-  const next = buildWidgetSnapshot(summary, targets, todayKey, nowMs, locale, quickAdd, dayEndsMs);
+  const next = buildWidgetSnapshot(summary, targets, todayKey, nowMs, locale, quickAdd, dayEndsMs, proteinFirst);
 
   // A zero calorie target is the single most common reason the widget sits on
   // its empty state while everything else looks healthy: the Swift side treats

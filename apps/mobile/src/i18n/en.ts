@@ -3352,6 +3352,14 @@ export const en = {
   'medication.limit': 'Up to {n} medications.',
   'medication.todayLog': 'Log dose',
   'medication.todayOpen': 'Open medication',
+  'trends.answer.pfProtein': 'Protein is averaging {n} g a day; your target is {target} g.',
+  'trends.answer.pfKcalIn': 'Calories are averaging {n}, inside your {min}–{max} range.',
+  'trends.answer.pfKcalBelow': 'Calories are averaging {n}, below your {min}–{max} range.',
+  'trends.answer.pfKcalAbove': 'Calories are averaging {n}, above your {min}–{max} range.',
+  'trends.pfRangeIn': 'Inside your {min}–{max} range',
+  'trends.pfRangeBelow': 'Below your {min}–{max} range',
+  'trends.pfRangeAbove': 'Above your {min}–{max} range',
+  'trends.pfProteinTarget': 'Target {n} g',
 } as const;
 
 export type I18nKey = keyof typeof en;

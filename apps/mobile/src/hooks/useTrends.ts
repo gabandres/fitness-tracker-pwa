@@ -47,7 +47,7 @@ import { useAuth } from '@/lib/auth';
 import { FEATURES, isFeatureOn } from '@/lib/features';
 import { getLogsForRange, subscribeDailyTargets, subscribeMilestones } from '@/lib/ledger';
 import { readCache } from '@/lib/offline-cache';
-import { type HungerWeek, zone2Summary } from '@macrolog/core';
+import { type HungerWeek, type ProteinFirstView, proteinFirstForDay, zone2Summary } from '@macrolog/core';
 import {
   activeTravel,
   travelMaintenanceCheck,
@@ -95,6 +95,8 @@ const REPLAY_CHUNK_DAYS = 30;
 export type Zone2Trends = ReturnType<typeof zone2Summary>;
 
 export interface TrendsState {
+  /** Protein-first mode for today (core `proteinFirstForDay`), or null. */
+  proteinFirst: ProteinFirstView | null;
   /** The profile's trips — the steps card leaves their days out of "usual". */
   travelPeriods: TravelPeriod[];
   /** Travel mode: the "maintenance check" — this week's hard sets per muscle
@@ -668,7 +670,19 @@ export function useTrends(rangeDays: number = 30, opts: TrendsOptions = {}): Tre
     );
   }, [profile, weights]);
 
+  // Protein-first mode for today (2026-11-20): the same reading the hero has.
+  const proteinFirst = useMemo(
+    () =>
+      proteinFirstForDay(profile as { homePlan?: unknown; proteinFirst?: boolean; calorieFloor?: number } | null, todayKey, {
+        calorieTarget: targets.calorieTarget,
+        proteinTarget: targets.proteinTarget,
+        proteinMin: targets.proteinMinTarget,
+      }),
+    [profile, todayKey, targets.calorieTarget, targets.proteinTarget, targets.proteinMinTarget],
+  );
+
   return {
+    proteinFirst,
     travelPeriods: travelPeriodsOf(profile),
     zone2,
     travelCheck: trip ? travelCheck : null,

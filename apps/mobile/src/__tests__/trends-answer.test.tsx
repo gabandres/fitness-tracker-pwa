@@ -66,6 +66,40 @@ describe('trendsAnswer', () => {
   });
 });
 
+describe('trendsAnswer — protein first', () => {
+  const pf = { source: 'plan' as const, proteinTarget: 140, proteinFloor: 120, kcalMin: 1850, kcalMax: 2150 };
+  const week = { avgUnderTarget: 300, weightSlopeLbPerWeek: -0.6, avgCalories: 1550, avgProtein: 127.6 };
+
+  it('talks about protein, and places the calories in the range', () => {
+    const a = trendsAnswer({ ...base, insights: week, proteinFirst: pf });
+    if (a.kind !== 'sentence') throw new Error('expected sentences');
+    expect(plain(a.eating ?? '')).toBe(
+      'Protein is averaging 128 g a day; your target is 140 g. Calories are averaging 1,550, below your 1,850–2,150 range.',
+    );
+    expect(a.eating).not.toMatch(/under your target|over your target/);
+  });
+
+  it('says inside and above without a verdict', () => {
+    const inside = trendsAnswer({ ...base, insights: { ...week, avgCalories: 2000 }, proteinFirst: pf });
+    const above = trendsAnswer({ ...base, insights: { ...week, avgCalories: 2300 }, proteinFirst: pf });
+    if (inside.kind !== 'sentence' || above.kind !== 'sentence') throw new Error('expected sentences');
+    expect(plain(inside.eating ?? '')).toMatch(/inside your 1,850–2,150 range/);
+    expect(plain(above.eating ?? '')).toMatch(/above your 1,850–2,150 range/);
+  });
+
+  it('a range that is one number says only the protein sentence', () => {
+    const a = trendsAnswer({ ...base, insights: week, proteinFirst: { ...pf, kcalMin: 1850, kcalMax: 1850 } });
+    if (a.kind !== 'sentence') throw new Error('expected sentences');
+    expect(plain(a.eating ?? '')).toBe('Protein is averaging 128 g a day; your target is 140 g.');
+  });
+
+  it('without the mode, the sentence is the one it always was', () => {
+    const a = trendsAnswer({ ...base, insights: week, proteinFirst: null });
+    if (a.kind !== 'sentence') throw new Error('expected sentences');
+    expect(plain(a.eating ?? '')).toMatch(/under your target/);
+  });
+});
+
 describe('TrendsAnswerCard', () => {
   it('opens the add sheet and the weigh-in sheet from the two open steps', async () => {
     const onLogFood = jest.fn();

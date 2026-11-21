@@ -161,6 +161,19 @@ describe('the last-7-days tile', () => {
     expect(tile).not.toHaveTextContent(/maintenance/);
   });
 
+  it('protein first: protein leads, and the calories are placed in the range with no verdict', async () => {
+    mockTrends.mockReturnValue(
+      state({ proteinFirst: { source: 'setting', proteinTarget: 140, proteinFloor: null, kcalMin: 1500, kcalMax: 1850 } }),
+    );
+    const view = await render(<Trends />);
+    const intake = view.getByTestId('insights-intake');
+    expect(intake).toHaveTextContent(/Inside your 1,500–1,850 range/);
+    expect(intake).not.toHaveTextContent(/under|over|maintenance|On target/i);
+    expect(view.getByTestId('insights-protein')).toHaveTextContent(/Target 140 g/);
+    // Protein is the first tile of the pair.
+    expect(view.getByTestId('insights-card')).toHaveTextContent(/Avg protein.*Avg intake/);
+  });
+
   it('names its window honestly: "Last 7 days", not "This week"', async () => {
     mockTrends.mockReturnValue(state());
     const view = await render(<Trends />);

@@ -3136,4 +3136,12 @@ export const ptBR: Record<I18nKey, string> = {
   'medication.limit': 'Até {n} medicamentos.',
   'medication.todayLog': 'Registrar dose',
   'medication.todayOpen': 'Abrir medicamentos',
+  'trends.answer.pfProtein': 'A proteína está em média {n} g por dia; sua meta é {target} g.',
+  'trends.answer.pfKcalIn': 'As calorias estão em média {n}, dentro da sua faixa de {min}–{max}.',
+  'trends.answer.pfKcalBelow': 'As calorias estão em média {n}, abaixo da sua faixa de {min}–{max}.',
+  'trends.answer.pfKcalAbove': 'As calorias estão em média {n}, acima da sua faixa de {min}–{max}.',
+  'trends.pfRangeIn': 'Dentro da sua faixa de {min}–{max}',
+  'trends.pfRangeBelow': 'Abaixo da sua faixa de {min}–{max}',
+  'trends.pfRangeAbove': 'Acima da sua faixa de {min}–{max}',
+  'trends.pfProteinTarget': 'Meta {n} g',
 };
