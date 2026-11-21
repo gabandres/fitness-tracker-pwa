@@ -23,6 +23,8 @@ jest.mock('@/lib/haptics', () => ({ tap: jest.fn(), success: jest.fn(), warn: je
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { uid: 'u1' }, profile: null }) }));
 jest.mock('@/components/BarcodeScanner', () => ({ BarcodeScanner: () => null }));
 jest.mock('@/lib/firebase', () => ({ functions: {}, db: {}, auth: {} }));
+// `labelScan.ts` loads these two by relative path, at scan time.
+jest.mock('../lib/firebase', () => ({ functions: {}, db: {}, auth: {} }));
 jest.mock('firebase/functions', () => ({ httpsCallable: () => (data: unknown) => mockCall(data) }));
 jest.mock('@/lib/mealScan', () => ({
   ...jest.requireActual('@/lib/mealScan'),

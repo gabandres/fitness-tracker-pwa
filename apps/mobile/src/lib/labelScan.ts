@@ -13,10 +13,23 @@
  * `finally` inside the component would make React Compiler skip all of
  * `EntrySheet`.
  */
-import { httpsCallable } from 'firebase/functions';
 import type { BarcodeEstimate } from '@/components/BarcodeScanner';
-import { functions } from '@/lib/firebase';
-import { type ScanErrorMessage, encodeMealPhoto, isPickDenied, pickMealPhoto, scanErrorMessage } from '@/lib/mealScan';
+import type { ScanErrorMessage } from '@/lib/mealScan';
+
+// The camera, the encoder and the Firebase SDK are loaded WHEN A SCAN STARTS,
+// not when this file is imported: the entry sheet imports this module, and
+// nineteen of its test files — like the sheet itself until now — never touch
+// Firebase. A static import here made every one of them load the SDK and
+// fail to parse it (caught by the release gate, 2026-11-20). `require`, not
+// `import()`: jest runs these files as CommonJS, where a dynamic import
+// rejects, and Metro inlines either one.
+/* eslint-disable @typescript-eslint/no-require-imports */
+const loadScan = () => require('./mealScan') as typeof import('./mealScan');
+const loadCallable = () => ({
+  httpsCallable: (require('firebase/functions') as typeof import('firebase/functions')).httpsCallable,
+  functions: (require('./firebase') as typeof import('./firebase')).functions,
+});
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 /** What the server read off the panel (`LabelFacts` in `label-scan.ts`). */
 export interface LabelFacts {
@@ -68,6 +81,7 @@ export function labelFactsOf(raw: unknown): LabelFacts | null {
 
 /** Send one encoded photo to be read as a label. Throws what the callable throws. */
 export async function readNutritionLabel(photoBase64: string, locale: string): Promise<LabelFacts | null> {
+  const { httpsCallable, functions } = loadCallable();
   const call = httpsCallable<{ photoBase64: string; mode: 'label'; locale: string }, { label?: unknown }>(functions, 'analyzePhoto');
   const { data } = await call({ photoBase64, mode: 'label', locale });
   return labelFactsOf(data?.label);
@@ -98,7 +112,7 @@ export function labelEstimate(facts: LabelFacts, fallbackName: string, barcode?:
 }
 
 /** A failed LABEL read is not "try another angle of your meal". */
-function labelError(e: unknown): ScanErrorMessage {
+function labelError(e: unknown, scanErrorMessage: (e: unknown) => ScanErrorMessage): ScanErrorMessage {
   const message = scanErrorMessage(e);
   return message.key === 'scan.failed' ? { key: 'label.failed' } : message;
 }
@@ -108,22 +122,28 @@ function labelError(e: unknown): ScanErrorMessage {
  * hand, for the "Reading the label…" line.
  */
 export async function scanLabel(locale: string, onReading: () => void): Promise<LabelScanOutcome> {
+  let scan: ReturnType<typeof loadScan>;
+  try {
+    scan = loadScan();
+  } catch {
+    return { kind: 'error', message: { key: 'label.failed' } };
+  }
   let uri: string | null = null;
   try {
-    const picked = await pickMealPhoto('camera');
-    if (isPickDenied(picked)) return { kind: 'denied' };
+    const picked = await scan.pickMealPhoto('camera');
+    if (scan.isPickDenied(picked)) return { kind: 'denied' };
     uri = picked;
   } catch (e) {
-    return { kind: 'error', message: labelError(e) };
+    return { kind: 'error', message: labelError(e, scan.scanErrorMessage) };
   }
   if (!uri) return { kind: 'cancelled' };
   onReading();
   try {
-    const encoded = await encodeMealPhoto(uri);
+    const encoded = await scan.encodeMealPhoto(uri);
     if (!encoded) return { kind: 'error', message: { key: 'label.failed' } };
     const facts = await readNutritionLabel(encoded, locale);
     return facts ? { kind: 'label', facts } : { kind: 'none' };
   } catch (e) {
-    return { kind: 'error', message: labelError(e) };
+    return { kind: 'error', message: labelError(e, scan.scanErrorMessage) };
   }
 }
