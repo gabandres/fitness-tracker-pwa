@@ -18,7 +18,16 @@ completed from the server left the phone within seconds and was filed once.
 and a best and an off day (calorie verdicts); and an Android phone was told to "connect Oura or Apple Health".
 **Found and recorded:** `UX_AUDIT.md` S23-14, a Train card that does not grow for its stepper row.
 **Tools kept:** `apps/mobile/scripts/phone.py` (drive the phone by `testID`), `scripts/play-download-apk.mjs`.
-Tests: mobile 3,605.
+**Second pass, same night** (`fb536875`, OTA iOS `4827dcb0…` / Android `7ac7e8dc…`; `31e44e3f`, OTA iOS `b7c0b0da…` /
+Android `10ce082c…`). The reminder fired on the phone as a "Dose day" notification, 14 minutes after the hour
+(Android delivers these inexactly). Three more things found by using it, each fixed, published and then seen fixed
+on the phone: the delivered notification stayed in the shade after the dose was logged and after sign-out (it is
+now dismissed once answered); the sign-out confirmation did not say a medication log goes with it; and **a
+signed-out phone's widget read "1,800 kcal left"** — at sign-out the profile goes first, the targets fall back to
+the seed, and the sync hook wrote that seed after `clearWidget()` had blanked the widget. It writes nothing now
+without a signed-in profile. Also seen working: the Android widget's protein-first face and its ordinary one.
+Both throwaway accounts are deleted; the phone is left signed out, with no Ignia widget, alarm or notification.
+Tests: mobile 3,612.
 
 ## 2026-11-20 — a medication log, protein first on Trends and the Android widget, and a nutrition-label scan (`f2576113`; functions deploy; OTA on iOS build 75 `28e47d39…`, Android vc 53 `67455c4d…`)
 
