@@ -4,6 +4,54 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-21 — The open backlog that needs no binary (`43241025`, `5fe49251`; OTAs on iOS build 75, Android vc 53)
+
+Owner: "do all except those that require a new binary", then "w3.png looks cramped" on a OnePlus screenshot.
+Two OTAs: **`43241025`** (iOS `1d7291e0…`, Android `91b456fa…`) and **`5fe49251`** (iOS `f3d9c471…`, Android
+`cb76758f…`). Each went through the full gate; the first was refused once (three suites still expected the old
+onboarding, colour and bar ids) and the second once (a type error in a new test).
+
+- **S23-14, the keyboard's ‹ › Done bar after a card is collapsed and re-opened (iOS).** Cause read from
+  `RCTTextInputComponentView.mm`: Fabric recycles a text input's native view and clears its accessory id, but
+  writes the id again only when the prop differs from the view's LAST props, so a field remounted with the same
+  id never got its bar back. Every mount now has its own id (`useKeyboardBarId`; the set rows, the add sheet's
+  macro fields, the tape fields). **Not seen on an iPhone.**
+- **S23-15, a deleted workout's food-log row.** A finish stopped writing that row on 2026-10-15, so this only
+  touched workouts from before then: `deleteWorkout` (`ledger-ops.ts`) removes the day's marker when no other
+  finished workout with logged work is left on it. Deleting a workout was seen working on the phone; the old
+  row itself cannot be made through the app, so that part is on its test (`delete-workout-marker.test.ts`).
+- **Template editor on Android.** Seen on the OnePlus 8T before the fix: expanding an exercise left the card's
+  border at its collapsed height with the set fields outside it, the workout card's fault of 2026-11-20. Both
+  use `cardLayout` (`lib/motion.tsx`) now: no layout transition on Android. Seen fixed after the OTA.
+- **S24-4, the goal weight moved from onboarding to Settings → Daily targets.** Onboarding was the only place
+  it could be set, so the field came first: shown for a lose or build goal, in either mode, checked against the
+  newest weigh-in only once edited (a stored goal the trend has passed does not lock Save). Onboarding has one
+  step fewer; a redo carries the stored goal through unless the new goal no longer fits it. Seen on the phone:
+  a fresh account goes weight → body, 200 lb on a loss goal is refused with the reason, 165 saves to both
+  profile fields.
+- **S24-27b, four light-theme colours reach 3:1 as marks** on paper and on card: `ring` #ff6a3d → #ff4912,
+  `protein` #0fa968 → #0e9f62, `carbs` #f59e0b → #c17c08, `habitFasting` #d97706 → #d27306 (same hue and
+  saturation, less lightness). Pinned in `theme-contrast.test.ts`. Dark theme, the Android widget and the
+  native iOS widget are unchanged; the + button and the carbs dot are visibly darker.
+- **S24-28: "Not now" on pre-permission screens and the two hero rings stay** (ADR-0049, with how to reverse
+  each). The portrait lock is an `app.json` value and waits for a binary.
+- **The Finish sheet** (the owner's screenshot): the title gets the whole row beside "Keep training" and stacks
+  under it if it still wraps (`SheetHeader`, phrase-length leading buttons only); past two lifts the "Not
+  started" note is a count ("5 lifts not started"). Seen fixed on the phone.
+- **S24-1c, `config/retention` counts verified and unverified accounts apart** (`byVerification`, and the
+  ever-logged counts on the daily history row). `hourlyTasks` deployed; the first split is written at the next
+  09:00 UTC run. `scripts/activation-reading.mts` is the read-only before/after reading: on 2026-11-21 it
+  showed 70 verified signups before 11/19 (49% ever logged, median 14 min to the first log, 7% reminders on)
+  and ONE signup since, so there is nothing to compare yet.
+- **S24-1d, the admin Users table** says "comped · AI off" for a comped address that is not verified.
+- **The web build was broken since 2026-11-20**: `packages/core/src/medication.ts` used dot access on index
+  signatures, which the web shell's tsconfig refuses (28 errors). Found by typechecking the web shell for the
+  admin change; nobody had built the web since.
+- **S24-18, exercise stills: still blocked.** `free-exercise-db` has an open, unanswered issue asking what
+  licence its images carry; the Everkinetic / wger images are CC BY-SA 3.0 or 4.0 with per-image attribution
+  and mixed origins. Neither is a source to ship without the owner choosing to carry attribution and
+  share-alike.
+
 ## 2026-11-21 — "+ Add set" stays inside its card on Android (`dd53fea7`; OTA on iOS build 75 `a6b790d5…`, Android vc 53 `88940e3a…`)
 
 The item the OnePlus check recorded as S23-14. Focusing a set field opens the ± stepper row under it; on Android

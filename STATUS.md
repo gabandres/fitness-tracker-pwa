@@ -26,7 +26,7 @@ Read from the APIs, never edited from memory (`docs/COMMANDS.md`);
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Last deployed 2026-11-20 (rules: `proteinFirst`; functions: `lateWelcome` in `hourlyTasks`, the verified-only public user count, and `analyzePhoto` with the label mode) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling`. **A nutrition-label read is the same function (`mode: 'label'`) and spends the same scans** |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
-| **OTA (EAS Update)** | **Two runtimes take OTAs: iOS build 75 (`e6d2973e…`) and Android vc 53 (`e989353d…`, PINNED).** Update-required minimum: iOS `1.2.11`, Android vc `53` (raised 2026-11-20; read from the live `app-version.json`). Every OTA comes from `main` and reaches every user who is not behind the update screen. **Newest: 2026-11-21, a Train card that resizes at once on Android (`dd53fea7`), after the five fixes from the OnePlus check (`31e44e3f`), on top of the medication log, protein first on Trends and the Android widget, and the label scan (`f2576113`).** Android vc 52 is below the minimum and owed nothing more (its last JS: `25a93848`, tag `archive/ota/vc52-2026-11-10`). "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
+| **OTA (EAS Update)** | **Two runtimes take OTAs: iOS build 75 (`e6d2973e…`) and Android vc 53 (`e989353d…`, PINNED).** Update-required minimum: iOS `1.2.11`, Android vc `53` (raised 2026-11-20; read from the live `app-version.json`). Every OTA comes from `main` and reaches every user who is not behind the update screen. **Newest: 2026-11-21, the Finish sheet's header and note (`5fe49251`), after the no-binary backlog (`43241025`: goal weight on Daily targets, template editor cards on Android, four darker light-theme colours, the keyboard bar ids, a deleted workout's old food-log row), on top of the Train card fix (`dd53fea7`) and the medication log, protein first and label scan (`f2576113`).** Android vc 52 is below the minimum and owed nothing more (its last JS: `25a93848`, tag `archive/ota/vc52-2026-11-10`). "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Publishing:** OTAs for both platforms go out from the Windows PC (`winbox`,
@@ -69,10 +69,10 @@ both screen readers are unseen.
 (owner's call): no rendered check of start → log a set → finish. Rollback:
 republish the previous groups (ledger, top rows).
 
-**Open, in order:** `UX_AUDIT.md` §S24 "what is left" (S24-1c/1d); exercise
-stills once an image source with a clear licence is found (S24-18); the owner
-calls S24-27b and S24-28. **Re-measure activation** (`config/retention`) about
-two weeks after 2026-11-19.
+**Open, in order:** exercise stills, blocked on a licence the owner would have
+to accept (S24-18); the portrait lock, which waits for a binary (S24-28).
+**Re-measure activation** with `npx jiti scripts/activation-reading.mts` once
+there are signups to read: one since 2026-11-19 as of 11/21.
 **Seen on the OnePlus 8T, 2026-11-20 / 21 (vc 53 from Play, throwaway accounts):**
 the medication log end to end (add, the Today card, the reminder firing —
 about 14 minutes after the hour, Android's inexact alarm — one-tap log, sign-out
