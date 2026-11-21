@@ -385,6 +385,22 @@ export function workoutMarkerEntry(
 }
 
 /**
+ * Whether a stored log row is a workout MARKER: the flag on no food. Before
+ * ADR-0007 the flags rode on real meals (500 kcal + `liftCompleted`), and
+ * those stay meals. The app wrote one per finished workout until 2026-10-15;
+ * rows from before then are still stored.
+ */
+export function isWorkoutMarkerRow(l: {
+  calories?: number;
+  mealLabel?: string;
+  exerciseCompleted?: boolean;
+  liftCompleted?: boolean;
+  cardioCompleted?: boolean;
+}): boolean {
+  return !!(l.exerciseCompleted || l.liftCompleted || l.cardioCompleted) && !((l.calories ?? 0) > 0) && !l.mealLabel;
+}
+
+/**
  * Whether a modality's rate reads naturally as pace (time per distance) or as
  * speed (distance per hour).
  *

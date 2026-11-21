@@ -41,10 +41,12 @@ import {
   addDays,
   calendarDateKey,
   dayKeyAt,
+  dayRange,
   dropEmptyExercises,
   fillMissingClusterLoads,
   isStorableSleepHours,
   isStorableWeight,
+  isWorkoutMarkerRow,
   newLedgerId,
   parseYmd,
   sessionHasLoggedWork,
@@ -55,6 +57,10 @@ import { track } from './analytics';
 import { captureError } from './sentry';
 import { exportDaily, exportWorkout } from './health-sync';
 import {
+  deleteLog,
+  deleteSession,
+  getLogsForRange,
+  getRecentSessionsSince,
   setDailySleep,
   setDailyWater,
   setDailyWeight,
@@ -272,6 +278,41 @@ export async function finishWorkout(
   track('workout_finished');
   // Mirror the finished session to Health (ends at the finish; strength training).
   void exportWorkout({ start: date, end: extras.finishedAt ?? new Date() });
+}
+
+/** A finish wrote a 0-kcal "exercised" row into the food log until 2026-10-15
+ *  (`finishWorkout` above); later sessions have none to clean up. */
+const MARKER_ROWS_UNTIL = new Date(2026, 9, 17);
+
+/**
+ * Delete a workout, and with it the "exercised" row its finish left in the
+ * food log (S23-15): without that, a deleted workout's day went on counting as
+ * trained in History and the streak. Only for a session from before
+ * {@link MARKER_ROWS_UNTIL}, and only when no other finished workout with
+ * logged work is left on that day. The session delete is the act: a failed
+ * cleanup is reported and swallowed, like the extras of a finish.
+ */
+export async function deleteWorkout(
+  uid: string,
+  session: Pick<WorkoutSession, 'id' | 'date' | 'status'>,
+  boundary: DayBoundary,
+): Promise<void> {
+  const id = session.id;
+  if (!id) return;
+  await deleteSession(uid, id);
+  if (session.status !== 'completed' || session.date.getTime() >= MARKER_ROWS_UNTIL.getTime()) return;
+  try {
+    const key = dayKeyAt(session.date, boundary);
+    const { start, end } = dayRange(key, boundary);
+    const sameDay = (await getRecentSessionsSince(uid, start, 20)).filter(
+      (s) => s.id !== id && s.status === 'completed' && s.date.getTime() < end.getTime() && sessionHasLoggedWork(s),
+    );
+    if (sameDay.length > 0) return;
+    const markers = (await getLogsForRange(uid, key, key, boundary)).filter(isWorkoutMarkerRow);
+    for (const m of markers) if (m.id) await deleteLog(uid, m.id);
+  } catch (e) {
+    captureError(e, { where: 'deleteWorkout.marker' });
+  }
 }
 
 /**

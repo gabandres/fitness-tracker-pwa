@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useCachedState } from '@/hooks/useCachedState';
 import { asError, feedChannel, useLedgerFeed } from '@/hooks/useLedgerFeed';
-import { closeExpiredPauses, finishWorkout as finishWorkoutOp } from '@/lib/ledger-ops';
+import { closeExpiredPauses, deleteWorkout, finishWorkout as finishWorkoutOp } from '@/lib/ledger-ops';
 import { useAuth } from '@/lib/auth';
 import {
   type PendingFinish,
@@ -459,6 +459,12 @@ export function useTrain(): TrainState {
     'workoutSessions',
     [],
   );
+  // Through a ref for `deleteSession`, which looks one workout up at the tap
+  // and must not change identity with every snapshot.
+  const recentSessionsRef = useRef(recentSessions);
+  useEffect(() => {
+    recentSessionsRef.current = recentSessions;
+  }, [recentSessions]);
   const [active, setActiveState] = useState<WorkoutSession | null>(null);
   const [paused, setPaused] = useState<WorkoutSession[]>([]);
   // Per uid: a refocus re-reads the journal but never puts the screen back
@@ -1591,7 +1597,11 @@ export function useTrain(): TrainState {
     async (id: string) => {
       if (!uid) return;
       try {
-        await deleteSessionDoc(uid, id);
+        // A listed workout goes through the operation, which also takes the
+        // "exercised" row an old finish left in the food log (S23-15).
+        const listed = recentSessionsRef.current.find((s) => s.id === id);
+        if (listed) await deleteWorkout(uid, listed, dayBoundaryOf(profileRef.current));
+        else await deleteSessionDoc(uid, id);
       } catch (e) {
         // The screen fires this from a confirm sheet as `void deleteSession(id)`;
         // an uncaught reject there reaches Sentry with no stack and no screen,

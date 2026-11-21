@@ -305,6 +305,7 @@ export {
   // cross into the estimator is named and tested.
   WORKOUT_MARKER_KCAL,
   workoutMarkerEntry,
+  isWorkoutMarkerRow,
   // Zone 2 (Program v2, 2026-10-11): the HR band and the two flags.
   ZONE2_BAND,
   ZONE2_RPE_MAX,

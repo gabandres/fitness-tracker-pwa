@@ -7,7 +7,7 @@
 
 import type { DailyLog, Measurement } from './types';
 import { fastLengthHours, type Fast } from './fasting-history';
-import { isLoggedCardioBlock } from './cardio';
+import { isLoggedCardioBlock, isWorkoutMarkerRow } from './cardio';
 import { type LoadUnit, type WorkoutSession, type WorkoutTemplate, DEFAULT_EFFORT_STANDARD, type EffortStandard, isLoggedSet } from './workout';
 import { rowUnitSystem, toDisplayLoad } from './load-units';
 import { type DailyTargetRecord, describeTargetChange } from './target-history';
@@ -263,9 +263,7 @@ export function buildCsv(data: ExportData, boundary: DayBoundary = MIDNIGHT): st
 
   const sortedLogs = [...data.logs].sort(compareLogsOldestFirst);
   for (const l of sortedLogs) {
-    // A marker is the flag on NO food. Before ADR-0007 the flags rode on real
-    // meals (500 kcal + `liftCompleted`), and those stay meals.
-    const marker = !!(l.exerciseCompleted || l.liftCompleted || l.cardioCompleted) && !(l.calories > 0) && !l.mealLabel;
+    const marker = isWorkoutMarkerRow(l);
     rows.push(row({
       type: marker ? 'workout_marker' : 'meal',
       date: dayKeyAt(l.date, boundary),
