@@ -4,6 +4,22 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — checked on the OnePlus 8T; two fixes from it (`15113bfb`; OTA on iOS build 75 `85471c42…`, Android vc 53 `46ff6775…`)
+
+The first look at the day's work on a real phone. The OnePlus held an upload-key vc 48, below the new minimum:
+replaced with vc 53 (Play's own APK refuses to run sideloaded — "Get this app from Play" — and its "Update from
+Play" button then installs the store copy). A throwaway verified account, seeded with a week of meals through the
+new `scripts/lib/user-data.mts` verbs (their first real write), deleted afterwards.
+**Worked on the device:** the medication screen and form; the Today card; the reminder as four real OS alarms at
+the chosen hour; protein first on the hero and on Trends; the label scan from the camera to the server's "no label"
+answer (the lens was covered); a workout started, logged and finished; and the active-session fix — a workout
+completed from the server left the phone within seconds and was filed once.
+**Found and fixed:** with protein first on, the weekly card still printed "7 days in a row at or under your target"
+and a best and an off day (calorie verdicts); and an Android phone was told to "connect Oura or Apple Health".
+**Found and recorded:** `UX_AUDIT.md` S23-14, a Train card that does not grow for its stepper row.
+**Tools kept:** `apps/mobile/scripts/phone.py` (drive the phone by `testID`), `scripts/play-download-apk.mjs`.
+Tests: mobile 3,605.
+
 ## 2026-11-20 — a medication log, protein first on Trends and the Android widget, and a nutrition-label scan (`f2576113`; functions deploy; OTA on iOS build 75 `28e47d39…`, Android vc 53 `67455c4d…`)
 
 The rest of the GLP-1 set the owner asked for (`UX_AUDIT.md` S24-19). **None of it has been seen on a screen** —
