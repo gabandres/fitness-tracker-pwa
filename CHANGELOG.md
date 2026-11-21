@@ -4,6 +4,17 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-21 — "+ Add set" stays inside its card on Android (`dd53fea7`; OTA on iOS build 75 `a6b790d5…`, Android vc 53 `88940e3a…`)
+
+The item the OnePlus check recorded as S23-14. Focusing a set field opens the ± stepper row under it; on Android
+the card kept its OLD height, so "+ Add set" was drawn below the card's border. Reproduced on the OnePlus 8T on a
+first-session card too (the audit entry said it needed a previous session: wrong). Cause: the card's Reanimated
+layout transition (`layout={smoothLayout}`, `ExerciseCard.tsx`) left the native frame stale. The card now has no
+layout transition on Android and resizes at once; iOS keeps the glide (never seen broken there, and not
+checkable without a device). Seen fixed on the phone after the OTA: same steps, the card encloses the stepper
+row and the button. `TemplateEditorModal` uses the same transition on its rows and was not looked at.
+Throwaway account deleted; Ignia's data on the phone cleared.
+
 ## 2026-11-20 — checked on the OnePlus 8T; two fixes from it (`15113bfb`; OTA on iOS build 75 `85471c42…`, Android vc 53 `46ff6775…`)
 
 The first look at the day's work on a real phone. The OnePlus held an upload-key vc 48, below the new minimum:

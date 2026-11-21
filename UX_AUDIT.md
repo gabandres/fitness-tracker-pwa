@@ -124,7 +124,6 @@ Rubric `docs/research/train-ux-standards-2026.md`, scored from rendered captures
 - [ ] **S23-9** Owner's VoiceOver + TalkBack pass (checklist `DEVICE-A11Y-CHECKLIST.md`, was on `ignia-mac`); then group the set row; measure tick feedback and cold paint on a mid-range Android.
 
 ### Owner calls still open
-- [ ] **S23-14 · "Add set" can sit outside its card (Android, seen 2026-11-20 on the OnePlus 8T).** On a lift that has a previous session, focusing a set field shows the −/+ stepper row and the card does not grow for it: "+ Add set" is drawn below the card's border, and stays there after the keyboard closes. The card is an `Animated.View` with `layout={smoothLayout}` (`ExerciseCard.tsx`), so a layout transition that did not settle is the first suspect. Not seen on a first-session card. Screenshots were taken, not kept in the repo; reproduce with `apps/mobile/scripts/phone.py`.
 - [ ] **S23-13 (rest)** Red on status surfaces ("WORKOUT IN PROGRESS"); "Next up" picks never-done templates first.
 
 ---
