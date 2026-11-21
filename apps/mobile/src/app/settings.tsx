@@ -39,6 +39,7 @@ import {
 } from '@macrolog/core';
 import { TRAINING_PHASES, effectiveTrainingPhase, type TrainingPhase } from '@macrolog/core/workout';
 import { useAuth } from '@/lib/auth';
+import { useMedicationLog } from '@/lib/medication';
 import { useDailyTargets } from '@/hooks/useDailyTargets';
 import {
   importLogs, setCalorieFloor, setDayStartHour, setPreferredLocale, setProteinFirst, setProteinFloor, setTrainingSettings,
@@ -243,6 +244,8 @@ export default function Settings() {
   const { colors, preference, setPreference } = useTheme();
   const locale = useLocale();
   const { user, profile, signOut, deleteAccount, isAdmin } = useAuth();
+  // Only to say, in the sign-out confirmation, that a medication log goes with it.
+  const medication = useMedicationLog(user?.uid, t);
   const { isPro, proPreview, setProPreview } = useSubscription();
   const targetsView = useDailyTargets();
   const targets = targetsView.loaded ? targetsView.targets : null;
@@ -562,7 +565,9 @@ export default function Settings() {
     haptics.tap();
     confirm({
       title: t('settings.signOut'),
-      body: t('settings.signOutConfirm'),
+      // A medication log lives only on this phone and sign-out removes it:
+      // said HERE, where the choice is made (seen missing on the OnePlus 8T).
+      body: t(medication.log.medications.length > 0 ? 'settings.signOutMedication' : 'settings.signOutConfirm'),
       confirmText: t('settings.signOut'),
       destructive: true,
       onConfirm: () => {

@@ -3150,4 +3150,5 @@ export const ptBR: Record<I18nKey, string> = {
   'whatsNew.labelScan.body': 'Um alimento embalado que o código de barras não encontra? Fotografe o rótulo e o Ignia preenche os números para você conferir e salvar. Usa um dos seus escaneamentos de foto do dia. Toque em + e depois em Mais formas.',
   'whatsNew.proteinSurfaces.title': 'Proteína primeiro, em mais lugares',
   'whatsNew.proteinSurfaces.body': 'Com Proteína primeiro ativado, Tendências e o widget do Android também mostram a proteína primeiro, e as calorias como uma faixa. Ajustes → Proteína primeiro.',
+  'settings.signOutMedication': 'Sair do Ignia? Seu registro de medicamentos fica só neste celular, e sair da conta o apaga.',
 };

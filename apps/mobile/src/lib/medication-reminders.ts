@@ -16,7 +16,7 @@
  */
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { MEDICATION_REMINDER_ID_PREFIX, type MedicationLog, planMedicationReminders } from '@macrolog/core';
+import { MEDICATION_REMINDER_ID_PREFIX, type MedicationLog, medicationDayOf, planMedicationReminders } from '@macrolog/core';
 import type { TFn } from '@/i18n';
 
 const isNative = Platform.OS !== 'web';
@@ -41,16 +41,50 @@ async function apply(now: Date): Promise<void> {
         .filter((n) => n.identifier.startsWith(MEDICATION_REMINDER_ID_PREFIX))
         .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => undefined)),
     );
-    if (!held || !words) return;
-    for (const plan of planMedicationReminders(held, now)) {
-      await Notifications.scheduleNotificationAsync({
-        identifier: plan.id,
-        content: words,
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: plan.at },
-      });
+    if (held && words) {
+      for (const plan of planMedicationReminders(held, now)) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: plan.id,
+          content: words,
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: plan.at },
+        });
+      }
     }
   } catch {
     // The bridge refused: the log is still saved, only the reminder is missing.
+  }
+  await dismissAnswered();
+}
+
+/**
+ * Take a DELIVERED dose-day notification out of the shade once it has been
+ * answered: its dose is logged, its medication is gone, or nobody is signed
+ * in. Seen on the OnePlus 8T (2026-11-20): "Dose day" stayed up after the dose
+ * was logged, and after sign-out — where it would have been the next person's
+ * to read. Its own `try`: an older binary without these calls must not cost
+ * the scheduling above.
+ */
+async function dismissAnswered(): Promise<void> {
+  try {
+    const shown = await Notifications.getPresentedNotificationsAsync();
+    const log = held;
+    const answered = (identifier: string): boolean => {
+      if (!identifier.startsWith(MEDICATION_REMINDER_ID_PREFIX)) return false;
+      if (!log) return true;
+      // `medication.<id>.<YYYY-MM-DD>`
+      const rest = identifier.slice(MEDICATION_REMINDER_ID_PREFIX.length);
+      const medicationId = rest.slice(0, -11);
+      const day = rest.slice(-10);
+      if (!log.medications.some((m) => m.id === medicationId)) return true;
+      return log.doses.some((d) => d.medicationId === medicationId && medicationDayOf(d.takenAt) >= day);
+    };
+    await Promise.all(
+      (shown ?? [])
+        .filter((n) => answered(n.request.identifier))
+        .map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(() => undefined)),
+    );
+  } catch {
+    // Not available here: the notification stays until it is swiped away.
   }
 }
 

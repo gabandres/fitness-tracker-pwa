@@ -8,6 +8,8 @@
  */
 type Scheduled = { identifier?: string; content: { title: string; body: string }; trigger: { type: string; date?: Date } };
 const mockScheduled: Scheduled[] = [];
+/** Identifiers of notifications already DELIVERED and sitting in the shade. */
+const mockShown: string[] = [];
 let mockPermission = 'granted';
 
 jest.mock('expo-notifications', () => ({
@@ -27,6 +29,11 @@ jest.mock('expo-notifications', () => ({
     if (at !== -1) mockScheduled.splice(at, 1);
     mockScheduled.push(req);
     return req.identifier ?? 'id';
+  }),
+  getPresentedNotificationsAsync: jest.fn(async () => mockShown.map((identifier) => ({ request: { identifier } }))),
+  dismissNotificationAsync: jest.fn(async (id: string) => {
+    const at = mockShown.indexOf(id);
+    if (at !== -1) mockShown.splice(at, 1);
   }),
   SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date', WEEKLY: 'weekly' },
 }));
@@ -72,6 +79,7 @@ beforeEach(async () => {
     doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'],
   });
   mockScheduled.length = 0;
+  mockShown.length = 0;
   mockPermission = 'granted';
   __resetMedicationStore();
   await AsyncStorage.clear();
@@ -137,6 +145,39 @@ describe('dose-day reminders', () => {
     await settle();
     await syncReminders({ loggedToday: true, streak: 0, daysSinceWeighIn: null, daysSinceLastLog: 0 }, t);
     expect(mockScheduled.filter((n) => n.identifier?.startsWith('medication.'))).toHaveLength(4);
+  });
+});
+
+describe('a reminder that was already delivered', () => {
+  const today = 'medication.m1.2026-11-17';
+
+  it('stays in the shade while its dose is not logged', async () => {
+    mockShown.push(today, 'meal-lunch');
+    await writeMedicationLog('u1', logWith(weekly({ reminder: { hour: 7, minute: 0 } })), t);
+    await settle();
+    expect(mockShown).toEqual([today, 'meal-lunch']);
+  });
+
+  it('leaves the shade once the dose is logged, and only it', async () => {
+    mockShown.push(today, 'meal-lunch');
+    await writeMedicationLog('u1', logWith(weekly({ reminder: { hour: 7, minute: 0 } }), [NOW.getTime()]), t);
+    await settle();
+    expect(mockShown).toEqual(['meal-lunch']);
+  });
+
+  it("leaves the shade on sign-out, so it is not the next person's to read", async () => {
+    await writeMedicationLog('u1', logWith(weekly({ reminder: { hour: 7, minute: 0 } })), t);
+    await settle();
+    mockShown.push(today, 'meal-lunch');
+    await clearMedicationLogs();
+    expect(mockShown).toEqual(['meal-lunch']);
+  });
+
+  it('leaves the shade when its medication is removed', async () => {
+    mockShown.push(today);
+    await writeMedicationLog('u1', { medications: [], doses: [] }, t);
+    await settle();
+    expect(mockShown).toEqual([]);
   });
 });
 

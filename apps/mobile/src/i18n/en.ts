@@ -3366,6 +3366,7 @@ export const en = {
   'whatsNew.labelScan.body': 'A packaged food the barcode does not find? Photograph its label and Ignia fills in the numbers for you to check and save. It uses one of your daily photo scans. Tap +, then More ways.',
   'whatsNew.proteinSurfaces.title': 'Protein first, in more places',
   'whatsNew.proteinSurfaces.body': 'With Protein first on, Trends and the Android home-screen widget now lead with protein too, and show calories as a range. Settings → Protein first.',
+  'settings.signOutMedication': 'Sign out of Ignia? Your medication log is kept on this phone only, and signing out removes it.',
 } as const;
 
 export type I18nKey = keyof typeof en;
