@@ -75,6 +75,17 @@ describe.each(['light', 'dark'] as const)('%s palette contrast', (scheme) => {
     expect(deltaE76(c.danger, c.accent)).toBeGreaterThanOrEqual(20);
   });
 
+  // The ring, the macro bars and the fasting marks are non-text graphics that
+  // carry the reading (1.4.11). In the light palette they measured 2.54, 2.72,
+  // 1.92 and 2.85 on card until 2026-11-21 (S24-27b).
+  it.each(['ring', 'protein', 'carbs', 'fat', 'habitFasting', 'habitSleep', 'habitWater'] as const)(
+    '%s is a visible mark on paper and on card (1.4.11)',
+    (token) => {
+      expect(contrastRatio(c[token], c.paper)).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(c[token], c.card)).toBeGreaterThanOrEqual(3);
+    },
+  );
+
   it('lineStrong is a visible control boundary on the input fill and on card (1.4.11)', () => {
     expect(contrastRatio(c.lineStrong, c.inputBg)).toBeGreaterThanOrEqual(3);
     expect(contrastRatio(c.lineStrong, c.card)).toBeGreaterThanOrEqual(3);

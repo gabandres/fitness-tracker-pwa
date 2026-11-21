@@ -34,12 +34,17 @@ const light = {
   lineStrong: '#8a837c', // input / control border — 3.7:1 on inputBg, 3.3:1 on card (WCAG 1.4.11)
   accent: '#c62f27', // coral HERO — accent text/links, AA on canvas (~4.6:1)
   accentSoft: '#faf3f1', // coral section wash (tinted surface)
-  ring: '#ff6a3d', // bright coral-orange calorie ring — "energy", large fill
+  // Light theme only, 2026-11-21 (S24-27b): `ring`, `protein`, `carbs` and
+  // `habitFasting` were under 3:1 as non-text marks (WCAG 1.4.11) on paper and
+  // on a card: 2.54, 2.72, 1.92 and 2.85 on `card`. Each kept its hue and
+  // saturation and lost only the lightness it needed. Was: #ff6a3d, #0fa968,
+  // #f59e0b, #d97706. Pinned by `theme-contrast.test.ts`.
+  ring: '#ff4912', // coral-orange calorie ring — "energy", large fill; 3.2:1 paper, 3.0:1 card
   teal: '#0f766e', // SECONDARY accent — links/toggles, AA text (~4.9:1)
   tealSolid: '#0a776d', // teal fill — switch tracks, indicators; AA as text on `tealSoft` (4.7:1)
   tealSoft: '#e6f2f0', // teal section wash (tinted surface)
-  protein: '#0fa968', // green (macro data)
-  carbs: '#f59e0b', // amber (macro data)
+  protein: '#0e9f62', // green (macro data) — 3.2:1 paper, 3.1:1 card
+  carbs: '#c17c08', // amber (macro data) — 3.2:1 paper, 3.1:1 card
   fat: '#8b5cf6', // violet (macro data)
   // Habit identity accents (user-requested, 2026-08-30): one hue per habit so
   // the three metric rows on Today and their Trends faces read as the same
@@ -50,7 +55,7 @@ const light = {
   // family (amber-600 in light — carbs' #f59e0b is a large-fill hue and falls
   // under 3:1 as a small glyph on white; warn's #ab6400 reads brown as a bar).
   habitSleep: '#8b5cf6', // violet — shares `fat`'s vetted hue
-  habitFasting: '#d97706', // ember amber — between `carbs` and `warn`, ≥3:1 on canvas
+  habitFasting: '#d27306', // ember amber — between `carbs` and `warn`, ≥3:1 on paper and card
   habitWater: '#0f766e', // teal — same as `teal`, the row's existing colour
   good: '#1e7b62', // success text (jade) — 4.9:1 paper, 4.6:1 card (was #208368, 4.4:1)
   warn: '#a25f00', // warning text (amber) — 4.8:1 paper, 4.5:1 card; bright amber fails on white
