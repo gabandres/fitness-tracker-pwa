@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { Touchable } from './Touchable';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
@@ -62,6 +62,11 @@ import { MenuButton, type MenuButtonAction } from '@/components/MenuButton';
  *  every card, and the session re-renders on each set edit. */
 const BODY_ENTER = FadeIn.duration(160);
 const BODY_EXIT = FadeOut.duration(120);
+/** The card glides to its new size on iOS only. On Android (OnePlus 8T, 2026-11-20) the
+ *  transition left the card at its OLD height when a set row's stepper row opened under a
+ *  focused field: "+ Add set" was drawn below the card's border and stayed there. A card
+ *  that is the wrong size is worse than one that resizes at once. */
+const CARD_LAYOUT = Platform.OS === 'android' ? undefined : smoothLayout;
 
 export interface ExerciseCardProps {
   exercise: SessionExercise;
@@ -395,7 +400,7 @@ export const ExerciseCard = memo(function ExerciseCard({
 
 
   return (
-    <Animated.View style={[styles.exCard, pairTag ? styles.supersetRail : null]} layout={smoothLayout}>
+    <Animated.View style={[styles.exCard, pairTag ? styles.supersetRail : null]} layout={CARD_LAYOUT}>
       <View style={styles.exHeadRow}>
         <Touchable
           style={[styles.exHead, largeText && styles.exHeadWrap]}
