@@ -80,6 +80,7 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
               </td>
               <td data-label="Tier">
                 @if (u.admin) { <span class="adm-chip accent">admin</span> }
+                @else if (isComped(u) && !u.emailVerified) { <span class="adm-chip warn" title="AI calls are refused until this address is verified">comped · AI off</span> }
                 @else if (isComped(u)) { <span class="adm-chip teal">comped</span> }
                 @else if (u.stripeRole === 'paid') { <span class="adm-chip good">paid</span> }
                 @else { <span class="adm-chip muted">free</span> }
@@ -129,7 +130,8 @@ type FlagFilter = 'all' | 'unverified' | 'disabled' | 'noProfile';
           <div class="adm-section">
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
               @if (u.admin) { <span class="adm-chip accent">admin</span> }
-              @if (isComped(u)) { <span class="adm-chip teal">comped</span> }
+              @if (isComped(u) && !u.emailVerified) { <span class="adm-chip warn" title="AI calls are refused until this address is verified">comped · AI off until verified</span> }
+              @else if (isComped(u)) { <span class="adm-chip teal">comped</span> }
               @if (u.stripeRole === 'paid') { <span class="adm-chip good">paid override</span> }
               @if (u.disabled) { <span class="adm-chip danger">suspended</span> }
               @if (!u.emailVerified) { <span class="adm-chip warn">unverified</span> }

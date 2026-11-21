@@ -1,3 +1,4 @@
+import { getAuth } from "firebase-admin/auth";
 import { Firestore, Timestamp } from "firebase-admin/firestore";
 
 // ─── Retention cohorts ──────────────────────────────────────────────
@@ -260,6 +261,28 @@ async function logFacts(db: Firestore, uid: string, sevenDaysAgo: Timestamp): Pr
  * dispatcher fires every hour; the daily pass is one of those 24, so this
  * returns immediately on the other 23.
  */
+/** Signups, people who ever logged and activated users on one side of the
+ *  verified / unverified line (S24-1c). */
+export interface VerificationCounts {
+  signups: number;
+  everLogged: number;
+  activated: number;
+}
+
+/** uid → is the address verified. A uid Auth does not know is absent. */
+export type VerifiedLookup = (uids: string[]) => Promise<Map<string, boolean>>;
+
+/** Auth's own answer, 100 uids a call (the `getUsers` limit). No Firestore
+ *  reads: 3,000 profiles are 30 calls a day. */
+export const verifiedFromAuth: VerifiedLookup = async (uids) => {
+  const out = new Map<string, boolean>();
+  for (let i = 0; i < uids.length; i += 100) {
+    const page = await getAuth().getUsers(uids.slice(i, i + 100).map((uid) => ({ uid })));
+    for (const u of page.users) out.set(u.uid, u.emailVerified === true);
+  }
+  return out;
+};
+
 export async function runRetentionCohorts(db: Firestore): Promise<void> {
   const now = new Date();
   if (now.getUTCHours() !== RUN_AT_UTC_HOUR) return;
@@ -275,7 +298,11 @@ export async function runRetentionCohorts(db: Firestore): Promise<void> {
  * Separate from the scheduling gate above so it can be run — and tested —
  * at any clock time.
  */
-export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
+export async function computeRetentionCohorts(
+  db: Firestore,
+  now = new Date(),
+  lookupVerified: VerifiedLookup = verifiedFromAuth,
+) {
   const windowStart = Timestamp.fromDate(new Date(now.getTime() - COHORT_WINDOW_DAYS * DAY_MS));
   const sevenDaysAgo = Timestamp.fromDate(new Date(now.getTime() - 7 * DAY_MS));
 
@@ -314,6 +341,22 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
         "method split is computed from a TRUNCATED read.",
     );
   }
+
+  // Verified or not, per account (S24-1c). Until 2026-11-19 an unverified
+  // account could not finish onboarding, so every profile in a cohort was a
+  // verified address; since then it can, and "33% ever log" before and after
+  // that date are two different populations unless they are counted apart. A
+  // failed lookup leaves the split out (null): the cohorts above do not need it.
+  let verifiedByUid: Map<string, boolean> | null = null;
+  try {
+    verifiedByUid = await lookupVerified(profiles.docs.map((d) => d.id));
+  } catch (err) {
+    console.warn("runRetentionCohorts: the Auth verification lookup failed — no verified split this run", err);
+  }
+  const byVerification: Record<"verified" | "unverified", VerificationCounts> = {
+    verified: { signups: 0, everLogged: 0, activated: 0 },
+    unverified: { signups: 0, everLogged: 0, activated: 0 },
+  };
 
   const cohorts = new Map<string, CohortRow>();
   let activatedTotal = 0;
@@ -388,6 +431,14 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
       : await logFacts(db, doc.id, sevenDaysAgo);
 
     const activated = facts.total >= ACTIVATION_LOGS;
+    // An account Auth no longer has (deleted mid-run) is on neither side.
+    const isVerified = verifiedByUid?.get(doc.id);
+    if (isVerified != null) {
+      const side = byVerification[isVerified ? "verified" : "unverified"];
+      side.signups++;
+      if (facts.total > 0) side.everLogged++;
+      if (activated) side.activated++;
+    }
     // Only activated users are classified: a tourist's one log has no
     // "dominant" path, and the verdict number is the activated one anyway.
     const counts = usage.byUid.get(doc.id);
@@ -482,6 +533,13 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
       activatedTotal > 0 ? Number((logsLast7dTotal / activatedTotal / 7).toFixed(2)) : 0,
     /** Read the curves as directional only while this is true. */
     insufficientSample: activatedTotal < MIN_ACTIVATED_FOR_CONFIDENCE,
+    /**
+     * The same real accounts, split by whether the address is verified
+     * (S24-1c). Every cohort above counts BOTH since 2026-11-19; read a
+     * before/after of that date off `verified` alone. Null when the Auth
+     * lookup failed on this run.
+     */
+    byVerification: verifiedByUid ? byVerification : null,
     cohorts: rows,
     // ── Retention lever 3 (STATUS.md §3): the two deciding numbers.
     /** Activated users grouped by the logging path that carried most of
@@ -528,6 +586,16 @@ export async function computeRetentionCohorts(db: Firestore, now = new Date()) {
     ttflMedianSec: timeToFirstLog.medianSec,
     secsPerLog,
     remindersOptIn: remindersOnUsers,
+    // "Ever logged" as a share, all accounts and verified ones alone, so the
+    // activation re-measure reads one row per day instead of a recount.
+    ...(verifiedByUid
+      ? {
+          signups: byVerification.verified.signups + byVerification.unverified.signups,
+          everLogged: byVerification.verified.everLogged + byVerification.unverified.everLogged,
+          verifiedSignups: byVerification.verified.signups,
+          verifiedEverLogged: byVerification.verified.everLogged,
+        }
+      : {}),
     // Whole-population rates across every eligible user, cohort-independent
     // — the single number to watch move.
     ...Object.fromEntries(

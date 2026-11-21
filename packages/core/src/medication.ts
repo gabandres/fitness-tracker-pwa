@@ -258,15 +258,15 @@ const int = (v: unknown, lo: number, hi: number): number | null =>
 export function sanitizeMedicationSchedule(raw: unknown): MedicationSchedule | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  if (r.kind === 'daily') return { kind: 'daily' };
-  if (r.kind === 'weekly') {
-    const weekday = int(r.weekday, 0, 6);
+  if (r['kind'] === 'daily') return { kind: 'daily' };
+  if (r['kind'] === 'weekly') {
+    const weekday = int(r['weekday'], 0, 6);
     return weekday == null ? null : { kind: 'weekly', weekday };
   }
-  if (r.kind === 'interval') {
-    const everyDays = int(r.everyDays, MEDICATION_INTERVAL_MIN, MEDICATION_INTERVAL_MAX);
-    if (everyDays == null || typeof r.anchor !== 'string' || Number.isNaN(dayIndex(r.anchor))) return null;
-    return { kind: 'interval', everyDays, anchor: r.anchor as DateKey };
+  if (r['kind'] === 'interval') {
+    const everyDays = int(r['everyDays'], MEDICATION_INTERVAL_MIN, MEDICATION_INTERVAL_MAX);
+    if (everyDays == null || typeof r['anchor'] !== 'string' || Number.isNaN(dayIndex(r['anchor']))) return null;
+    return { kind: 'interval', everyDays, anchor: r['anchor'] as DateKey };
   }
   return null;
 }
@@ -283,19 +283,19 @@ export function sanitizeMedicationLog(raw: unknown): MedicationLog {
   for (const m of Array.isArray(r.medications) ? r.medications : []) {
     if (!m || typeof m !== 'object' || medications.length >= MEDICATIONS_MAX) continue;
     const o = m as Record<string, unknown>;
-    const id = str(o.id, 40);
-    const name = str(o.name, MEDICATION_NAME_MAX);
-    const schedule = sanitizeMedicationSchedule(o.schedule);
+    const id = str(o['id'], 40);
+    const name = str(o['name'], MEDICATION_NAME_MAX);
+    const schedule = sanitizeMedicationSchedule(o['schedule']);
     if (!id || !name || !schedule || medications.some((x) => x.id === id)) continue;
-    const dose = str(o.dose, MEDICATION_DOSE_MAX);
-    const rem = o.reminder as Record<string, unknown> | undefined;
-    const hour = rem ? int(rem.hour, 0, 23) : null;
-    const minute = rem ? int(rem.minute, 0, 59) : null;
+    const dose = str(o['dose'], MEDICATION_DOSE_MAX);
+    const rem = o['reminder'] as Record<string, unknown> | undefined;
+    const hour = rem ? int(rem['hour'], 0, 23) : null;
+    const minute = rem ? int(rem['minute'], 0, 59) : null;
     medications.push({
       id,
       name,
       schedule,
-      createdAt: typeof o.createdAt === 'number' && Number.isFinite(o.createdAt) ? o.createdAt : 0,
+      createdAt: typeof o['createdAt'] === 'number' && Number.isFinite(o['createdAt']) ? o['createdAt'] : 0,
       ...(dose ? { dose } : {}),
       ...(hour != null && minute != null ? { reminder: { hour, minute } } : {}),
     });
@@ -305,15 +305,15 @@ export function sanitizeMedicationLog(raw: unknown): MedicationLog {
   for (const d of Array.isArray(r.doses) ? r.doses : []) {
     if (!d || typeof d !== 'object') continue;
     const o = d as Record<string, unknown>;
-    const id = str(o.id, 40);
-    const medicationId = str(o.medicationId, 40);
+    const id = str(o['id'], 40);
+    const medicationId = str(o['medicationId'], 40);
     if (!id || !medicationId || !known.has(medicationId)) continue;
-    if (typeof o.takenAt !== 'number' || !Number.isFinite(o.takenAt) || o.takenAt <= 0) continue;
+    if (typeof o['takenAt'] !== 'number' || !Number.isFinite(o['takenAt']) || o['takenAt'] <= 0) continue;
     if (doses.some((x) => x.id === id)) continue;
-    const dose = str(o.dose, MEDICATION_DOSE_MAX);
-    const note = str(o.note, MEDICATION_NOTE_MAX);
-    const site = (MEDICATION_SITES as readonly string[]).includes(o.site as string) ? (o.site as MedicationSite) : undefined;
-    doses.push({ id, medicationId, takenAt: o.takenAt, ...(dose ? { dose } : {}), ...(site ? { site } : {}), ...(note ? { note } : {}) });
+    const dose = str(o['dose'], MEDICATION_DOSE_MAX);
+    const note = str(o['note'], MEDICATION_NOTE_MAX);
+    const site = (MEDICATION_SITES as readonly string[]).includes(o['site'] as string) ? (o['site'] as MedicationSite) : undefined;
+    doses.push({ id, medicationId, takenAt: o['takenAt'], ...(dose ? { dose } : {}), ...(site ? { site } : {}), ...(note ? { note } : {}) });
   }
   doses.sort((a, b) => b.takenAt - a.takenAt);
   return { medications, doses: doses.slice(0, MEDICATION_DOSES_KEPT) };

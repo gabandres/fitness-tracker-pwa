@@ -85,6 +85,9 @@ function cohortFor(
 
 describe("computeRetentionCohorts", () => {
   let summary: Awaited<ReturnType<typeof computeRetentionCohorts>>;
+  // Who Auth says is verified. Only the accounts seeded here are known to it,
+  // so profiles other specs left in the emulator land on neither side.
+  const verified = new Map<string, boolean>();
 
   beforeAll(async () => {
     // 40 days ago — old enough to be eligible at every checkpoint.
@@ -92,35 +95,57 @@ describe("computeRetentionCohorts", () => {
     // three scans against four sheet saves, so the residual "search" is 1
     // and photo wins outright. Timed: 90 s over the 4 logs on a day that
     // carries the timer field.
-    await seedUser(40, [39, 38, 30, 5], {
+    verified.set(await seedUser(40, [39, 38, 30, 5], {
       firstLogAfterMin: 3,
       usage: { photo_scan: 3, log_added: 4, log_secs: 90, reminders_on: 1 },
-    });
+    }), true);
     // Activated but churned: 3 logs in the first two days, nothing since.
     // Search-only, and from a build with no timer: `log_added` without a
     // `log_secs` field, which must NOT count toward seconds-per-log.
-    await seedUser(40, [40, 39, 38], { firstLogAfterMin: 90, usage: { log_added: 3 } });
+    verified.set(await seedUser(40, [40, 39, 38], { firstLogAfterMin: 90, usage: { log_added: 3 } }), true);
     // A tourist: one log, never reached the activation threshold.
-    await seedUser(40, [40], { firstLogAfterMin: 2 * 24 * 60 });
+    // Unverified, like the never-logged one below: both finished onboarding
+    // without confirming an address, which the app allows since 2026-11-19.
+    verified.set(await seedUser(40, [40], { firstLogAfterMin: 2 * 24 * 60 }), false);
     // Never logged at all.
-    await seedUser(40, []);
+    verified.set(await seedUser(40, []), false);
 
     // 3 days ago — eligible for D1 only. Retained at D1 (logged on day 2).
     // A barcode logger, with a timer: 40 s across 2 timed logs.
-    await seedUser(3, [3, 2, 1], {
+    verified.set(await seedUser(3, [3, 2, 1], {
       firstLogAfterMin: 1,
       usage: { barcode_scan: 2, log_added: 2, log_secs: 40 },
-    });
+    }), true);
 
     // The seeded App Store demo/review logins, which are what this exclusion
     // exists for. Both are flawless users by construction: activated, and
     // still logging at every checkpoint. One shares a week with real signups
     // (so it would inflate that cohort); the other is alone in its week (so
     // the week itself must not appear).
-    await seedUser(40, [40, 39, 38, 37, 5], { synthetic: true });
+    verified.set(await seedUser(40, [40, 39, 38, 37, 5], { synthetic: true }), true);
     await seedUser(60, [60, 59, 58, 30], { synthetic: true });
 
-    summary = await computeRetentionCohorts(db, NOW);
+    summary = await computeRetentionCohorts(db, NOW, async (uids) =>
+      new Map(uids.filter((u) => verified.has(u)).map((u) => [u, verified.get(u)!])),
+    );
+  });
+
+  it("counts verified and unverified accounts apart, seeded ones on neither side", () => {
+    // Verified: the retained photo logger, the churned 3-log user and the
+    // 3-day-old barcode logger. Unverified: the tourist and the one who never
+    // logged. The seeded account is verified and still counted nowhere.
+    expect(summary.byVerification).toEqual({
+      verified: { signups: 3, everLogged: 3, activated: 3 },
+      unverified: { signups: 2, everLogged: 1, activated: 0 },
+    });
+  });
+
+  it("writes no split when the Auth lookup fails, and still writes the cohorts", async () => {
+    const failed = await computeRetentionCohorts(db, NOW, async () => {
+      throw new Error("auth unavailable");
+    });
+    expect(failed.byVerification).toBeNull();
+    expect(cohortFor(failed, 40).signups).toBe(4);
   });
 
   it("counts a signup as activated only at 3+ logs", () => {

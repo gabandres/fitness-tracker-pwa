@@ -3,7 +3,7 @@ import { AdminConsole } from './admin-console';
 import { AdminShellState } from './admin-shell.state';
 import { AdmBars, AdmKpi, AdmMeter, AdmSpark } from './admin-ui';
 import { AdminMinVersionComponent } from './admin-min-version.component';
-import { LOG_METHOD_LABELS, deltaPct, fmtSecs, methodRows, pct, pooledRetention, sumEvent, type LogMethod } from './admin-insights';
+import { LOG_METHOD_LABELS, deltaPct, fmtSecs, methodRows, pct, pooledRetention, sumEvent, verificationLine, type LogMethod } from './admin-insights';
 import { fmtDateTime, relTime } from './admin-format';
 
 const EVENT_LABELS: Record<string, string> = {
@@ -174,6 +174,18 @@ const EVENT_LABELS: Record<string, string> = {
               </dd>
             </dl>
           </div>
+          @if (r.byVerification; as v) {
+            <div class="adm-section">
+              <span class="adm-label">Verified and unverified accounts</span>
+              <dl class="adm-kv">
+                <dt>Verified</dt>
+                <dd>{{ verificationLine(v.verified) }}</dd>
+                <dt>Unverified</dt>
+                <dd>{{ verificationLine(v.unverified) }}</dd>
+              </dl>
+              <p class="adm-kpi-hint">Every number above counts both since 2026-11-19, when onboarding stopped waiting for a verified address. Compare before and after that date on the verified row.</p>
+            </div>
+          }
           @if (methods(); as ms) {
             @if (ms.length > 0) {
               <div class="adm-section">
@@ -267,6 +279,7 @@ export class AdminOverviewComponent {
   readonly d7History = computed(() => this.data.retentionHistory().map((r) => Math.round((r.d7 ?? 0) * 100)));
   readonly methods = computed(() => methodRows(this.data.retention()));
   readonly fmtSecs = fmtSecs;
+  readonly verificationLine = verificationLine;
   methodLabel(m: LogMethod): string { return LOG_METHOD_LABELS[m]; }
   readonly release = computed(() => String((globalThis as { __MACROLOG_RELEASE__?: string }).__MACROLOG_RELEASE__ ?? 'dev').slice(0, 8));
   readonly retentionComputedAt = computed(() => {

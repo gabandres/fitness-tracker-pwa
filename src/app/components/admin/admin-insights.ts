@@ -96,6 +96,22 @@ export interface RetentionSummary {
   readonly timeToFirstLog?: TimeToFirstLog;
   readonly secsPerLog?: number | null;
   readonly logsTimed?: number;
+  /** The window's real accounts split by verified address — absent on a doc
+   *  written before 2026-11-21, null when the Auth lookup failed that run. */
+  readonly byVerification?: Record<'verified' | 'unverified', VerificationCounts> | null;
+}
+
+/** Mirrors `VerificationCounts` in `functions/src/retention.ts`. */
+export interface VerificationCounts {
+  readonly signups: number;
+  readonly everLogged: number;
+  readonly activated: number;
+}
+
+/** "12 of 30 ever logged (40%) · 5 activated", or a dash for an empty side. */
+export function verificationLine(c: VerificationCounts | undefined): string {
+  if (!c || c.signups === 0) return '—';
+  return `${c.everLogged} of ${c.signups} ever logged (${Math.round((c.everLogged / c.signups) * 100)}%) · ${c.activated} activated`;
 }
 
 export interface CeilingStatus {
