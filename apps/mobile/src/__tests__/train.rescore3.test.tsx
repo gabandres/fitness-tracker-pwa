@@ -320,7 +320,7 @@ describe('Finish names what will not be saved, and the best set', () => {
   });
 
   it('counts the lifts not started once there are more than two (owner, 2026-11-21: the list ran five lines)', async () => {
-    const unstarted = (id: string, name: string) => ({ exerciseId: id, name, logStyle: 'weight-reps', cues: [], sets: [{ kind: 'working' }] });
+    const unstarted = (id: string, name: string) => ({ exerciseId: id, name, logStyle: 'weight-reps' as const, cues: [], sets: [{ kind: 'working' as const }] });
     mockTrain.active = session({
       exercises: [
         { exerciseId: 'e1', name: 'Bench', logStyle: 'weight-reps', cues: [], sets: [{ kind: 'working', weight: 100, reps: 5, done: true }] },
