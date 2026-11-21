@@ -4,7 +4,7 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
-## 2026-11-20 — a medication log, protein first on Trends and the Android widget, and a nutrition-label scan (functions deploy; OTA on iOS build 75, Android vc 53)
+## 2026-11-20 — a medication log, protein first on Trends and the Android widget, and a nutrition-label scan (`f2576113`; functions deploy; OTA on iOS build 75 `28e47d39…`, Android vc 53 `67455c4d…`)
 
 The rest of the GLP-1 set the owner asked for (`UX_AUDIT.md` S24-19). **None of it has been seen on a screen** —
 no simulator, and no browser check was made: tests, the compiler report, and one real run of the label reader.
@@ -35,7 +35,10 @@ model on three generated images (a US panel, a per-100 g panel in kJ → 380 kca
 ~1,500 tokens each, under a meal scan), then the DEPLOYED function with a throwaway verified account (a second photo
 refused before any charge; one read, 2 of 3 scans left; account deleted). Not checked: a real phone photo of a real
 package.
-Tests: core 2,829 · functions 1,331 (52 files) · mobile — see the ledger row.
+Tests: core 2,829 · functions 1,331 (52 files) · mobile 3,604. Bundle +0.61 % gzipped against the baseline.
+**The first publish attempt was refused by the release script**: the entry sheet's new static import of the label
+flow pulled the Firebase SDK into nineteen entry-sheet test files, which could not parse it. The flow now loads the
+camera, the encoder and the SDK when a scan starts (`require`, since jest runs these files as CommonJS).
 
 ## 2026-11-20 — the Android minimum is vc 53; vc 52 is retired
 
