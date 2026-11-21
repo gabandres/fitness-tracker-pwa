@@ -258,7 +258,7 @@ artifact"; which version is *live* is `STATUS.md`'s question.
 
 | Platform | Binary | Runtime fingerprint | Read from |
 |---|---|---|---|
-| Android | vc 52 / 1.2.8 (and vc 53 / 1.2.10: `e989353d992e38a829ca883290f99d5ad08d4479`) | `dfb995eae6902f95b5388c02c7914bde0eeb1967` | the `.aab` |
+| Android | vc 53 / 1.2.10 | `e989353d992e38a829ca883290f99d5ad08d4479` | the `.aab` |
 | iOS | build 75 / 1.2.11 | `e6d2973e85038818ae56e1db6d9bd0fe1aaa016c` | the `.ipa` |
 
 Which OTA is newest on which runtime is the ledger's top rows, not this

@@ -4,6 +4,15 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-20 — the Android minimum is vc 53; vc 52 is retired
+
+The owner raised `android.minVersionCode` to 53 in `/admin` (the live `app-version.json` reads 53 / 53). vc 52
+(1.2.8, runtime `dfb995ea…`) now sits behind the update screen and is owed no more OTAs; its last JS is `25a93848`
+(tag `archive/ota/vc52-2026-11-10`). Two runtimes are left to publish to: iOS build 75 and Android vc 53.
+**Owner data:** `scripts/owner-data-2026-11-20-remove-extra-unreal.mts` removed the second "Unreal" row of 11/19,
+which the meals script had left alone; the day is the 1,518 kcal / 145 g of the request. The first script written on
+`scripts/lib/user-data.mts`.
+
 ## 2026-11-20 — architecture: the active session is its own module; tests get an in-memory Firestore (`cc8ff46f`; OTA on iOS build 75 `6f603b3e…`, Android vc 53 `27f32e9a…`)
 
 Published with `scripts/ota-release.sh` — its first real run — on tests alone (owner's call): core 2,793, mobile 3,558,

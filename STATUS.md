@@ -26,7 +26,7 @@ Read from the APIs, never edited from memory (`docs/COMMANDS.md`);
 | **Cloud Functions / rules** | Deployed, project `fitness-tracker-gb-1775407101`. Last deployed 2026-11-20 (rules: `proteinFirst`; functions: `lateWelcome` in `hourlyTasks`, the verified-only public user count) |
 | **Photo-scan** | **ON and free, both platforms** (ADR-0017), macros from the bundled USDA DB (ADR-0019). Tiering server-side only: `dailyQuota` 3/day free · 30/day paid, plus the `photo` `spendCeiling` |
 | **Food search** | Bundled USDA DB (13,272 foods) + restaurant corpus (25,126 items / 91 chains, ADR-0027). **Text search makes NO network call**; Open Food Facts serves barcode only |
-| **OTA (EAS Update)** | **Three runtimes take OTAs: iOS build 75 (`e6d2973e…`), Android vc 52 (`dfb995ea…`) and vc 53 (`e989353d…`), both Android ones PINNED.** Update-required minimum: iOS `1.2.11`, Android vc `52`. **Newest: 2026-11-20, the active session module (`cc8ff46f`), on build 75 + vc 53 ONLY. vc 52 last took 2026-11-10** (`25a93848`, tag `archive/ota/vc52-2026-11-10`) and cannot take `main`'s JS (it lacks the native `0c30979d`); it ends when the Android minimum is raised to 53 (owner call, §3). "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
+| **OTA (EAS Update)** | **Two runtimes take OTAs: iOS build 75 (`e6d2973e…`) and Android vc 53 (`e989353d…`, PINNED).** Update-required minimum: iOS `1.2.11`, Android vc `53` (raised 2026-11-20; read from the live `app-version.json`). Every OTA comes from `main` and reaches every user who is not behind the update screen. **Newest: 2026-11-20, the active session module (`cc8ff46f`).** Android vc 52 is below the minimum and owed nothing more (its last JS: `25a93848`, tag `archive/ota/vc52-2026-11-10`). "Published" ≠ "delivered": a device applies an OTA on the launch AFTER the download, and on foreground only after 30+ min in the background. The ledger is the record and wins |
 | **`app-version.json`** | **Self-driving** — served from Firestore `public/appVersion`, refreshed hourly by `hourlyTasks` and by `/admin` → System → **Sync now**. `npm run doctor` compares the live URL with both stores |
 
 **Publishing:** OTAs for both platforms go out from the Windows PC (`winbox`,
@@ -48,7 +48,7 @@ rendered check is the app in a browser (`test-mobile-web` skill).
 
 ## 2. Merged, on `main`, and not delivered everywhere
 
-- iOS build 75 and Android vc 53 carry everything on `main`; **Android vc 52 is behind it** by everything since 2026-11-10 (§1, OTA row).
+- Nothing: iOS build 75 and Android vc 53 carry everything on `main`.
 
 **iOS regression suite: 21 of 21** (2026-09-22, simulator). It predates every
 Train change since and **cannot be re-run without a Mac**
@@ -116,9 +116,6 @@ found (S24-18); the owner calls S24-27b and S24-28. **Re-measure activation**
 
 ### Owner calls
 
-- **Raise the Android minimum to 53** in `/admin` (Overview → System → *Update
-  required*, after "Sync now"): Play shows vc 53 live. Then every OTA comes
-  from `main` and reaches every user.
 - **Enable the Windows Hypervisor Platform + reboot** so the Android emulator
   can run: `Enable-WindowsOptionalFeature -Online -FeatureName
   HypervisorPlatform -All` in an elevated PowerShell.
