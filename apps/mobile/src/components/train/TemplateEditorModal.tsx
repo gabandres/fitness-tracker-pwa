@@ -79,7 +79,7 @@ import { hideToast, showToast } from '@/components/Toast';
 import { type TFn, useLocale, useT, type I18nKey} from '@/i18n';
 import { capitalizeFirst, plural } from '@/i18n/grammar';
 import * as haptics from '@/lib/haptics';
-import { smoothLayout } from '@/lib/motion';
+import { cardLayout } from '@/lib/motion';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { useRevealFocusedInput } from '@/lib/use-reveal-focused-input';
 import { font, space, TARGET } from '@/theme';
@@ -1988,7 +1988,7 @@ export function TemplateEditorModal({
                     tags[i] && tags[i - 1] && exercises[i - 1]?.supersetGroup === d.supersetGroup
                       ? { borderTopLeftRadius: 0, borderTopRightRadius: 0 } : null,
                   ]}
-                  layout={smoothLayout}
+                  layout={cardLayout}
                 >
                   <View style={styles.tplExTop}>
                     {/* The drag grip. Dragging is invisible to VoiceOver, so

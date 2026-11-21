@@ -76,6 +76,20 @@ export const smoothLayout = LinearTransition.duration(motion.dur.base)
   .easing(Easing.out(Easing.cubic))
   .reduceMotion(ReduceMotion.System);
 
+/**
+ * `smoothLayout` for a CARD whose own contents change height — an exercise
+ * card in a workout, a row in the template editor. iOS only.
+ *
+ * On Android (OnePlus 8T, reanimated 4.5.5, Fabric) the transition left the
+ * card's frame at its OLD height while its children laid out at the new one:
+ * in a workout "+ Add set" sat below the card's border once a set row's
+ * stepper row opened (2026-11-20), and in the editor an expanded exercise drew
+ * its whole body outside the collapsed card (2026-11-21). A card that is the
+ * wrong size is worse than one that resizes at once, so Android gets no
+ * transition; it also loses the glide when rows reorder.
+ */
+export const cardLayout = Platform.OS === 'android' ? undefined : smoothLayout;
+
 type PressScaleProps = Omit<ComponentProps<typeof Pressable>, 'style'> & {
   style?: StyleProp<ViewStyle>;
   /** Scale while pressed. Default 0.96; use ~0.9 for small pills/chips. */
