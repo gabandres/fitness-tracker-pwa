@@ -147,9 +147,9 @@ function verifyIpa(path) {
       }
     }
     // 6. The checks every iOS build of every app passes (scene life cycle, release Xcode, Sentry, Release bundle):
-    //    ipa-preflight.sh, the same file in Callbook, PoolFlow and Inkvolt. Copied beside this script by Step 3.
+    //    ipa-preflight.sh: a shim for @bermudez/mobile-kit's, which every app shares (Z:\mobile-kit).
     const preflight = join(HERE, 'ipa-preflight.sh');
-    if (!existsSync(preflight)) bad('ipa-preflight', `${preflight} missing: copy it with this script`);
+    if (!existsSync(preflight)) bad('ipa-preflight', `${preflight} missing: it runs @bermudez/mobile-kit's (npm install)`);
     else {
       try {
         ok('ipa-preflight', sh('/bin/zsh', [preflight, path]).trim().split('\n').slice(1, -1).map((l) => l.trim()).join('; '));
@@ -168,10 +168,10 @@ function verifyIpa(path) {
 
 function verifyAab(path) {
   // 0. The checks every Android build of every app passes (signer, not debuggable, Release bundle, Sentry, 16 KB page
-  //    alignment): aab-preflight.sh, the same file in Callbook, PoolFlow and Inkvolt. Copied beside this script.
+  //    alignment): aab-preflight.sh: a shim for @bermudez/mobile-kit's (Z:\mobile-kit).
   const preflight = join(HERE, 'aab-preflight.sh');
   if (process.platform !== 'darwin') bad('aab-preflight', 'needs the Mac (zsh, bundletool, keytool): run this verifier on the build Mac (mac run ...)');
-  else if (!existsSync(preflight)) bad('aab-preflight', `${preflight} missing: copy it with this script`);
+  else if (!existsSync(preflight)) bad('aab-preflight', `${preflight} missing: it runs @bermudez/mobile-kit's (npm install)`);
   else {
     try {
       ok('aab-preflight', sh('/bin/zsh', [preflight, path]).trim().split(NL).slice(1, -1).map((l) => l.trim()).join('; '));
