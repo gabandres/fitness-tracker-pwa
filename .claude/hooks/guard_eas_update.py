@@ -14,7 +14,7 @@ were lost that way in one day (2026-08-07).
 "Sent to the build Mac" is `mac run '...'`, `mac run -n '...'` or
 `mac bg <name> '...'` (the PC's `mac` command, `Z:\machines\README.md`; a
 leading `MAC_SLOT=...` or `mac -f` too), or `ssh buildmac '...'` /
-`ssh ignia-mac '...'` (the old alias of the same Mac).
+`ssh buildmac '...'`.
 
 **2026-11-12: both machines compute the same fingerprints** (iOS build 75's
 `e6d2973e...` on both) and export the same bundles, so either may publish
@@ -69,9 +69,9 @@ PUBLISH = re.compile(r"^eas(?:-cli)?\s+update(?!:)(?:\s|$)")
 PLATFORM = re.compile(r"(?:--platform|(?<![\w-])-p)[=\s]+([a-zA-Z]+)")
 
 # A command handed to the build Mac: `mac [-f] run [-n] ...`,
-# `mac [-f] bg <name> ...`, or `ssh [-flags] buildmac|ignia-mac ...`.
+# `mac [-f] bg <name> ...`, or `ssh [-flags] buildmac ...`.
 REMOTE = (
-    r"(?:ssh\s+(?:-\w+\s+)*(?:buildmac|ignia-mac)"
+    r"(?:ssh\s+(?:-\w+\s+)*buildmac"
     r"|mac\s+(?:-f\s+)?(?:run(?:\s+-n)?|bg\s+[\w-]+))"
 )
 # ...at the start of a segment: the unquoted form, `mac run npx eas update ...`.

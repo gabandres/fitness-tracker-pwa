@@ -89,21 +89,21 @@ case(E, cmd("npx eas build -p ios --local"), "eas build", "allow")
 # Bare `eas update` publishes BOTH in one command, with no per-platform pin --
 # blocked on every machine.
 case(E, cmd("cd apps/mobile && npx eas update --branch production"), "bare update on Windows (no --platform)", "BLOCK", WINENV)
-case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --branch production"'), "bare update via ignia-mac (no --platform)", "BLOCK")
+case(E, cmd('ssh buildmac "cd ~/x && npx eas update --branch production"'), "bare update via ssh buildmac (no --platform)", "BLOCK")
 case(E, cmd("cd apps/mobile && npx eas update --platform all --branch production"), "--platform all", "BLOCK")
 # Every allowed publish must also carry --environment, which eas-cli requires
 # from Expo SDK 55 (this app is on 57).
 case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment production"), "android directly on Windows", "allow", WINENV)
 case(E, cmd("cd apps/mobile && npx eas update -p android --branch production --environment production"), "android on Windows, short -p", "allow", WINENV)
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production --environment production"), "ios directly on Windows", "allow", WINENV)
-case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production --environment production"'), "android via ignia-mac (owner)", "allow")
-case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch production --environment production"'), "ios via ignia-mac (owner)", "allow")
+case(E, cmd('ssh buildmac "cd ~/x && npx eas update --platform android --branch production --environment production"'), "android via ssh buildmac (owner)", "allow")
+case(E, cmd('ssh buildmac "cd ~/x && npx eas update --platform ios --branch production --environment production"'), "ios via ssh buildmac (owner)", "allow")
 # Correctly routed, but missing the SDK 55+ required flag.
-case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production"'), "android via ignia-mac, no --environment", "BLOCK")
-case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production --environment=production"'), "--environment= form", "allow")
+case(E, cmd('ssh buildmac "cd ~/x && npx eas update --platform android --branch production"'), "android via ssh buildmac, no --environment", "BLOCK")
+case(E, cmd('ssh buildmac "cd ~/x && npx eas update --platform android --branch production --environment=production"'), "--environment= form", "allow")
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios on Windows, no --environment", "BLOCK", WINENV)
 # The build Mac through the PC's `mac` command (Z:\machines, 2026-11-22), and
-# `ssh buildmac`: the same rules as `ssh ignia-mac`.
+# `ssh buildmac`: the same rules as the plain commands.
 case(E, cmd("mac run 'cd apps/mobile && npx eas update --branch production --environment production'"), "bare update via mac run", "BLOCK", WINENV)
 case(E, cmd("mac run 'cd apps/mobile && npx eas update --platform ios --branch production --environment production'"), "ios via mac run", "allow", WINENV)
 case(E, cmd("mac run 'cd apps/mobile && npx eas update --platform ios --branch production'"), "ios via mac run, no --environment", "BLOCK", WINENV)
@@ -121,13 +121,13 @@ case(E, cmd('ssh buildmac "cd ~/x && npx eas update --platform android --branch 
 MACENV = {"GUARD_HOST": "mac"}
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production --environment production"), "ios directly on the Mac (owner)", "allow", MACENV)
 case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment production"), "android directly on the Mac (owner)", "allow", MACENV)
-case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch production --environment production"'), "ios via ssh, from the Mac itself", "allow", MACENV)
+case(E, cmd('ssh buildmac "cd ~/x && npx eas update --platform ios --branch production --environment production"'), "ios via ssh, from the Mac itself", "allow", MACENV)
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios on the Mac, no --environment", "BLOCK", MACENV)
 # Mentions, not invocations. The `|` inside a quoted regex used to split into a
 # phantom segment starting with `eas update` and block a plain grep (2026-08-17).
-case(E, cmd('grep -nE "ssh ignia-mac.*(eas update|gradlew)" docs/COMMANDS.md'), "grep whose PATTERN mentions eas update", "allow")
+case(E, cmd('grep -nE "ssh buildmac.*(eas update|gradlew)" docs/COMMANDS.md'), "grep whose PATTERN mentions eas update", "allow")
 case(E, cmd("rg 'eas update --platform android' docs/"), "rg for the publish command", "allow")
-case(E, cmd('ssh ignia-mac "grep -n \'eas update\' notes.md"'), "grep ON the Mac, still a mention", "allow")
+case(E, cmd('ssh buildmac "grep -n \'eas update\' notes.md"'), "grep ON the Mac, still a mention", "allow")
 case(E, cmd("mac run \"grep -n 'eas update' apps/mobile/AGENTS.md\""), "grep via mac run, still a mention", "allow")
 case(E, cmd('grep -nE "mac (run|bg).*eas update" .claude/skills'), "grep whose PATTERN names mac run", "allow")
 case(E, cmd("mac log ota 80"), "mac log", "allow")
