@@ -262,7 +262,7 @@ for (const [id, edit] of Object.entries(EDITS)) {
   const rows = json(data['exercises'] as Row[]);
   const bad = edit.check(rows);
   if (bad) { s.problem(bad); continue; }
-  const next = edit.rows(rows).map((r, i) => (stable(r) === stable(rows[i]) ? r : { ...r, lastModifiedAt: stamp, lastModifiedBy: 'prompt' }));
+  const next = edit.rows(rows).map((r, i) => (stable(r) === stable(rows[i]) ? rows[i] : { ...r, lastModifiedAt: stamp, lastModifiedBy: 'prompt' }));
   const notes = String(data['notes'] ?? '');
   const nextNotes = notes.includes(edit.line) ? notes : `${notes}\n\n${edit.line}`;
   if (nextNotes.length > 10_000) { s.problem(`${edit.name} notes would be ${nextNotes.length} characters (max 10,000)`); continue; }
