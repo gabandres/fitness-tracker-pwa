@@ -75,6 +75,7 @@ Thumbs.db
 /.claude/*
 !/.claude/skills/
 !/.claude/hooks/
+!/.claude/rules/
 !/.claude/settings.json
 # Nested workspace-level .claude dirs stay ignored entirely. (The root rules
 # above must be anchored with a leading slash, and the ignore must be on the

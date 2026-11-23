@@ -5,8 +5,8 @@
 #
 # The owner has no Android device. Every Android box in `WIDGET.md`'s device-QA
 # checklist has been unticked since the feature shipped, and vc 18 and vc 21 went
-# to testers with nothing anywhere having launched them. The emulator on
-# `ignia-mac` (see this folder's README) closes that, and this is the floor: does
+# to testers with nothing anywhere having launched them. The emulator on the
+# build Mac (see this folder's README) closes that, and this is the floor: does
 # the release binary start at all, and does it draw something.
 #
 # That floor is not trivial. `index.js` registers the Android widget's task

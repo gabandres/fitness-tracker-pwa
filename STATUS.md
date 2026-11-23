@@ -35,15 +35,16 @@ changed>"`: tests, the fingerprint gate, the size budget, one publish per
 runtime, the read-back and the ledger rows (`build-android` skill for the why).
 Current artifact fingerprints: the table in `apps/mobile/AGENTS.md`.
 
-**There is no build machine** (`ignia-mac` was sold 2026-11-13): no iOS binary
-can be built until another Mac is set up, and the Windows raw-Gradle path is
-unverified since vc 45 (`winbox` has no Android SDK beyond `platform-tools`).
-**Anything that moves a fingerprint — a new native library, a permission, an
-`app.json` change — is blocked. All work ships as JS over OTA.** Build 75's
-`.ipa` and the Mac's git-ignored files are in `C:\Users\gabri\build-artifacts`.
-**No native screen can be looked at before a publish:** there is no simulator,
-and the Android emulator needs the Windows Hypervisor Platform, which is OFF
-(owner call, §3; even then a release binary loads only PUBLISHED updates). The
+**Builds: the build Mac, since 2026-11-22** (driven from the PC with `mac`;
+`build-ios` / `build-android` skills, `Z:\machines\README.md`). From 2026-11-13
+(the first Mac sold) to then there was no build machine and everything shipped
+as JS over OTA. **No binary has been built on it yet**: the first iOS build
+checks the watchOS platform first (`build-ios` Step 1). The Windows raw-Gradle
+path is the fallback, unverified since vc 45. Build 75's `.ipa` and the first
+Mac's git-ignored files are in `C:\Users\gabri\build-artifacts`. Native screens
+can be looked at on the build Mac's simulators and emulator (`.maestro/README.md`;
+a release binary loads only PUBLISHED updates); on the PC the Android emulator
+needs the Windows Hypervisor Platform, which is OFF (owner call, §3), and the
 rendered check is the app in a browser (`test-mobile-web` skill).
 
 ## 2. Merged, on `main`, and not delivered everywhere

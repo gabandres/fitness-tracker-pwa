@@ -110,9 +110,10 @@ about **freshness**.
 
 **The `gradlew` / `gradlew.bat` / `patch-android-release.mjs` recipes from here
 down are the Windows raw-Gradle route (vc 31–45).** vc 46–53 shipped from
-`ignia-mac` (raw Gradle + the patch script, `SKILL.md` Step 3); with the Mac sold
-2026-11-13, this Windows route is the only local Android path, unverified since
-vc 45. (This paragraph described a pending Mac cutover until 2026-11-19.)
+the first Mac (raw Gradle + the patch script, `SKILL.md` Step 3); since
+2026-11-22 the build Mac is the Android build host again and this Windows route
+is the fallback while it is away, unverified since vc 45. (This paragraph
+described a pending Mac cutover until 2026-11-19.)
 
 **`SENTRY_AUTH_TOKEN` fails the build at the very end.** `@sentry/react-native`
 uploads source maps as a Gradle task. Measured 2026-08-17: 1089 tasks executed,
@@ -177,8 +178,8 @@ once per ABI.
 
 ## Avenues that were closed on Windows — history of the Windows era (2026-08-17 → 2026-09-17)
 
-Android's build host was `ignia-mac` from 2026-09-17 until its sale on
-2026-11-13; with no Mac, Windows is again the only local route. The rows are durable facts about the Surface
+Android's build host was the first Mac from 2026-09-17 until its sale on
+2026-11-13, and is the build Mac since 2026-11-22; Windows is the fallback. The rows are durable facts about the Surface
 (ARM64) and still hold for anyone building there. Kept because each was tried,
 and the first two will be re-proposed.
 

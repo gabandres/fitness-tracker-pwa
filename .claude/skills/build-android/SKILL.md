@@ -1,19 +1,21 @@
 ---
 name: build-android
-description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. OTAs for both platforms publish from the Windows PC (`winbox`, `Z:\fitness-tracker-pwa`), Android with `runtimeVersion` pinned to the artifact value. Builds ran on `ignia-mac` (vc 46-53) until its sale on 2026-11-13; the Windows raw-Gradle path (vc 31-45) is unverified since and needs an Android SDK installed. iOS is the `build-ios` skill (BLOCKED, no Mac). After ANY Gradle build, restore the masked-view manifest before an iOS gate (Step 3b).
+description: Ship an Android change — decide between an over-the-air EAS Update (free, instant, no build) and a real build, run the fingerprint gate that decides whether an OTA can land, and submit to the Play alpha track. Use for "ship this to Android", "cut an Android build", "push a fix to testers", or any mobile fix headed for Play. OTAs for both platforms publish from the Windows PC (`Z:\fitness-tracker-pwa`), Android with `runtimeVersion` pinned to the artifact value. Release builds run on the build Mac, driven from the PC with `mac` (ADR-0042); the Windows raw-Gradle path (vc 31-45) is the fallback while the Mac is away, unverified since vc 45. iOS is the `build-ios` skill. After ANY Gradle build, restore the masked-view manifest before an iOS gate or build (Step 3b).
 ---
 
 # Ship an Android change
 
-**OTAs publish from the Windows PC since 2026-11-12** (`winbox`, checkout
+**OTAs publish from the Windows PC since 2026-11-12** (checkout
 `Z:\fitness-tracker-pwa`). It computes the Mac's fingerprints and exports the
 Mac's bundles exactly (`apps/mobile/AGENTS.md`).
 
-**Builds (Step 3 on) are BLOCKED on the Mac since 2026-11-13 (`ignia-mac` sold)**
-and describe that machine, where both platforms built at zero EAS quota
-(`docs/build-infrastructure.md`). Android once built on this Windows PC (vc 31–45,
-raw Gradle); that path is not re-verified since, and `winbox` has no Android SDK
-at either documented path (checked 2026-11-19). iOS needs a Mac.
+**Builds (Step 3 on) run on the build Mac** at zero EAS quota, sent from the PC
+with `mac` (`mac sync`, `mac run '<cmd>'`, `mac bg <name> '<cmd>'` + `mac wait
+<name>`; the machine and the rules for using it: `Z:\machines\README.md`).
+vc 46–53 were built on the first Mac (sold 2026-11-13); the build Mac came
+2026-11-22. Android once built on this Windows PC (vc 31–45, raw Gradle): the
+fallback while the Mac is away, not re-verified since, and Gradle there takes
+most of the PC's memory.
 
 `REFERENCE.md` in this directory holds the evidence behind every rule below — the
 measurement, the incident, the wrong conclusion it replaced. **Read it when a rule
@@ -64,8 +66,8 @@ Rules, all measured (`REFERENCE.md` → *The fingerprint gate*):
 ## Step 2 — OTA (no build, no queue, no review)
 
 Owns OTA publishing for **both** platforms; `build-ios` links here. It is **two
-publishes** (one per platform), both from `winbox` — this said "each from its own
-host" until 2026-11-19.
+publishes** (one per platform), both from the Windows PC — this said "each from
+its own host" until 2026-11-19.
 
 Announce it first — an OTA reaches the device with no store involvement, so the
 in-app banner is the **only** user-facing channel:
@@ -131,44 +133,48 @@ npx eas update:list --branch production --limit 3
 - Testers get it on the **next** launch. Undo with
   `eas update:roll-back-to-embedded`. `--message` is for the dashboard, not users.
 
-## Step 3 — build, on a Mac, free (BLOCKED: no Mac since 2026-11-13)
+## Step 3 — build, on the build Mac, free
 
 `eas build --local` is the sanctioned path and the only one that writes the EAS
 Update channel, signs with `credentials/dev.keystore` (`credentialsSource:
 "local"`) and takes the remote versionCode — the three things raw Gradle
 omits. It refuses Windows, which is why Step 3 (Windows) below exists.
 
+From the PC, at the commit to ship (`mac sync` sends the working tree and runs
+`npm ci` on the Mac when the lockfile changed; the Mac never `npm install`s):
+
 ```sh
-ssh ignia-mac   # or run bare from a session on the Mac
-cd ~/Repos/fitness-tracker-pwa && git pull --ff-only && git rev-parse HEAD   # never pipe this
-npm ci                                                                  # Mac never `npm install`s
-cd apps/mobile
-set -a && source ../../.env.local && set +a        # SENTRY_AUTH_TOKEN for the Gradle source-map task
-npx eas build --local -p android --profile production --non-interactive \
-  --output ~/build-artifacts/ignia-<version>-vc<N>.aab
+git rev-parse HEAD                                   # record it; never pipe this
+mac bg android-build 'cd apps/mobile &&
+  set -a && . ../../.env.local && set +a &&          # SENTRY_AUTH_TOKEN for the Gradle source-map task
+  npx eas build --local -p android --profile production --non-interactive \
+    --output ~/build-artifacts/ignia-<version>-vc<N>.aab'
+mac wait android-build                               # as a background command
 ```
 
-- `JAVA_HOME`/`ANDROID_HOME` come from `~/.zprofile` (ssh) or the T3 Code
-  plist (phone session) — do not export them by hand, and if `java -version`
+- `JAVA_HOME`/`ANDROID_HOME` come from the Mac's shell config
+  (`Z:\machines\README.md`) — do not export them by hand, and if `java -version`
   is not 17 the shell is wrong, not the SDK.
-- **Run it detached** (`nohup … &` or `run_in_background`): past any foreground
-  timeout. Measured 2026-09-17 on the M1 Air, first-ever run, `preview` APK,
+- **Always `mac bg`, never `mac run`**: past any foreground timeout, and a
+  timeout kill looks exactly like a failure. Measured 2026-09-17 on the first
+  Mac (M1 Air), first-ever run, `preview` APK,
   all four ABIs: **Gradle 21m42s** of which ~8 min was an empty `~/.gradle`
   filling to 4.7 GB — expect a warm production AAB well under that. The log
   sits at `:expo-updates-gradle-plugin:jar` with a flat task count for the
   whole download; that is not the socket hang, check `du -sh ~/.gradle`
-  before assuming it is. A timeout kill looks exactly like a failure.
+  before assuming it is.
 - `--profile production` **autoIncrements the remote versionCode** on every
   run, including failed ones — a retry costs a number. For a toolchain check
   use `--profile preview` (APK, no increment, EAS's stray keystore; **never
   ship it**).
 - Verify exactly as below (`verify-mobile-artifact.mjs` runs on macOS as-is)
   and read the fingerprint **from the artifact**.
-- 16 GB RAM: do not run the iOS build or the emulator at the same time.
+- 16 GB RAM: do not run the iOS build or the emulator at the same time
+  (`mac jobs` lists what runs).
 
 ## Step 3 (raw Gradle + `patch-android-release.mjs`) — THE ROUTE THAT SHIPPED vc 46
 
-**Measured 2026-09-28 on `ignia-mac`: `eas build --local -p android --profile
+**Measured 2026-09-28 on the first Mac: `eas build --local -p android --profile
 production` is NOT sufficient on its own.** It prebuilds in its own temp copy,
 so nothing under the gitignored `android/` — and nothing
 `patch-android-release.mjs` does — reaches it. The artifact it produced
@@ -178,8 +184,10 @@ intent filters missing) and carried **versionCode 32**, because EAS's remote
 counter had never been advanced past the Windows-built vc 33–45 (fixed the same
 day: `eas build:version:set` → 46). Four ABIs, 104 MB. **Do not submit that
 route's output without the verifier passing.** What did ship vc 46 is the
-section below, run bare on the Mac (the macOS `local.properties` line, not the
-Windows one):
+section below, run on the Mac (the macOS `local.properties` line, not the
+Windows one). On the build Mac, put the block in one `mac bg android-build
+'…'` (it runs at the repo root; the PC-side `app-version-sync --check` stays on
+the PC):
 
 `eas build --local` refuses to run on Windows, so raw Gradle is the only path —
 and it omits three things that each fail **silently**: the EAS Update channel
@@ -194,8 +202,8 @@ cd apps/mobile/android && ./gradlew --stop || true   # NOT optional
 cd .. && npx expo prebuild -p android --clean --no-install   # only when the fingerprint moved
 # `--no-install` is LOAD-BEARING and was MISSING here until 2026-09-17. Without
 # it prebuild runs `npm install`. On Windows that is allowed (it owns the
-# lockfile) and this is harmless; on `ignia-mac` it moves BOTH fingerprints and
-# shuts both OTA channels SILENTLY. Measured on the Mac that day:
+# lockfile) and this is harmless; on the Mac it moves BOTH fingerprints and
+# shuts both OTA channels SILENTLY. Measured on the first Mac that day:
 #   clean tree     ios 52802bba...  android 7514d026...  <- matches live build 64
 #   after prebuild ios 700258fd...  android d98ccb24...  <- both channels shut
 #   after npm ci   ios 52802bba...  android 7514d026...  <- restored exactly
@@ -206,13 +214,13 @@ cd .. && npx expo prebuild -p android --clean --no-install   # only when the fin
 #
 # prebuild DELETES android/local.properties - restore it or Gradle reports
 # "SDK location not found", which reads like a missing SDK install.
-# The path is PER HOST. ignia-mac (the Android build host since vc 46):
+# The path is PER HOST. The build Mac (the Android build host since vc 46):
 [ -f android/local.properties ] || echo "sdk.dir=$HOME/Library/Android/sdk" > android/local.properties
 # Windows fallback only (pre-vc-46 host):
 # [ -f android/local.properties ] || echo "sdk.dir=Z:/packages/android-sdk" > android/local.properties
 
 node scripts/patch-android-release.mjs <versionCode> production   # safe to re-run
-cd android && ./gradlew bundleRelease                              # on the Mac
+cd android && ./gradlew bundleRelease                              # on the Mac (inside mac bg)
 # Windows fallback: run bundleRelease via the runner in REFERENCE.md. Two details
 # are load-bearing there: an explicit .\gradlew.bat, and deleting
 # NoDefaultCurrentDirectoryInExePath - without both, cmd.exe reports
@@ -297,11 +305,12 @@ expect a few minutes - still far below a full rebuild.
 ### Verify — gate on the exit code
 
 ```sh
-node scripts/verify-mobile-artifact.mjs \
-  apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
+mac run -n 'node scripts/verify-mobile-artifact.mjs \
+  apps/mobile/android/app/build/outputs/bundle/release/app-release.aab'
 ```
 
-Run it **from Git Bash** — it shells out to `unzip`/`sh`, which PowerShell does
+Its `aab-preflight` check needs macOS, so on the Windows fallback it fails that
+check by design; run the rest **from Git Bash** — it shells out to `unzip`/`sh`, which PowerShell does
 not provide (it reports `spawnSync unzip ENOENT` and a bogus missing-fingerprint
 error). It asserts the signer is `CN=Macro Log Dev`, `expo-channel-name` is
 present, the quick-add services survived the manifest merge, and prints the
@@ -320,11 +329,13 @@ release build rewrites
 in place (AGP 8 drops the `package=` attribute). Android does not care — its
 gate is the artifact. **iOS does**: that package is hashed whole, so the next
 iOS fingerprint gate reads a new hash on a clean tree and an iOS OTA is blocked
-(or, worse, published on a runtime nobody has). Before any iOS gate:
+(or, worse, published on a runtime nobody has), and an iOS build on that tree
+embeds a runtime the PC does not compute. On the machine that ran Gradle,
+before any iOS gate or iOS build there:
 
 ```sh
-# from the repo root — either
-npm ci
+mac run -n 'npm ci'                 # the build Mac
+# Windows fallback: npm ci --ignore-scripts && npx patch-package && npm rebuild @firebase/util
 # or the targeted restore in docs/COMMANDS.md § OTA (npm pack the installed version, copy the manifest back)
 ```
 
@@ -335,16 +346,18 @@ names the source — do that before reasoning about it.
 ## Step 4 — submit
 
 ```sh
-cd apps/mobile && npx eas submit -p android --profile production \
-  --path android/app/build/outputs/bundle/release/app-release.aab --non-interactive
+mac run -n 'cd apps/mobile && npx eas submit -p android --profile production \
+  --path android/app/build/outputs/bundle/release/app-release.aab --non-interactive'
 ```
 
 Goes to the **alpha** track, `releaseStatus: "completed"` — rolled out to the
 tester list, not a draft. No build quota. **Over 60 MB it is 0-for-2** (Play's
 edit expires mid-upload): use `node scripts/play-upload-bundle.mjs <aab> --track
 alpha --commit` instead (`apps/mobile/AGENTS.md`, *Delivery*). Submit from the
-host that built the artifact; `credentials/play-service-account.json` is on
-`winbox` (this said "the Mac holds it too" until 2026-11-19).
+host that built the artifact — nothing comes back from the Mac, so a Mac-built
+AAB is submitted there (`mac run -n '…'`). It needs the git-ignored
+`apps/mobile/credentials/play-service-account.json` in that checkout
+(`Z:\machines\README.md` says what the Mac clone holds).
 
 ## After shipping
 

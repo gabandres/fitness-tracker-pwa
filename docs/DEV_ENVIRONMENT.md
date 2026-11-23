@@ -3,8 +3,8 @@
 Two things live here: (1) the **local dev environment** (Firebase Emulator
 Suite — how to stop testing against prod), and (2) the **owner runbook** for the
 `ignia.fit` cutover + production hardening (console/DNS/CLI steps the code can't
-do). Decisions behind this: ADR-0015. **§3, the macOS runbook, is BLOCKED since
-2026-11-13 (`ignia-mac` sold, no Mac) — kept for the next one.**
+do). Decisions behind this: ADR-0015. **§3, the macOS runbook, runs on the build
+Mac through `mac …` (machines: `Z:\machines\README.md`).**
 
 ---
 
@@ -228,22 +228,26 @@ Remaining steps that genuinely can't be scripted here:
 that runs on your own machine uses no worker. On Windows there is no local iOS
 path at all — `npx expo prebuild -p ios` refuses outright (SDK 54 prints
 *"Run npx expo prebuild again from macOS or Linux"* and exits non-zero) — which is
-why every iOS build so far cost a slot and a queue, and why the widget's missing
+why every iOS build before the first Mac cost a slot and a queue, and why the widget's missing
 `ExtensionStorage` pod could only be found by shipping a binary and reading a
 runtime probe. A Mac removes that whole class of blindness.
 
-> **BLOCKED since 2026-11-13: `ignia-mac` (the MacBook Air M1 that all of §3
-> describes) was sold, and there is no Mac.** Everything Mac-only in §3 — iOS
-> builds, archiving, the iOS/watchOS simulators, Maestro on iOS, §3.15's rebuild —
-> is the runbook for the next Mac, not current state. OTAs publish from `winbox`
-> (`apps/mobile/AGENTS.md`). Where §3 says the Air "is" or "holds" something,
-> read "was". (The Air built both platforms from 2026-09-17 to the sale.)
+> **Where it runs: the build Mac, since 2026-11-22.** The PC keeps the code and
+> reaches the Mac only through `mac` (Git Bash, from the repo): `mac sync` sends
+> the working tree to its clone `~/Repos/fitness-tracker-pwa` (and runs `npm ci`
+> there when the lockfile changed), `mac run '<cmd>'` for anything short,
+> `mac bg <name> '<cmd>'` then `mac wait <name>` (as a background command) for a
+> build. Never edit, commit or `git pull` in the Mac clone. The machine, its
+> tools, keeping it awake and where the secrets sit: `Z:\machines\README.md`.
+> Everything in §3 dated before 2026-11-13 was measured on the first Mac, an M1
+> Air (sold that day); from then to 2026-11-22 there was no Mac. Whether the
+> build Mac has the watchOS platform an archive needs (§3.10) is not yet
+> checked here: check before the first iOS build.
 
-**The Windows Android route (vc 31–45, 2026-08-17 → 09-17)** keeps the SDK on a
+**The Windows Android route (vc 31–45, 2026-08-17 → 09-17)** — now the fallback
+while the Mac is away — keeps the SDK on a
 **short path** to clear MAX_PATH — `Z:\packages\android-sdk`, not the
-`%LOCALAPPDATA%\Android\Sdk` default. Neither exists on `winbox` (checked
-2026-11-19), so the route needs a fresh SDK install. This block carried a
-HISTORY note over a CORRECTION note until 2026-11-19. Two traps cost three
+`%LOCALAPPDATA%\Android\Sdk` default. Two traps cost three
 failed starts on 2026-08-18: an exported `ANDROID_HOME` pointing at the
 **non-existent** default, and `npx expo prebuild -p android --clean` deleting
 the machine-local `android/local.properties`. With both, Gradle stops at
@@ -256,9 +260,8 @@ printf 'sdk.dir=Z:/packages/android-sdk\n' > apps/mobile/android/local.propertie
 Forward slashes deliberately — a Java properties file eats `\p` and `\a` as
 invalid escapes, so the Windows-style path has to be double-escaped or avoided.
 
-**iOS QA builds on this machine: pass `DEBUG_INFORMATION_FORMAT=dwarf`.** The
-Air's data volume sat at 194 GB of 228 GB used on 2026-08-18 (most of it the
-owner's own files, not ours), and *three* separate iOS builds died on
+**iOS QA builds: pass `DEBUG_INFORMATION_FORMAT=dwarf`.** On 2026-08-18 *three*
+separate iOS builds died on a short disk with
 `lipo: can't write to output file … (No space left on device)` — generating the
 dSYM, the very last step, after all the C++. Debug symbols are worthless for a
 simulator run and cost several GB at the worst possible moment.
@@ -275,56 +278,32 @@ Two more measured that day, both of which look like app bugs:
   — **`localhost`, not the LAN IP**: the simulator shares the host's network
   stack and the LAN address fails with "Failed to load app from …".
 
-### 3.1 Prerequisites
+### 3.1 Getting the code to the Mac
 
-```sh
-xcode-select --install                 # Command Line Tools
-# Xcode itself from the App Store, then launch it once to accept the licence
-sudo xcodebuild -runFirstLaunch
-sudo gem install cocoapods             # or: brew install cocoapods
-```
+`mac sync` (also run by `mac run` and `mac bg`) — git is the only path, nothing
+comes back. `functions/` is **not** a workspace and installs independently
+(`npm --prefix functions ci`); an iOS build does not need it. Node: `.nvmrc`
+pins 24.12.0; a different major silently changes how npm resolves the
+workspaces.
 
-Node: `.nvmrc` pins 24.12.0 (this said "no `engines` pin and no `.nvmrc`" until 2026-11-19). Match
-the major version rather than guessing — a different major silently changes how
-npm resolves the workspaces.
-
-### 3.2 Clone and install
-
-```sh
-git clone https://github.com/gabandres/fitness-tracker-pwa.git
-cd fitness-tracker-pwa
-npm ci                                 # root = the Angular web shell + npm workspaces
-```
-
-`functions/` is **not** a workspace and installs independently (`npm --prefix functions ci`).
-You do not need it for an iOS build.
-
-### 3.3 The files git does not carry — this is the actual work
-
-Cloning gets you none of these. Copy them across (AirDrop or a USB key; do **not**
-email the `.p8` or the keystore):
+### 3.3 The files git does not carry
 
 | File | Needed for | Notes |
 |---|---|---|
-| `.env.local` (repo root) | every ASC script, `npm run doctor` | holds `ASC_ISSUER_ID` and `SENTRY_AUTH_TOKEN` |
-| `AuthKey_47Z9RY8MT5.p8` | ASC reads/writes, `eas build` credential validation | put it anywhere stable, e.g. `~/keys/` |
+| `.env.local` (repo root) | every ASC script, `npm run doctor` | holds `ASC_ISSUER_ID`, `ASC_KEY_PATH` and `SENTRY_AUTH_TOKEN` |
+| `AuthKey_47Z9RY8MT5.p8` | ASC reads/writes, `eas build` credential validation | |
 | `CLAUDE.local.md` (repo root) | knowing where everything lives | git-ignored by design; it is the index to the rest |
-| `apps/mobile/credentials.json` + `credentials/` | **Android only** | copy from `winbox` (mode 600, hash-verified, §3.11); this said "on the Air" until 2026-11-19 |
+| `apps/mobile/credentials.json` + `credentials/` | **Android only** | |
+
+Where each copy sits on the build Mac: `Z:\machines\README.md`.
 
 **The trap: `scripts/asc-client.mjs` defaults `ASC_KEY_PATH` to a Windows path**
 (`C:/Users/gabri/Downloads/AuthKey_…p8`). On macOS it is not overridden by anything,
-so every ASC script fails until you add the path to `.env.local`:
-
-```
-ASC_ISSUER_ID=<the uuid — see CLAUDE.local.md>
-ASC_KEY_PATH=/Users/<you>/keys/AuthKey_47Z9RY8MT5.p8
-SENTRY_AUTH_TOKEN=<the sntryu_… token>
-```
-
-Verify before building anything:
+so every ASC script fails until `.env.local` names the key's Mac path in
+`ASC_KEY_PATH`. Verify before building anything:
 
 ```sh
-npm run doctor          # groups 2 and 3 exercise ASC + the Sentry token
+mac run 'npm run doctor'          # groups 2 and 3 exercise ASC + the Sentry token
 ```
 
 ### 3.4 Build iOS locally
@@ -333,28 +312,41 @@ npm run doctor          # groups 2 and 3 exercise ASC + the Sentry token
 never committed. Regenerate it whenever native config changes:
 
 ```sh
-cd apps/mobile
-npx expo prebuild -p ios          # generates ios/ + runs pod install
+mac run 'cd apps/mobile && npx expo prebuild -p ios'      # generates ios/ + runs pod install
 ```
 
 That produces **four** targets — the app, the widget, the watch app and the watch
 complication (`targets/{widget,watch,watch-widget}` via `@bacons/apple-targets`,
-plus `plugins/withModularHeaders.js`). All four must appear in the scheme; if one
-is missing, autolinking or a target config is wrong, and **that is now checkable
-locally instead of by shipping**.
+plus `plugins/withModularHeaders.js`): `Ignia`, `Today` (widget), `IgniaWatch`,
+`IgniaWatchComplication`. Only three schemes exist; `Today` is an extension
+target built as a dependency of `Ignia`, which is normal and not a fault. All
+four must be in the build; if one is missing, autolinking or a target config is
+wrong, and **that is checkable locally instead of by shipping**.
+
+**A prebuild proves prebuilding, NOT archiving.** It was labelled "verified
+working end to end" until 2026-08-07, when the first real `eas build --local`
+failed three times in a row on prerequisites a prebuild and `pod install` cannot
+see (§3.10).
 
 Two ways to build, and they differ in how signing is handled:
 
 ```sh
-# A. EAS pipeline, on your machine. Reuses EAS-managed credentials, so signing
+# A. EAS pipeline, on the Mac. Reuses EAS-managed credentials, so signing
 #    Just Works. Same eas.json profile and same artifact as a cloud build.
-npx eas build -p ios --profile production --local
+mac bg ios 'cd apps/mobile && npx eas build -p ios --profile production --local'
+mac wait ios                                 # as a background command
 
-# B. Raw Xcode. Fastest iteration, but you manage signing yourself.
-open ios/Ignia.xcworkspace     # scheme name = app.json expo.name ("Ignia"), then Product > Archive
+# B. Raw Xcode (xcodebuild in ios/Ignia.xcworkspace, scheme = app.json expo.name,
+#    "Ignia"). Fastest iteration, but you manage signing yourself.
 ```
 
-Prefer **A** for anything destined for TestFlight, **B** for iterating.
+Prefer **A** for anything destined for TestFlight, **B** for iterating; the
+`build-ios` skill owns the procedure. `npx eas` on the Mac needs `eas-cli`
+installed globally there (it is not a repo dependency; without it *could not
+determine executable to run*). **`eas build --local` provisions credentials into
+a temporary keychain of its own**, so it does not hit the `User interaction is
+not allowed` codesign failure that raw `xcodebuild` meets in a session with a
+locked login keychain.
 
 **Submitting is unaffected and never costs build quota:**
 
@@ -364,9 +356,9 @@ npx eas submit -p ios --path <the .ipa>
 
 ### 3.5 The watchOS simulator — what the Mac unlocks beyond quota
 
-Issue **#46** (the 40mm/46mm complication layouts, in both locales) has been open
-purely because no simulator existed on Windows. Xcode ships one. This is the
-cheapest open item on the board once the Mac is set up.
+Issue **#46** (the 40mm/46mm complication layouts, in both locales) was open
+purely because no simulator existed on Windows. Xcode ships one; §3.14 is the
+run that closed it.
 
 ### 3.6 Unmeasured: does `--local` consume plan quota?
 
@@ -392,169 +384,77 @@ Then record the answer here and delete this subsection.
 - **`ios/` and `android/` are generated.** Never commit them; never hand-edit them
   expecting the change to survive the next `prebuild`.
 
-### 3.8 Driving the Mac from the Windows box over SSH
+### 3.8 Driving the Mac from the PC
 
-Carrying the laptop over for every build is the actual cost, not the build. Xcode's
-whole toolchain is CLI (`xcodebuild`, `pod`, `eas build --local`), so the Mac can be
-driven headless and never has to be in the room.
+Only `mac` (the box at the top of §3): no ssh, no shared drive, no copying code
+by hand. **A shared drive is the wrong tool**: a share gives file access, not
+execution, and sharing `node_modules` or `ios/` between the two machines breaks
+on platform-specific binaries, symlinks and xattrs. `mac wait` reports a job's
+recorded exit code, so a network blip cannot read as a finished build.
 
-**A shared drive is the wrong tool and will waste your time.** A share gives file
-access, not execution — you cannot run Xcode across one — and sharing `node_modules`
-or `ios/` between the two machines breaks on platform-specific binaries, symlinks and
-xattrs. Git is already the sync mechanism: push here, `git pull` there.
+### 3.9 When the Mac runs short of disk
 
-**The key is already generated on the Windows box** (2026-08-06), dedicated to this
-one purpose so it can be revoked without touching anything else:
+An iOS archive needs ~17 GB free, an Android release build ~20 GB (`mac status`
+prints the free space). It cost `vc 28`, which died mid-CMake on
+`No space left on device`. Measure before deleting anything; three of the four
+obvious answers are wrong here. **Only our own files are ours to delete**: the
+build Mac is someone's laptop (`Z:\machines\README.md`).
 
-- private: `~/.ssh/id_ed25519_ignia_mac` — **no passphrase**, so builds can run
-  unattended. The tradeoff is real: anyone who gets that file can log into the Mac as
-  you. It is a LAN key to your own laptop, which is why it is acceptable here; do not
-  reuse it for anything that matters more.
-- public: `~/.ssh/id_ed25519_ignia_mac.pub`
-
-```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMvWPFwbcvYTHl3rPeVI46d7pcqk7GkssktbQyzhMnBa ignia-build@windows
-```
-
-**On the Mac, once:**
+**`df -h /` is not the number you want.** `/` is the sealed System snapshot and
+reports ~12 GB used, which reads like the disk is nearly empty. The real volume
+is the Data one, and both draw on the same APFS container:
 
 ```sh
-# System Settings > General > Sharing > Remote Login: ON
-mkdir -p ~/.ssh && chmod 700 ~/.ssh
-echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMvWPFwbcvYTHl3rPeVI46d7pcqk7GkssktbQyzhMnBa ignia-build@windows' >> ~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-scutil --get LocalHostName        # the <name> in <name>.local
+df -h /System/Volumes/Data          # the number that matters
+diskutil apfs list | grep -A2 'Capacity'
 ```
 
-**On Windows, define the host once** in `~/.ssh/config` so the address lives in
-exactly one place (done 2026-08-06):
+**Purgeable Time Machine snapshots were not it** (2026-08-10): `tmutil
+listlocalsnapshots` on both volumes returned empty, so `tmutil
+thinlocalsnapshots` had nothing to thin.
+
+**Where it actually went** — `/Library/Developer/CoreSimulator` was **30 GB**
+against 11.6 GB of live runtime images. `Volumes/` are **mounted read-only APFS
+volumes**, so `rm -rf` on them frees nothing and `du -sh` overcounts them (16 GB
+reported against one 7.9 GB runtime); trust `simctl runtime list`, not `du`. The
+supported removal is `xcrun simctl runtime delete <id>`.
+
+What is safe to reclaim, all regenerable: `CoreSimulator/Caches/dyld`, simulator
+**devices** (`simctl delete all`), Xcode `Archives` and `DerivedData` (the
+`.ipa`/`.aab` are the artifacts, not these), CocoaPods / node-gyp / Homebrew /
+npm caches, stray `build-*.ipa` in `apps/mobile`. The Gradle caches are
+re-downloadable at the price of a much slower next Android build.
+
+**DO NOT delete the watchOS simulator runtime. It is REQUIRED to archive.**
+`simctl runtime delete` on watchOS frees ~8 GB and then the next iOS build dies
+at *Run fastlane*:
 
 ```
-Host ignia-mac
-    HostName 100.83.226.52      # the rebuilt M1's Tailscale IP (node `ignia-mac`); see §3.9 on why not the MagicDNS name
-    User gabrielbermudez
-    IdentityFile ~/.ssh/id_ed25519_ignia_mac
-    IdentitiesOnly yes
-    ServerAliveInterval 30
-    ServerAliveCountMax 6
-    TCPKeepAlive yes
+xcodebuild: error: Failed to build workspace Ignia with scheme Ignia.:
+  This scheme builds an embedded Apple Watch app.
+  watchOS 26.5 must be installed in order to archive the scheme
 ```
 
-The keepalives are not decoration: docking the Air switches it between Wi-Fi and
-Ethernet and the session drops without them. Then everything is short:
+Recover with `sudo xcodebuild -downloadPlatform watchOS` (~4 GB download, ~8 GB
+installed). **Two checks that look authoritative here and are NOT** (this cost
+build 43 on 2026-08-10):
 
-```sh
-ssh ignia-mac "sw_vers && xcodebuild -version"
+- `xcodebuild -showsdks` still lists **both** watchOS SDKs afterwards. The SDK
+  headers live in Xcode.app and survive; the archive needs the platform, which
+  does not.
+- `xcodebuild -showdestinations -scheme Ignia` still resolves `Any iOS Device`
+  with no `not installed` line. It reports the *iOS* destination and says
+  nothing about the embedded watch target.
 
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git pull && cd apps/mobile &&   caffeinate -dims npx eas build -p ios --profile production --local"
-```
+The check that IS authoritative: `xcrun simctl list runtimes` must list
+**watchOS as well as iOS**. Two runtimes, not one.
 
-**Three failure modes, in the order they will actually happen:**
+**Do NOT delete `apps/mobile/ios/`** to save its ~480 MB. `ios` is a **fingerprint
+source** (it appears in `sources` as a `dir`), so removing it moves the runtime
+version and strands every OTA. Verified after the 2026-08-10 cleanup that both
+fingerprints were byte-identical to the shipped artifacts (`1d89fedf…` / `ca2dc124…`).
 
-1. **`User interaction is not allowed` from `codesign`.** The classic. An SSH session
-   has no GUI, and the login keychain is locked, so signing cannot reach the private
-   key. Unlock it first in the same shell:
-   ```sh
-   security unlock-keychain -p '<login password>' ~/Library/Keychains/login.keychain-db
-   ```
-   `eas build --local` is less exposed to this than raw `xcodebuild`, because it
-   provisions credentials into a temporary keychain of its own — another reason to
-   prefer it for anything headed to TestFlight.
-2. **The Air sleeps and drops off the network mid-build.** `caffeinate -dims` (above)
-   holds it awake for the command's lifetime; also set it not to sleep on power.
-3. **`<name>.local` only resolves on the same LAN** — it is mDNS. If the Mac lives in
-   another room on another network, or you are away, install **Tailscale** (free) on
-   both machines and use the Tailscale name instead. Nothing else changes.
-
-**When this becomes routine, stop using SSH.** Put a **self-hosted GitHub Actions
-runner** on the Mac and let a push or a manual dispatch trigger the iOS build with
-nobody present. It also sidesteps failure mode 1 outright, because the runner executes
-as a logged-in GUI user with an unlocked keychain. More setup; correct destination.
-
-### 3.9 Making it permanent — measured state, 2026-08-06
-
-**What is installed and verified on the Air** (`ignia-mac`): Xcode **26.6** —
-which is what makes SDK 55+ possible at all, since 55 raised the Xcode floor to
-26 — Node **24.12.0** via fnm since the 2026-09-10 rebuild (`scripts/mac-bootstrap.sh`
-installs `.nvmrc`'s version; it was 22.23.2 on the shared install, left alone
-because it was someone else's laptop). Lockfile author: `docs/build-infrastructure.md`
-(`winbox` since 2026-11-13; the Mac's `npm ci`-only line was stale from 10-21). CocoaPods
-**1.17.0** on its own Homebrew Ruby 4.0.6 — the system Ruby is 2.6.10 with a broken
-`ffi`, so never use it. `LANG`/`LC_ALL` are set in `~/.zprofile` because CocoaPods
-warns and can fail without UTF-8.
-
-**Proven 2026-08-06:** `npx expo prebuild -p ios` generates all **four** targets —
-`Ignia`, `Today` (widget), `IgniaWatch`, `IgniaWatchComplication` — and `pod install`
-completes. Only three schemes exist; `Today` is an extension target built as a
-dependency of `Ignia`, which is normal and not a fault.
-
-**Addressing is SOLVED — via Tailscale, 2026-08-06; re-pointed 2026-09-10.**
-`~/.ssh/config` on Windows points `ignia-mac` at the rebuilt M1's **Tailscale IP
-`100.83.226.52`** (node `ignia-mac`, key expiry disabled). It said the MagicDNS
-name until the rebuild, when that name stopped resolving on this Windows box
-(`ssh: Could not resolve hostname`) while `tailscale status` still listed the
-node — MagicDNS on the Windows client is not reliable here, and a Tailscale IP
-is stable for the life of a node. The 08-06 reasoning below still holds for
-`.local` names: use the name, never an address: `.local` is LAN-only and failed transiently twice
-during setup, the docked Air holds two LAN addresses at once and the Wi-Fi one timed
-out mid-session during a handover, and **the Tailscale IP itself changed** (`100.122…`
-→ `100.64…`) when the Mac re-registered. The MagicDNS name survived all three.
-
-Both machines must be on the **same tailnet**. The first attempt was not: the Mac
-signed in as an auto-generated `ghc9gdwv4g@` while Windows was `gabandres@`, so
-neither could see the other — a clean install that simply cannot reach the peer, which
-reads like a firewall problem and is not. Check with `tailscale status` on both; every
-row must show the same account.
-
-Installing Tailscale needs `sudo` on macOS (it is a `.pkg`) and admin on Windows, so
-neither half can be done over SSH:
-
-```sh
-# on the Mac, once — asks for the login password
-brew install --cask tailscale-app     # then open Tailscale.app and sign in
-# on Windows: tailscale.com/download/windows, sign in with the SAME account
-```
-
-**`~/.zshenv` on the Mac is load-bearing.** Non-interactive SSH does **not** source
-`~/.zprofile`, so `ssh ignia-mac "node -v"` returns *command not found* even with Node
-installed. `.zshenv` is sourced for every zsh invocation; it carries the Homebrew PATH
-and the UTF-8 locale CocoaPods needs. Without it every remote command needs a manual
-`export PATH=/opt/homebrew/bin:$PATH`.
-
-The toolchain answers:
-
-```sh
-$ ssh ignia-mac "node -v; npm -v; pod --version; xcodebuild -version | head -1"
-v22.23.2
-10.9.8
-1.17.0
-Xcode 26.6
-```
-
-(Capture from before the 2026-09-10 rebuild. Since then the Mac runs Node
-**24.12.0** via fnm, matching `.nvmrc`; `npm ci`-only still applies.)
-
-**That check proves prebuilding, NOT archiving — do not read it as end-to-end.**
-It was labelled "verified working end to end" until 2026-08-07, when the first real
-`eas build --local` failed three times in a row on prerequisites none of the four
-commands above can see. Prebuild and `pod install` exercise Node, npm and CocoaPods;
-an **archive** additionally needs fastlane and two Xcode platform components, and each
-one only surfaces after the previous is fixed. See §3.10.
-
-**It is Stephanie's machine and her account.** Everything above lives under her home
-directory. A shippable build needs the **Sentry token** there (`~/Repos/fitness-tracker-pwa/
-.env.local`, mode `600` — validate with a Sentry API call, not by eyeballing the file)
-and an **EAS session** (`~/.expo/state.json`). It does **not** need the ASC `.p8` —
-see §3.10. That is a deliberate decision to make, not a default to drift into; a
-separate macOS user for builds would isolate it, at the cost of redoing Homebrew and
-Xcode paths.
-
-**Do not poll a remote build by testing whether a process is gone.** An SSH failure
-and a finished process look identical to `if ! ssh … pgrep`, so a network blip reports
-success. Have the remote command print an explicit sentinel and treat anything else,
-including no output, as "still unknown".
-
-### 3.10 Archiving on the Air — first green build, 2026-08-07
+### 3.10 Archiving — first green build, 2026-08-07
 
 **First successful `eas build --local` for iOS: 15m57s, `build-<ts>.ipa` at 29 MB,
 version 1.1.0 build 23.** All four targets nested correctly, which is the thing to
@@ -570,280 +470,94 @@ Ignia.app
 Signed to team `AE6TTXW92K` with profile `*[expo] fit.ignia.app AppStore`,
 `MinimumOSVersion` 16.4.
 
-**Four prerequisites that §3.9's toolchain check cannot see.** Each surfaced only
-after the previous was fixed, so expect to fix them in this order. The fourth
-appeared on the 2026-09-10 fresh install and will appear on every fresh Mac:
-**Apple's WWDR intermediate certificates are not on a clean macOS** (only the
-original 2013 WWDR CA, expired 2023, is in the System keychain; Xcode adds the
-current ones only when an Apple account signs in, which this box never does).
-Without them the distribution certificate imports but does not validate, and
-the build dies in `PREPARE_CREDENTIALS` with *"Distribution certificate with
-fingerprint … hasn't been imported successfully"* — after a full credential
-fetch, so it reads like an EAS/ASC problem. Fix (once, survives reboots):
-```sh
-cd /tmp && for c in AppleWWDRCAG3 AppleWWDRCAG4 AppleWWDRCAG6; do
-  curl -sSfO "https://www.apple.com/certificateauthority/$c.cer" &&
-  sudo security add-certificates -k /Library/Keychains/System.keychain $c.cer; done
-```
-`scripts/mac-bootstrap.sh` step 0 now does this. The other three, in order:
+**Four prerequisites a toolchain check cannot see.** Each surfaced only after the
+previous was fixed, on the first Mac; installing them is machine setup
+(`Z:\machines\README.md`), and the errors below are how a missing one shows up.
 
-1. **fastlane is not installed by anything else.** `eas build --local` drives the
-   archive through fastlane gym; without it the build dies in ~35 s with
-   `Fastlane is not available` / `spawn fastlane ENOENT`. Install via Homebrew, not
-   the gem — the system Ruby 2.6.10 has the broken `ffi` from §3.9:
+0. **Apple's WWDR intermediate certificates are not on a clean macOS** (Xcode
+   adds the current ones only when an Apple account signs in). Without them the
+   distribution certificate imports but does not validate, and the build dies in
+   `PREPARE_CREDENTIALS` with *"Distribution certificate with fingerprint …
+   hasn't been imported successfully"* — after a full credential fetch, so it
+   reads like an EAS/ASC problem. Fix (once, survives reboots):
    ```sh
-   brew install fastlane        # 2.237.0 → /opt/homebrew/bin/fastlane
+   cd /tmp && for c in AppleWWDRCAG3 AppleWWDRCAG4 AppleWWDRCAG6; do
+     curl -sSfO "https://www.apple.com/certificateauthority/$c.cer" &&
+     sudo security add-certificates -k /Library/Keychains/System.keychain $c.cer; done
    ```
-2. **The iOS platform component**, ~8.5 GB:
-   ```sh
-   sudo xcodebuild -downloadPlatform iOS
-   ```
-   **`xcodebuild -showsdks` listing `iOS 26.5` does NOT mean the platform is
-   installed.** Xcode 26 tracks platforms as separately-downloaded components, and
-   the SDK directory is not what it checks — so the SDK is present, `iPhoneOS.platform`
-   is on disk, prebuild and `pod install` and compilation all succeed, and the archive
-   then fails at destination resolution:
+1. **fastlane.** `eas build --local` drives the archive through fastlane gym;
+   without it the build dies in ~35 s with `Fastlane is not available` /
+   `spawn fastlane ENOENT`.
+2. **The iOS platform component** (~8.5 GB, `sudo xcodebuild -downloadPlatform iOS`).
+   **`xcodebuild -showsdks` listing the iOS SDK does NOT mean the platform is
+   installed.** Xcode tracks platforms as separately-downloaded components, so
+   prebuild, `pod install` and compilation all succeed, and the archive then
+   fails at destination resolution:
    ```
    xcodebuild: error: Unable to find a destination matching the provided destination specifier:
      { platform:iOS, name:Any iOS Device,
        error:iOS 26.5 is not installed. Please download and install the platform
              from Xcode > Settings > Components. }
    ```
-   **The cheap tell is `xcrun simctl list runtimes` returning nothing** — an empty
-   runtime list means the platform component is missing, and it is *not* "irrelevant
-   because we only build for device". `sudo xcodebuild -runFirstLaunch` does **not**
-   fix this; it is a silent no-op here. Confirm the fix with
-   `xcodebuild -showdestinations -scheme Ignia`: the `Any iOS Device` line must come
-   back with **no `error:` clause attached**.
-3. **The watchOS platform component**, ~3 GB:
-   ```sh
-   sudo xcodebuild -downloadPlatform watchOS
-   ```
-   Required because the `Ignia` scheme **embeds the watch app**, so this is not
+   **The cheap tell is `xcrun simctl list runtimes` returning nothing.**
+   `sudo xcodebuild -runFirstLaunch` does **not** fix this. Confirm with
+   `xcodebuild -showdestinations -scheme Ignia`: the `Any iOS Device` line must
+   come back with **no `error:` clause attached**.
+3. **The watchOS platform component** (~3 GB, `sudo xcodebuild -downloadPlatform watchOS`).
+   Required because the `Ignia` scheme **embeds the watch app**, so it is not
    optional even when you only care about the phone:
    ```
    This scheme builds an embedded Apple Watch app.
    watchOS 26.5 must be installed in order to archive the scheme
    ```
 
-**Budget ~18 GB of disk for the two downloads plus an archive.** Measured: 45 GB free
-→ 27 GB after both platforms and one successful build.
-
-#### When the Air runs out of disk — where it actually goes (2026-08-10)
-
-The Air reached **4.0 GB free**, which blocks both platforms (Android's §3.11 wants
-20 GB, iOS wants ~17). It cost `vc 28`, which died mid-CMake on
-`No space left on device`. Measure before deleting anything; three of the four
-obvious answers are wrong here.
-
-**`df -h /` is not the number you want.** `/` is the sealed System snapshot
-(`disk3s1s1`) and reports ~12 GB used against a 228 GB size, which reads like the
-disk is nearly empty. The real volume is the Data one, and both draw on the same
-APFS container:
-
-```sh
-df -h /System/Volumes/Data          # the number that matters
-diskutil apfs list | grep -A2 'Capacity'
-```
-
-**The most-recommended fix on the internet does not apply.** Purgeable space held
-by Time Machine local snapshots is the usual culprit, and there are none here —
-`tmutil listlocalsnapshots /` and `… /System/Volumes/Data` both return empty, so
-`tmutil thinlocalsnapshots` has nothing to thin. The space is genuinely used.
-
-**Where it actually is** — `/Library/Developer/CoreSimulator` was **30 GB** against
-11.6 GB of live runtime images. `Volumes/` are **mounted read-only APFS volumes**
-(`mount | grep -i coresim`), so `rm -rf` on them frees nothing; the supported
-removal is `xcrun simctl runtime delete <id>`.
-
-What was reclaimed, 4.0 GB → **20 GB**, none of it personal data:
-
-| Freed | What | Reversible by |
-|---|---|---|
-| 5.6 GB | `/Library/Developer/CoreSimulator/Caches/dyld` | regenerates |
-| ~5 GB | all simulator **devices** (`simctl delete all`) | `simctl create`, or Xcode on next launch |
-| 1.0 GB | `~/Library/Developer/Xcode/Archives/*` | the `.ipa`/`.aab` are the artifacts, not these |
-| ~0.9 GB | CocoaPods / node-gyp / Homebrew / npm caches | re-download |
-
-**DO NOT delete the watchOS simulator runtime. It is REQUIRED to archive.**
-`simctl runtime delete` on watchOS frees ~8 GB and then the next iOS build dies
-at *Run fastlane* with the exact error §3.10 already documents:
-
-```
-xcodebuild: error: Failed to build workspace Ignia with scheme Ignia.:
-  This scheme builds an embedded Apple Watch app.
-  watchOS 26.5 must be installed in order to archive the scheme
-```
-
-The scheme embeds `IgniaWatch.app`, so archiving needs the **watchOS platform**,
-and the runtime image is part of it. Recover with
-`sudo xcodebuild -downloadPlatform watchOS` (~4 GB download, ~8 GB installed).
-
-**Two checks that look authoritative here and are NOT.** This was deleted on
-2026-08-10 on the strength of both, and it cost build 43:
-
-- `xcodebuild -showsdks` still lists **both** watchOS SDKs afterwards. The SDK
-  headers live in Xcode.app and survive; the archive needs the platform, which
-  does not.
-- `xcodebuild -showdestinations -scheme Ignia` still resolves `Any iOS Device`
-  with no `not installed` line. It reports the *iOS* destination and says
-  nothing about the embedded watch target.
-
-**The check that IS authoritative is the one §3.10 already gave**, one platform
-over: `xcrun simctl list runtimes` must list **watchOS as well as iOS**. Two
-runtimes, not one. If watchOS is missing, the iOS archive will fail no matter
-what the SDK list says.
-
-**Do NOT delete `apps/mobile/ios/`** to save its ~480 MB. `ios` is a **fingerprint
-source** (it appears in `sources` as a `dir`), so removing it moves the runtime
-version and strands every OTA. Verified after this cleanup that both fingerprints
-were byte-identical to the shipped artifacts (`1d89fedf…` / `ca2dc124…`).
-
-**What is left and what it costs.** Below the caches, the remaining large items are
-`~/Library/Android` (8.2 GB) and `~/.gradle` (5.5 GB) — both needed by §3.11, both
-re-downloadable at the price of a much slower next Android build — and then the
-machine owner's own data (Pictures 12 GB, Messages 6.4 GB, Movies 5.4 GB). **That
-last group is not ours to touch**; if 20 GB stops being enough, the honest options
-are to sacrifice the Gradle caches or to ask the owner.
-
-#### It happened again, and the answer is now "this disk is done" — 2026-08-17
-
-Back to **9.5 GB free**, below both thresholds, so neither platform could build.
-A second reclaim recovered **9.5 → 23 GB**, all reversible, no personal data:
-simulator *devices* (`simctl delete all`), Xcode `Archives` + `DerivedData`, the
-`CoreSimulator/Caches/dyld` cache (3 GB, needs `sudo`), the npm / Homebrew /
-CocoaPods / ReactNative / node-gyp caches, two stray `build-*.ipa` in
-`apps/mobile`, and **6.3 GB of regenerable `ios/` in `~/Repos/tracker-app`** — a
-*different* project (`gabandres/agenda-app`), gitignored there with zero tracked
-files, so `expo prebuild` restores it.
-
-Two measurement traps cost time and are worth not repeating. `du -sh` on
-`/Library/Developer/CoreSimulator/Volumes` reported **16 GB against one 7.9 GB
-runtime** — it is a read-only APFS mount and `du` overcounts it, so "orphaned
-runtimes" was a phantom; trust `simctl runtime list`, not `du`, and note this is
-the same class of error as `df /`. And `~/.gradle` was **already gone**, which
-means the next Android build re-downloads it — conveniently making it a genuine
-cold measurement for `scripts/time-mobile-builds.mjs`.
-
-**The watchOS runtime was missing too**, so iOS could not have archived at any
-disk size (§3.10). `sudo xcodebuild -downloadPlatform watchOS` restored it —
-verified `watchOS 26.5 (23T570) … (Ready)` in `simctl runtime list` and
-`-sdk watchos26.5` in `xcodebuild -showsdks`. It cost ~7 GB, taking the volume
-from 23 GB free back to **16 GB**, so budget the platform as part of the disk
-requirement and not on top of a number that already looked sufficient.
-
-**Net after everything: 16 GB free.** That clears iOS (~17 GB is the archive
-figure, and the watchOS platform is now already installed rather than pending)
-but stays under Android's 20 GB. So as of this date (2026-08-07) the Air was an
-**iOS-only** build host in practice. **Superseded:** the 2026-09-10 rebuild
-made it a dedicated box and the Android toolchain returned 2026-09-17 (§3.11);
-this sentence read as present tense until then.
-
-**The conclusion is structural, not a cleanup to repeat.** After every
-dev-owned byte was reclaimed, the remaining ~183 GB is essentially all the machine
-owner's: `Pictures` 14 GB, `Application Support/Google` 8.4 GB, `Messages` 6.4 GB,
-`mediaanalysisd` 6.2 GB, WhatsApp 5.2 GB, `Movies` 5.4 GB, `/private/var` 16 GB.
-A 228 GB disk shared with someone's real life cannot host two mobile toolchains;
-the third reclaim will find nothing left that is ours. Move the build host to a
-machine with its own storage rather than running this pass again.
+**Budget ~18 GB of disk for the two platform downloads plus an archive.**
+Measured: 45 GB free → 27 GB after both platforms and one successful build.
 
 **`--local` does NOT hit the ASC 401.** `CLAUDE.local.md` documents
 `eas build -p ios --non-interactive` failing credential validation against EAS's own
 stored App Store Connect key, needing `EXPO_ASC_KEY_PATH` / `EXPO_ASC_KEY_ID` /
 `EXPO_ASC_ISSUER_ID` as a workaround. **That is the cloud build path only.** A local
 build printed `All credentials are ready to build` for all four bundle identifiers
-with no overrides, so **the ASC `.p8` never has to be copied to the Mac** — one fewer
-credential on someone else's laptop. `eas submit -p ios` likewise uses its own working
-EAS-held key.
+with no overrides, so a local build does not need the ASC `.p8`.
+`eas submit -p ios` likewise uses its own working EAS-held key.
 
 **`autoIncrement: true` burns a build number per ATTEMPT, including failures.** It
 runs before the archive, so the three failed runs consumed 20, 21 and 22; the first
 green build was 23, while build 19 sat in App Review. Harmless — ASC only requires
 build numbers to increase — but the gaps are real and are not a mystery to chase.
 
-**Power, and the failure mode that is not sleep.** The Air is configured to never
-sleep on AC (`sudo pmset -c sleep 0 disksleep 0 displaysleep 0`) with battery settings
-left at stock, plus a `caffeinate -s` LaunchDaemon at
-`/Library/LaunchDaemons/fit.ignia.nosleep.plist` (`RunAtLoad` + `KeepAlive`) as a
-backstop that asserts **only on AC**, so it cannot hold the machine awake unplugged.
-Do not use `pmset -a disablesleep 1` — it is global and blocks battery sleep too.
-
-The real hazard is upstream of any of that: **the dock can stop delivering power while
-still working as a dock.** On 2026-08-06 the SMC logged
-`ExternalPowerChange(0x71010100)` at 22:40 and the DisplayLink dock's USB-C PD
-contract dropped — video, keyboard and mouse all kept working, so nothing looked
-wrong, while the Air ran down from 80% to 62% overnight. Diagnose with
-`pmset -g batt` and `pmset -g ac` (`No adapter attached` is unambiguous), and read the
-history with `pmset -g log | grep -E 'Using (AC|Batt)'`, which collapses to one line
-per real transition. Because a PD drop puts the machine on battery where sleep *is*
-allowed, **keep wrapping long builds in `caffeinate -dims`** — the pmset config alone
-does not cover a build that starts on AC and continues on battery.
-
-
-### 3.11 Android on the Air — removed 2026-08-17, reinstated 2026-09-17
-
-**Update 2026-09-17: the Air builds Android again.** The toolchain below was
-reinstalled to the Surface's exact versions (`brew install openjdk@17` +
-`--cask android-commandlinetools`, then `sdkmanager` for `platforms;android-36`,
-`build-tools;35.0.0`+`36.0.0`, `ndk;27.0.12077973` **and** `ndk;27.1.12297006` (both), `cmake;3.22.1`, `emulator`,
-`system-images;android-36;google_apis;arm64-v8a`, AVD `pixel_api36`), the
-keystore, `credentials.json` and `play-service-account.json` were copied back
-(mode 600, hash-verified), and `JAVA_HOME`/`ANDROID_HOME` are exported from
-`~/.zshrc`, `~/.zprofile` **and** the T3 Code launchd plist (a session started
-from the phone inherits the plist, not the shell). Disk was made by deleting
-`~/Library/Developer/Xcode/DerivedData` (34 GB, a cache). **The
-`~/build-artifacts/eas-1.2.*` trees named here as "next to prune" are gone**
-(30.4 GB), along with `~/.maestro/tests` (23 GB), the watchOS 26.5 and iOS 26.5
-simulator runtimes (~16 GB; both 27.0 runtimes remain and `Ignia-QA` was
-migrated to iOS 27.0 with its session intact, 21/21 green) and two Callbook
-simulators (7.2 GB). **105 GB free**, from 43 GB.
-
-**Both NDKs are required.** The graph resolves 27.1 and something else pins
-27.0; deleting 27.0 on the assumption it was stale cost a 2.4 GB re-download
-mid-build.
+### 3.11 Android on the Mac — the default since 2026-09-17
 
 The release path is **raw Gradle + `patch-android-release.mjs` +
 `verify-mobile-artifact.mjs` (non-optional)** — owner's decision 2026-09-17,
-[ADR-0042](adr/0042-android-build-host-returns-to-the-mac.md). Measured here:
-15m04s, 62.6 MB AAB, two ABIs, signer byte-identical to `dev.keystore`, channel
-injected, verifier 10/10. `eas build --local -p android` is also verified green
-(10m25s) and is the safer path; it is deliberately not the default. The
+[ADR-0042](adr/0042-android-build-host-returns-to-the-mac.md). Measured on the
+first Mac: 15m04s, 62.6 MB AAB, two ABIs, signer byte-identical to `dev.keystore`,
+channel injected, verifier 10/10. `eas build --local -p android` is also verified
+green (10m25s) and is the safer path; it is deliberately not the default. The
 `build-android` skill owns the procedure and the cutover rule is in
-`docs/build-infrastructure.md`.
+`docs/build-infrastructure.md`. The Mac's Android SDK, JDK and AVD:
+`Z:\machines\README.md`.
+
+**Both NDKs are required** (27.0.12077973 and 27.1.12297006). The graph resolves
+27.1 and something else pins 27.0; deleting 27.0 on the assumption it was stale
+cost a 2.4 GB re-download mid-build.
 
 **Read ADR-0042's Traps section before running any of this on the Mac.** T1
 alone — `expo prebuild` without `--no-install` — shuts BOTH OTA channels
 silently, and it was in the skill's own commands until that day.
 
-**Android's build host was the Windows workstation from 2026-08-17.** This section
-**Android's build host was the Windows workstation from 2026-08-17.** This section
-used to be a ~150-line runbook for `eas build --local -p android` on the Air,
-resting on the claim that Windows *could not* compile an AAB at all. Both halves
-are now void:
+**`credentials/dev.keystore` and `credentials.json` must survive every
+cleanup.** That keystore is `fit.ignia.app`'s only Play identity and it has no
+recovery path.
 
-- **Windows can.** `./gradlew bundleRelease` on the Snapdragon X Elite produced a
-  signed, verifier-green, OTA-capable AAB in **10m12s** — that is vc 31, live on
-  the Play alpha track. The `MAX_PATH` / `CMAKE_OBJECT_PATH_MAX` finding that
-  drove the old conclusion is a **warning, not a fatal error**; CMake declines to
-  *guarantee* object placement, which is an argument for device QA, not against
-  building.
-- **The Air no longer can.** Its Android toolchain was deleted the same day —
-  `~/Library/Android` (3.3 GB), `~/.gradle`, `~/.android` (2.9 GB), both
-  `android/` directories, and Homebrew's `openjdk@17` (319 MB, the JDK AGP
-  needed) — to get the disk back over the ~17 GB iOS floor. The Air is an
-  **iOS-only** host by choice now, so the runbook is not deprecated, it is
-  unrunnable. **iOS builds need no Java at all**, which is why removing it costs
-  nothing here.
-
-  What deliberately stayed: Homebrew `openjdk` 26 (`bundletool` depends on it)
-  and the two system JDKs in `/Library/Java/JavaVirtualMachines` —
-  `microsoft-11` is the machine's **default** JDK and `temurin-8` is legacy.
-  Both need `sudo` and neither is ours; this is someone else's laptop.
-
-  **`credentials/dev.keystore` and `credentials.json` must survive every
-  cleanup** — verified `mode 600` after this one. That keystore is
-  `fit.ignia.app`'s only Play identity, it has no recovery path, and the Mac
-  copy is the sole off-site backup of the Windows original.
+**Android's build host was the Windows workstation from 2026-08-17 to
+2026-09-17, and the PC is the fallback now.** `./gradlew bundleRelease` on the
+Snapdragon X Elite produced a signed, verifier-green, OTA-capable AAB in
+**10m12s** — that is vc 31. The `MAX_PATH` / `CMAKE_OBJECT_PATH_MAX` finding
+that once drove "Windows cannot build an AAB" is a **warning, not a fatal
+error**; CMake declines to *guarantee* object placement, which is an argument
+for device QA, not against building. **iOS builds need no Java at all.**
 
 **The current Android procedure lives in the `build-android` skill**, not here:
 `./gradlew --stop` → `expo prebuild` → `scripts/patch-android-release.mjs` →
@@ -856,8 +570,7 @@ channel in `AndroidManifest.xml` (its absence shipped as vc 10 and is why vc 11
 exists), release signing (the template points `release` at the *debug* keystore),
 and the versionCode (`appVersionSource: "remote"` leaves it at `1`).
 
-Two facts from the deleted runbook are worth keeping, because they are not
-macOS-specific:
+Two facts that are not macOS-specific:
 
 - **Gradle has no default socket timeout.** A dropped connection to Google's
   Maven once left a build hung for **19 minutes** looking exactly like slow
@@ -871,45 +584,30 @@ macOS-specific:
   `:react-native-health-connect:lintVitalAnalyzeRelease`, and
   `expo-build-properties` exposes no option for Gradle JVM args.
 
-**Do not re-litigate the Windows question from the old text.** For the record, so
+**Do not re-litigate the Windows question.** For the record, so
 nobody re-derives it: `MAX_PATH` is a common React Native bug and would break an
 x86 Windows box identically; what ARM64 removes is the standard *workaround*,
 because WSL2 here is `aarch64` and Google ships the Android SDK/NDK for
 `linux-x86_64` only ([tracker 227219818](https://issuetracker.google.com/issues/227219818),
 with "[no current plans](https://github.com/android/ndk/discussions/1692)" for
-`linux-arm64`). None of that stops the native Windows build, which is what we
-actually use.
+`linux-arm64`). None of that stops the native Windows build.
 
 See the `build-android` skill for the OTA-vs-build decision that comes first.
 
 
 ---
 
-### 3.12 Maestro on the Air — the two things that stop it dead
+### 3.12 Maestro on the Mac — the things that stop it dead
 
-Both were hit on 2026-08-22, the first time the suite ran on this machine since
-Maestro 2.x, and neither says what it means.
+Hit on 2026-08-22, the first time the suite ran under Maestro 2.x, and none of
+them says what it means.
 
-**1. Maestro needs Java 17+, and a shell that skips the rc files has NO Java
-runtime on `PATH`.** Since 2026-09-17 `JAVA_HOME=/opt/homebrew/opt/openjdk@17`
-is exported by `~/.zshrc`, `~/.zprofile` and the T3 Code plist (§3.11), so a
-login shell has it — this paragraph said the Mac had no Java on `PATH` at all,
-true from the 2026-09-10 rebuild until 2026-09-17. The trap that remains is a
-non-interactive `ssh ignia-mac '…'` command, which reads neither rc file.
-Re-measured 2026-09-16 on the rebuilt Air: `java` then resolves to Apple's
-`/usr/bin/java` stub with nothing behind it, and the message is
-`The operation couldn't be completed. Unable to locate a Java Runtime.` This
-paragraph used to say the default was Java 11 failing with
-`ERROR: Java 17 or higher is required.` — true on the machine before the
-2026-09-10 rebuild, and misleading now, because the two messages send you
-looking for different things. Either way the fix is identical: export the JDK
-explicitly in that shell:
-
-```sh
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17     # the Mac's JAVA_HOME since 2026-09-17; this line pointed at keg-only openjdk 26 before, which also runs Maestro
-export PATH="$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH"
-```
-
+**1. Maestro needs Java 17+, and a shell without the JDK on `PATH` has NO Java
+runtime.** `java` then resolves to Apple's `/usr/bin/java` stub with nothing
+behind it: `The operation couldn't be completed. Unable to locate a Java Runtime.`
+(an older JDK instead says `ERROR: Java 17 or higher is required.`). `mac run`
+reads the shell setup `Z:\machines\README.md` describes; if Maestro or Java is
+not found there, put the JDK and `~/.maestro/bin` on `PATH` in that one command.
 Do NOT set it globally — the same trap as §0 in the other direction. Xcode and
 Gradle are happy where they are.
 
@@ -1159,7 +857,7 @@ and delivery looked fine the whole time.
 Done 2026-08-23 to close #46. The whole run, and the four things that are not
 obvious.
 
-**Disk first.** A clean watch build peaked with the Air at **2.9 GiB free** and
+**Disk first.** A clean watch build peaked with the first Mac at **2.9 GiB free** and
 it started at 7.0. Clear our own DerivedData before starting — it was 12 GB and
 it is entirely ours (one directory, `Ignia-<hash>`; nothing of the machine
 owner's is in there):
@@ -1218,207 +916,6 @@ rm -rf /tmp/wdd ~/Library/Developer/Xcode/DerivedData/Ignia-*
 watcher processes from earlier sessions were found still running. Their own
 command line contains `xcodebuild`, so their `pgrep` matches themselves and they
 can never exit. Four of them had accumulated.
-
-### 3.15 Rebuilding `ignia-mac` from zero — the M1 becomes a dedicated box (decided 2026-09-05)
-
-**Decision (owner, 2026-09-05):** Stephanie gets the new MacBook Air; the M1 Air
-(`MacBookAir10,1`, 16 GB, 228 GB, Xcode 26.6) is **wiped and becomes Ignia's
-dedicated iOS build/upload/simulator box** — one local admin user, no Apple
-Account or iCloud, reached over Tailscale. The disk pressure, the DisplayLink
-dock, other projects' Maestro runs and four secrets under someone else's
-account all go away with the wipe. `STATUS.md` §3 owns where this stands;
-`scripts/mac-bootstrap.sh` does everything that is not physical.
-
-**Amended 2026-09-07 — it runs closed, on Ethernet, with FileVault OFF.** The
-owner's requirement is a box that never drops: lid shut (no room to open it),
-no display, always reachable, and back on its own after any reboot. Three
-changes to the 09-05 plan follow from that, and the reasoning is recorded
-because each one reads like a mistake on its own:
-
-| Was | Now | Why |
-|---|---|---|
-| FileVault on | **FileVault OFF, auto-login on** | FileVault demands a typed password at every boot and refuses auto-login, so any reboot — a panic, a drained battery, an update — is a physical trip to a laptop you cannot open. After the wipe the disk holds a Sentry token and an EAS session, both revocable in minutes, and no keystore; encryption buys little there. `fdesetup authrestart` covers only *planned* reboots and only once per token. |
-| Wi-Fi only | **USB-C Ethernet adapter first, Wi-Fi kept as fallback — and kept *powered on* (it was off during the 2026-11 outage)** | Not for Wake-on-LAN — Apple silicon wakes from sleep only, never from shutdown, and it never sleeps anyway. Ethernet is a link that does not roam bands or drop after a wake, which the Wi-Fi setup did. The adapter goes on its own port; power stays on the Apple brick (the 2026-08-06 outage was a dock's PD dropping). |
-| stock updates | **automatic macOS *and* App Store updates OFF** | Software Update's auto-install reboots without asking; the App Store's auto-update would move Xcode to 27 on its own. Both are applied by hand over SSH, on the owner's schedule. |
-
-`pmset` stays `-c` (charger only), never `-a`: if the charger drops, a clean
-sleep that resumes on power beats a drained battery and a forced shutdown.
-Sources for the closed-lid recipe and the FileVault trade are the headless
-Mac-mini guides (Astropad, BlitzMetrics 2026-03) and Apple's own
-`fdesetup`/`sysadminctl` behaviour; macOS 27 and Xcode 27 both keep the M1, so
-the hardware is a valid submission box through at least April 2028.
-
-**Two facts fix the order.** (1) Build 64 carries iOS fingerprint
-`52802bba…`, produced on the old install; until a host reproduces that hash,
-only the old install can OTA build-64 users. The Windows/Mac divergence is an
-OS walk difference (`apps/mobile/AGENTS.md`), so the same hardware after a wipe
-with the same lockfile *should* match — verify, never assume. (2) Migration
-Assistant copies the whole home directory, secrets included, so the cleanup
-below runs **before** Stephanie migrates to the new Air.
-
-**A. Before the new Air is opened (Windows) — DONE 2026-09-07:** `dev.keystore` +
-`credentials.json` are backed up to the LLC OneDrive (path in `CLAUDE.local.md`,
-hashes verified). Step C may destroy the Mac copy freely.
-
-**B. Old install, over SSH, before Migration Assistant — this closes the iOS
-OTA channel until step D verifies the rebuilt host, so do B→C→D in one sitting:**
-
-```sh
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx eas logout"     # invalidates the session server-side
-ssh ignia-mac "rm -rf ~/Repos/fitness-tracker-pwa ~/.expo ~/.ssh/authorized_keys"
-ssh ignia-mac "sudo launchctl bootout system/fit.ignia.nosleep; sudo rm /Library/LaunchDaemons/fit.ignia.nosleep.plist"
-```
-
-Then Tailscale admin console → Machines → remove the old node (was `stephanies-macbook-air-3`; done from the phone on 09-10).
-The Sentry token is **not** rotated (owner's standing instruction); FileVault is
-on, so the erase is cryptographic. No Time Machine destination exists, so no
-backup copy survives anywhere. `tracker-app` and the `agenda-*` files in that
-home directory belong to other projects — Stephanie's call.
-
-**C. Physical, needs Stephanie:** System Settings → General → Transfer or Reset
-→ *Erase All Content and Settings*. The assistant signs out iCloud and turns off
-Find My / Activation Lock, which is why it needs **her** Apple Account password.
-Verify afterwards at icloud.com/find that the Mac is gone from her devices.
-
-**Then, physical, owner:** Setup Assistant as a fresh local admin (skip Apple
-Account, **leave FileVault OFF** — the script can decrypt a disk that was
-encrypted, but that costs a second run and a wait), install Xcode 26.6 — App
-Store or a developer.apple.com `.xip`; it is the one install the script cannot
-do — enable *Remote Login*, paste the Windows public key into
-`~/.ssh/authorized_keys`, plug in the **Apple charger**, not a dock (the
-2026-08-06 outage was a dock PD drop), and plug the **USB-C Ethernet adapter**
-into the other port. Give the adapter's MAC a DHCP reservation on the router so
-the LAN address never moves (Tailscale does not care, but the first `ssh
-<name>.local` does). Stand the Air on edge or on a stand with air around it: it
-is fanless and sheds heat through the keyboard deck, which a closed lid covers.
-Optional but what makes later runs unattended: `echo "$USER ALL=(ALL) NOPASSWD:
-ALL" | sudo tee /etc/sudoers.d/ignia` — on a box holding no personal data whose
-SSH key already equals login, that is an acceptable trade.
-
-**D. Everything else, from Windows** (Homebrew, fnm/Node 24.12.0, CocoaPods,
-fastlane, Maestro, Tailscale, pmset + keepalives + LaunchDaemon, Ethernet-first
-service order, updates off, FileVault off + auto-login — it prompts once for
-the login password, which macOS stores and the script does not — both Xcode
-platforms, clone + `npm ci`, `.env.local`, `eas login`, the fingerprint gate):
-
-```sh
-ssh -t <name>.local 'SENTRY_AUTH_TOKEN=<tok> bash -s' < scripts/mac-bootstrap.sh   # LAN name until Tailscale is up
-```
-
-The script ends by printing the iOS fingerprint against `52802bba…`. Equal:
-OTAs carry over. Different: cut the next iOS binary from this host before any
-iOS OTA. Either way run one full `eas build --local` (`build-ios` skill) — the
-four-command check proves prebuild, not an archive (§3.9). Then repoint
-`~/.ssh/config` on Windows (`HostName ignia-mac` MagicDNS, `User <new user>`),
-keeping the alias `ignia-mac` so the guard hook and both build skills stay
-untouched; and correct §3.8/§3.9, `docs/build-infrastructure.md`,
-`CLAUDE.local.md` (disposal list) and the `apps/mobile/AGENTS.md` host table.
-
-**What still needs a physical trip, and what does not.** With FileVault off,
-auto-login on and updates manual, a reboot of any kind — `sudo reboot`, a
-kernel panic, a battery that ran flat during an outage and charged back — comes
-back logged in with SSH and Tailscale up, no hands. The charger dropping puts it
-to sleep cleanly (it is `-c`, not `-a`) and it resumes when power returns. The
-one thing left is a **hard hang**: a laptop has a battery, so a smart plug
-cannot power-cycle it the way it would a Mac mini, and only the power button
-recovers it. That is rare, and it is the single thing a mini genuinely does
-better as a server. Planned reboots over SSH are just `sudo reboot`; if
-FileVault is ever turned back on, they become `sudo fdesetup authrestart`
-(one-time Secure Enclave token, works on Apple silicon) and every *unplanned*
-reboot is a trip again.
-
-
-**DONE 2026-09-10 — the rebuilt box passed the gate: iOS fingerprint
-`52802bba…` = build 64, so the OTA channel carried over with no new binary.**
-"Ignia-only" turned out to mean "no personal data and no other people's
-accounts", not "no other project": **the same box builds Callbook
-(`Z:\tracker-app`, GitHub `gabandres/agenda-app`)** from `~/Repos/tracker-app` and
-`~/tracker-app-ota`, re-cloned the same night over a read-only deploy key
-(`~/.ssh/id_ed25519_github_tracker`), with the ASC key in
-`~/.appstoreconnect/private_keys/`. Its `CLAUDE.md` carries the before/after.
-Read back over SSH: FileVault Off, `sleep 0` (powerd + the LaunchDaemon's
-caffeinate), Ethernet (`Belkin USB-C LAN`) first, macOS/App Store auto-install
-off, Xcode 26.6 (the App Store's current version — it had not moved to 27),
-Node 24.12.0, CocoaPods 1.17.0, fastlane 2.239.0, 162 GiB free. Tailscale node
-renamed `ignia-mac`, **key expiry disabled on both nodes** (the default 180-day
-expiry would have dropped a closed-lid box off the tailnet with no way back but
-a lid). **Remote GUI = RustDesk + BetterDisplay, both free, both login items.**
-A closed MacBook with no monitor turns its panel OFF, so every remote-desktop
-tool shows black (`screencapture` says *could not create image from display*);
-BetterDisplay's free virtual screen `IgniaRemote` (1920x1080, set as main,
-created from the CLI: `betterdisplaycli create -type=VirtualScreen
--virtualScreenName=IgniaRemote -useResolutionList=on -resolutionList=1920x1080
--virtualScreenHiDPI=off`, then `set -connected=on`, `set -main=on`) is what
-gives the lid-closed box a picture. RustDesk (`brew install --cask rustdesk`;
-`direct-server = 'Y'` in `RustDesk2.toml`; permanent password set in its GUI,
-kept in the owner's password manager) is reached from Windows by IP, no relay:
-`rustdesk.exe --connect 100.83.226.52`, peer config pinned to hardware H.265
-(VideoToolbox → D3D11VA on the ARM box), custom quality, 60 fps. Tried and
-retired the same day: RealVNC (its viewer is trial-ware now) and TightVNC over
-Apple Screen Sharing with a legacy VNC password (worked, laggy; the legacy
-password is disabled again, Apple-auth Screen Sharing on 5900 stays as a
-fallback). Screensaver idle set to 0 so a remote session is never at the lock
-screen. `eas-cli` is a GLOBAL npm install on the Mac (`npm i -g eas-cli`) —
-it is not a repo dependency, and `npx eas` without it fails with *could not
-determine executable to run*. Both owner steps landed the same night: `eas login`
-via a helper script (`~/eas-login.sh`; `eas-cli` is a global npm install, see
-above), and **auto-login through System Settings → Users & Groups**, because
-`sysadminctl -autologin set` over SSH wrote `autoLoginUser` but never
-`/etc/kcpassword` — half-set, reads OFF, and the stale key had to be deleted
-before the GUI toggle would take. **Reboot test passed** (`sudo reboot` → back
-in 42 s, console user `gabrielbermudez`, RustDesk listening, BetterDisplay's
-virtual screen main, Tailscale up, sleep 0). Spotlight indexing is OFF
-(`mdutil -a -i off`; it was eating 670 MB and a core during the first build).
-**Verification build: green** — `eas build --local`, 02:40→02:55 UTC (15 min,
-cold caches), `build-1789095342352.ipa` 40 MB, verifier 22/22, **build 66**,
-runtime fingerprint `52802bba…` from the artifact. It exists only on the Mac;
-nothing was submitted, so `autoIncrement` will hand the next real build 67.
-
-The order above was NOT followed — Migration Assistant ran before step B, so
-the secrets reached the new Air and were deleted there by hand; `eas logout`
-on the old install still killed the migrated session server-side. The old
-install's files were never deleted: FileVault was on, so the erase was
-cryptographic and that was enough.
-
-**The script had never run against a fresh install and needed four launches.
-Each fix is in the script now; the shapes, because they will recur:**
-
-| Died at | Why | Fix |
-|---|---|---|
-| step 1 (exit 0!) | `ssh 'bash -s' < script` feeds the script on stdin — and **the Homebrew installer reads stdin**, swallowing the rest of the script. Exit 0, nothing after step 1. | run the script from a file on the Mac: `scp` it, then `nohup bash ~/mac-bootstrap.sh >log 2>&1 </dev/null & disown` — also survives the 10-minute cap on a Windows-side background command |
-| step 0 | `xcodebuild -version \| head -1` under `set -o pipefail`: `head` exits first, xcodebuild takes SIGPIPE, the pipeline fails, `set -e` kills the run. A race — the first launch got past it. | `sed -n 1p` (reads all input) |
-| step 6 | `/usr/local/bin` does not exist on a fresh macOS | `mkdir -p` |
-| step 6 | the GUI Tailscale app's binary aborts through a symlink (*"bundleIdentifier is unknown to the registry"*) | a wrapper script that `exec`s the full path; and the GUI app is now preferred over the brew daemon when present |
-
-**Reading the state back**, all over SSH: `pmset -g` (want `disablesleep 1`,
-`sleep 0`, `womp 1`), `fdesetup status` (want `Off`), `sysadminctl -autologin
-status`, `networksetup -listnetworkserviceorder | head -4` (wired first),
-`softwareupdate --schedule` (want `off`). The script prints all five at the end
-of step 10. Since 2026-11-02 also: `sysadminctl -screenLock status`
-(want `off`), `networksetup -getairportpower en0` (want `On`), `ifconfig en4 |
-grep status` (want `active`; no `en4` at all = the adapter did not enumerate),
-and `last reboot | head` + `last $USER | head` for what happened while it was dark.
-
-**Outage 2026-10-31 → 11-02 — dark ~2.5 days, fixed on site. Read this before
-the next "it's offline".** Tailscale last saw the node 10-31 03:27; the login
-session that began 10-27 ends as `crash` in `last`, and there is no panic report
-for it, so the trigger is unknown. Five power-button resets followed (11-01
-22:39 → 11-02 14:30, each logged as `panic … btn_rst` in
-`/Library/Logs/DiagnosticReports/` — that string means *forced by the button*,
-not a kernel crash). What the on-site person saw and what was really true:
-
-| Looked like | Actually | Fix (now in place) |
-|---|---|---|
-| "stuck at the login screen" | **auto-login worked on every boot** (`last` shows a console login each time; `/etc/kcpassword` valid, password unchanged since 09-10). It was the **lock screen**: `screenLock` delay was 300 s — screensaver idle 0 does not cover the display-off lock. | System Settings → Lock Screen → *Require password after screen saver begins or display is turned off* → **Never** (`sysadminctl -screenLock off` needs the password interactively, so GUI). Reads `screenLock is off`. |
-| logged in but off the tailnet | **no network at all**: the Belkin adapter did not enumerate after the resets (no `en4`, nothing in `system_profiler SPUSBDataType`), and **Wi-Fi was powered off** — the "fallback" in the table above did not exist. | Wi-Fi on and left on (auto-joins its saved network); adapter replugged → `en4` active, DHCP, default route. If `en4` is missing again: replug it, try the other port, then suspect the adapter. |
-| "login screen sometimes does not show", "can't see the windows" | everything opens on **`IgniaRemote`, the main display** — with the lid open nothing mirrors it, so the built-in panel shows an empty desktop or nothing. | `betterdisplaycli set -name=IgniaRemote -mirror=on -targetTagID=2` (2 = built-in's BetterDisplay tagID): `IgniaRemote` stays main (RustDesk keeps a picture lid-closed), the panel mirrors it lid-open. **Survival across a reboot not yet tested** — if windows vanish again, BetterDisplay menu → IgniaRemote → Mirror → Built-in Display. |
-
-Lesson: when the node is offline, first ask the person on site whether the Mac
-has **any** network (Wi-Fi icon, adapter light) before rebooting it; then SSH in
-and read `last`, not the screen. Verified afterwards over Tailscale (direct,
-4 ms) with the lid closed: Ethernet primary, Wi-Fi up, `screenLock` off,
-auto-login `gabrielbermudez`, Tailscale *Launch at login* on, RustDesk +
-BetterDisplay + T3 service running, `sleep 0` on AC.
 
 ## 5. Owner runbook — move `ignia.fit` + GCP billing under Bermudez Systems LLC (written 2026-08-30)
 

@@ -13,8 +13,8 @@
  * ## What "cold" actually means here — the thing that is easy to get wrong
  *
  * `eas build --local` does NOT build in `apps/mobile/{ios,android}`; it stages
- * the prebuild elsewhere, and on `ignia-mac` neither directory exists even
- * though both platforms have shipped from it. So deleting them proves nothing
+ * the prebuild elsewhere, and on the first Mac (`ignia-mac`) neither directory
+ * existed even though both platforms had shipped from it. So deleting them proves nothing
  * and a build is not made cold that way. **Warmth lives in the caches outside
  * the project** — `~/.gradle`, `~/Library/Caches/CocoaPods`,
  * `~/Library/Android`, Metro's cache. That is why `DEV_ENVIRONMENT.md:617`
@@ -37,15 +37,16 @@
  * beside parallel `clang` jobs on a fanless Air that throttles under sustained
  * all-core load.
  *
- * Usage (run ON the Mac — see the darwin guard):
+ * Usage (runs ON the build Mac — see the darwin guard):
  *   node scripts/time-mobile-builds.mjs                  # both platforms, 2 runs each
  *   node scripts/time-mobile-builds.mjs --ios            # one platform only
  *   node scripts/time-mobile-builds.mjs --once           # one run per platform
  *   node scripts/time-mobile-builds.mjs --json           # machine-readable
  *   node scripts/time-mobile-builds.mjs --dry-run        # print machine + plan, build nothing
  *
- * From Windows:
- *   ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs"
+ * From the PC (Git Bash, `mac`: Z:\machines\README.md):
+ *   mac run 'node scripts/time-mobile-builds.mjs --dry-run'
+ *   mac bg time-builds 'node scripts/time-mobile-builds.mjs'   # then: mac wait time-builds
  *
  * `--dry-run` exists because a real run costs ~40 minutes on an M1: it is how
  * you confirm the machine is detected, the disk is sufficient and the paths
@@ -179,8 +180,8 @@ if (process.platform !== 'darwin') {
       '  Android AABs cannot either: RN New Architecture C++ hits the 260-char MAX_PATH\n' +
       '  wall, and WSL2 is no escape on an ARM64 box against an x86_64-only NDK.\n' +
       '  See DEV_ENVIRONMENT.md §3.11 — this is structural, not a setup gap.\n\n' +
-      '  Run it on the Mac:\n' +
-      '    ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs"\n',
+      '  Run it on the build Mac, from the PC:\n' +
+      "    mac bg time-builds 'node scripts/time-mobile-builds.mjs'   # then: mac wait time-builds\n",
   );
   process.exit(1);
 }

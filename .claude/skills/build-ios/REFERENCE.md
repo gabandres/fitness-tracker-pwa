@@ -76,16 +76,16 @@ overwrites (measured 2026-08-17 on Android; same tooling).
 - **`** BUILD INTERRUPTED **` / `Process crashed` is an SSH-attached build being
   signalled, not a toolchain failure.** Measured 2026-08-17 on the first SDK 57
   iOS attempt, run over a plain backgrounded `ssh … caffeinate -dims npx eas
-  build` instead of the `nohup` wrapper below. It died at `Linking Ignia » Ignia`
+  build` instead of a detached (`nohup`) job. It died at `Linking Ignia » Ignia`
   with no `error:` line anywhere in 2680 lines, 18 GB free, DerivedData empty and
   no OOM — a signature that reads exactly like a linker crash and sends you
   hunting a compiler bug that does not exist. **`caffeinate` is not a substitute
   for `nohup`**: it stops the Mac sleeping, it does not stop a closing SSH session
-  from killing the process group. Use the detached wrapper, always.
+  from killing the process group. Use `mac bg`, always (SKILL.md Step 2).
   A second trap rides along: if the launching command ends with
   `echo "EXIT=$?" | tee -a`, the *pipeline* exits 0, so the caller reports success
-  on a failed build. The sentinel in the log is what tells the truth — read it,
-  not the ssh exit code.
+  on a failed build. The job's recorded exit code (`mac wait`) is what tells
+  the truth, not the exit code of the command that launched it.
 - A prerequisite failure exits in under three minutes; a green build is ~13–16.
   **A fast exit means "read the log", not "something went badly wrong".**
   `› Linking Ignia/Today » Today` is the early signal the widget's Swift compiled.

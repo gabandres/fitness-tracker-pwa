@@ -165,14 +165,14 @@ when a gate fails and the cause has to be found.
 
 An update published against a changed fingerprint **succeeds and reaches
 nobody**, which is indistinguishable from a working update. Gate first, on the
-machine that will publish: **the Windows PC (`winbox`, `Z:\fitness-tracker-pwa`)
-since 2026-11-12**, which computes the Mac's hashes exactly (`apps/mobile/AGENTS.md`;
-`ignia-mac` was sold 2026-11-13). This paragraph said "on the machine that builds
-that platform — `ignia-mac`" until then.
+machine that will publish: **the Windows PC (`Z:\fitness-tracker-pwa`)
+since 2026-11-12**, which computes the Mac's hashes exactly (`apps/mobile/AGENTS.md`).
+This paragraph said "on the machine that builds that platform", the first Mac,
+until then.
 
 ```sh
 # iOS — must equal the live binary's value (STATUS.md / AGENTS.md)
-cd /z/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios   # on winbox (was `ssh winbox` from the Mac until 2026-11-19)
+cd /z/fitness-tracker-pwa/apps/mobile && npx expo-updates fingerprint:generate --platform ios   # on the PC
 # Android — the TREE hash is not the gate (no tree has reproduced a Mac-built .aab):
 # pin `runtimeVersion` in app.json to the artifact value (AGENTS.md table) for the publish, revert after
 unzip -p <the shipped>.aab base/assets/fingerprint
@@ -196,8 +196,9 @@ Bare `eas update` publishes both platforms in one command;
 
 ### Does the Windows PC still export what a Mac would?
 
-Re-run after an Expo, `@expo/fingerprint` or Sentry upgrade, with a Mac (or the
-last known-good export) to compare against. Diff the JavaScript, never the
+Re-run after an Expo, `@expo/fingerprint` or Sentry upgrade, with the build Mac
+(`mac run '…'`, same commit after `mac sync`) or the last known-good export to
+compare against. Diff the JavaScript, never the
 `.hbc` — Ignia's Hermes output differs between two runs on one machine — and
 mask Sentry's Debug ID, a random UUID per export:
 
@@ -248,7 +249,7 @@ node scripts/play-download-apk.mjs --vc <n>                                     
 
 ## A rendered check without a device
 
-There is no simulator or emulator on `winbox`. The Expo app runs in a browser (react-native-web): the same
+There is no simulator or emulator on the PC (the build Mac has both: `apps/mobile/.maestro/README.md`). The Expo app runs in a browser (react-native-web): the same
 JavaScript against the same production backend, not the native render. The procedure is the
 **`test-mobile-web` skill**; its tools are `scripts/web-check/`:
 
@@ -270,14 +271,15 @@ The procedure is the **`owner-data` skill**; the shared half of every such scrip
 
 ## How long a local build takes — on THIS machine
 
-**No Mac since `ignia-mac` was sold 2026-11-13** — this is the runbook for the
-next one. Build times in `build-infrastructure.md` were all measured on that
-**M1 Air**, so they are not a baseline for it. Re-measure rather than assume, and
-paste the emitted line back into that file with the machine named.
+Runs on the build Mac (machines: `Z:\machines\README.md`). Build times in
+`build-infrastructure.md` were all measured on the first Mac, an **M1 Air**
+(sold 2026-11-13), so they are not a baseline for the build Mac. Re-measure
+rather than assume, and paste the emitted line back into that file with the
+machine named.
 
 ```sh
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git pull && node scripts/time-mobile-builds.mjs --dry-run"
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && node scripts/time-mobile-builds.mjs"   # ~40min on an M1
+mac run 'node scripts/time-mobile-builds.mjs --dry-run'
+mac bg timing 'node scripts/time-mobile-builds.mjs'     # ~40min on an M1; then `mac wait timing` in the background
 ```
 
 `--dry-run` first: it prints the chip/cores/RAM, checks the **Data** volume has
@@ -287,8 +289,8 @@ device`, which is how `vc 28` was lost.
 
 **A genuinely cold number is measurable once per machine.** `eas build --local`
 stages its prebuild outside `apps/mobile/{ios,android}` (neither directory existed
-on `ignia-mac`, which built both platforms), so warmth lives in `~/.gradle`
-and `~/Library/Caches/CocoaPods`, not in the working tree — deleting native dirs
+on the first Mac, which built both platforms), so warmth lives in the Gradle and
+CocoaPods caches in the Mac's home, not in the working tree — deleting native dirs
 does not manufacture cold. On a new laptop, run this before anything else warms
 those caches. The script never runs the two platforms concurrently: they share
 one working tree, `node_modules` and Metro cache, so parallel means corrupted

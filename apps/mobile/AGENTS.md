@@ -86,10 +86,12 @@ the bug you "fixed" keeps getting reported.
 ## The fingerprint is a property of the MACHINE, not just the commit
 
 **Since 2026-11-12 the Windows PC and the Mac compute the same fingerprints and
-export the same bundles, so OTAs publish from the Windows PC** (`winbox`,
-checkout `Z:\fitness-tracker-pwa`). `ignia-mac` was sold 2026-11-13: **iOS builds
-are BLOCKED until another Mac is set up**, the PC's Android build path is unverified
-since vc 45, and a change that moves the fingerprint still needs one per platform.
+export the same bundles, so OTAs publish from the Windows PC** (checkout
+`Z:\fitness-tracker-pwa`; measured against the first Mac, sold 2026-11-13).
+Binaries build on the build Mac (since 2026-11-22, driven with `mac`: the
+`build-ios` / `build-android` skills); the PC's Android build path is the
+fallback, unverified since vc 45. A change that moves the fingerprint still
+needs one per platform.
 
 | Platform | Gate + `eas update` from | Runtime value |
 |---|---|---|
@@ -315,10 +317,9 @@ gate")
   42, 43 do not exist. Gaps are normal. (history: "do not exist")
 - **The EAS cloud worker is a third machine with a third fingerprint.** A cloud
   artifact lands on a runtime no installed binary matches. Build locally: iOS on
-  a Mac (needs the watchOS platform — the scheme embeds `IgniaWatch.app`,
-  `DEV_ENVIRONMENT.md` §3.10; **none exists since `ignia-mac` was sold
-  2026-11-13**); Android by `eas build --local` on a Mac (vc 46–53) or raw Gradle
-  on Windows (vc 31–45, unverified since).
+  the build Mac (needs the watchOS platform — the scheme embeds `IgniaWatch.app`,
+  `DEV_ENVIRONMENT.md` §3.10); Android by `eas build --local` on a Mac (vc 46–53,
+  the first Mac) or raw Gradle on Windows (vc 31–45, unverified since).
 
 **Delivery:**
 

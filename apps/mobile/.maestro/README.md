@@ -19,63 +19,44 @@ So the rule for this directory: **assert on visibility, not existence.**
 `assertVisible` fails when text is not rendered on screen, which is the only
 assertion that can catch a layout regression.
 
-## The Android emulator lived on `ignia-mac` — 2026-08-08
+## The Android emulator and the iOS simulators run on the build Mac — since 2026-08-08
 
-> **BLOCKED since 2026-11-13: `ignia-mac` was sold.** Everything below that runs
-> on the Mac (this emulator, the iOS simulator suite) is the runbook for the next
-> Mac; where it says the Mac "has" or "carries" something, read "had".
+> Everything below that needs macOS (this emulator, the iOS simulator suite) runs
+> on **the build Mac**, driven from the PC with `mac` from inside the repo:
+> `mac sync`, `mac run '<cmd>'` (runs at the repo root, so `cd apps/mobile && …`),
+> `mac bg <name> '<cmd>'` then `mac wait <name>` for a suite or a build, `mac log
+> <name>` for more. What is installed there (SDK, AVD, Maestro, JDK) and how:
+> `Z:\machines\README.md`.
 
 **On 2026-08-08 there was no Android device** (this said "the owner has none"
 until 2026-11-19; the LG G6 and OnePlus 8T rows elsewhere came later). Every Android box in `WIDGET.md` was
 unticked from the day the feature shipped, and vc 18 and vc 21 both reached
 testers with nothing anywhere having launched them. The emulator is what closes
-that, and it is already installed:
+that. (The earlier API 35 / `ignia-a35` AVD history is in git.)
 
-| Piece | Where | State (2026-09-17, `DEV_ENVIRONMENT.md` §3.11) |
-|---|---|---|
-| Emulator + API 36 `google_apis` `arm64-v8a` image | `~/Library/Android/sdk` | installed (reinstalled 2026-09-17 with the Android build host) |
-| Maestro | `~/.maestro/bin/maestro` | installed |
-| bundletool | `/opt/homebrew/bin/bundletool` | installed |
-| AVD `pixel_api36` | `~/.android/avd` | present — keep it |
-
-(The table's earlier API 35 / `ignia-a35` history is in git.) If the AVD is
-missing (the system image stays, so no download):
-
-```sh
-echo no | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n pixel_api36 \
-  -k 'system-images;android-36;google_apis;arm64-v8a' -d pixel_7 --force
-```
-
-**Export `JAVA_HOME` (`/opt/homebrew/opt/openjdk@17`) and `ANDROID_HOME`** in
-`~/.zshrc`, `~/.zprofile` and any launchd plist: a non-interactive
-`ssh <mac> '…'` reads neither rc file, so export them explicitly there too;
-Maestro 2.x otherwise fails with a bare *"Java 17 or higher is required"* (old
-Microsoft JDK 11) or *"Unable to locate a Java Runtime"* (nothing on `PATH`).
-Durable: `/usr/libexec/java_home -V`
-does not see Homebrew JDKs, and a `JAVA_HOME` at a wrong path fails with
-*"JAVA_HOME is set to an invalid directory"* — which reads nothing like a
-missing JDK. The requirement is 17 **or higher**.
-
-**`-d pixel_7` is load-bearing in that command.** Without it the AVD takes the
+**The AVD is `pixel_api36`, created with `-d pixel_7`, and that is load-bearing.**
+Without it the AVD takes the
 default device and a different aspect ratio, and two flows are tuned to screen
 *fractions*: `19-glossary` taps the sheet backdrop at `50%,5%` (measured on the
 LG G6, 18:9) and it does not clear the panel on a 20:9 screen. `pixel_api36` is
 411x914dp, 20:9 - see ADR-0042 A1. The current AVD is ~5.2 GB once booted and
 the API 36 image is 4.3 GB.
 
-**Maestro itself does not need JDK 17** - it wants 17 *or higher* and runs fine
-on Homebrew's `openjdk` 26. Gradle is the one that is pinned to 17.
+**Java traps read like something else.** Maestro 2.x fails with a bare *"Java 17
+or higher is required"* (an old JDK first on `PATH`) or *"Unable to locate a Java
+Runtime"* (nothing on `PATH`), and a `JAVA_HOME` at a wrong path fails with
+*"JAVA_HOME is set to an invalid directory"* — none of which reads like a
+missing JDK. Maestro wants 17 **or higher**; Gradle is the one pinned to 17.
+
+The emulator starts outside a `mac bg` job (a job that never ends would make
+`mac sync` refuse), then the command waits for boot:
 
 ```sh
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17
-export ANDROID_HOME=$HOME/Library/Android/sdk
-export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$HOME/.maestro/bin:$PATH
-
-emulator -avd pixel_api36 -no-window -no-audio -no-boot-anim -gpu host -no-snapshot &until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 10; done
+mac run -n '(emulator -avd pixel_api36 -no-window -no-audio -no-boot-anim -gpu host -no-snapshot > /dev/null 2>&1 &); until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 10; done'
 ```
 
-Headless (`-no-window`) is deliberate: this is driven over SSH. On the rebuilt
-Air it cold-boots in **about 30 seconds**, not two minutes.
+Headless (`-no-window`) is deliberate: nobody watches the Mac's screen. It
+cold-boots in **about 30 seconds** (2026-09-17), not two minutes.
 
 **`-gpu host`, NEVER `-gpu swiftshader_indirect`** — this line said
 `swiftshader_indirect` until 2026-09-17 and it does not work here. The emulator
@@ -106,7 +87,7 @@ anchor, grep logcat for `signal 9` before believing anything about the UI.
 
 ### iOS: always pass `--device`, and know what the text matchers are
 
-The Mac carries simulators belonging to other projects. **`maestro test` with no
+The build Mac carries simulators belonging to other projects. **`maestro test` with no
 `--device` picks one of them** and dies at `launchApp` with
 `FBSOpenApplicationServiceErrorDomain code=4 — the request to open
 "fit.ignia.app" failed`, which reads as a broken build rather than as the wrong
@@ -160,10 +141,9 @@ not — don't re-spend that hour). For *suite* runs — where the question is
 prebuild + `assembleRelease` of the same commit is the honest sandbox:
 
 ```sh
-export SENTRY_DISABLE_AUTO_UPLOAD=true   # or the Sentry Gradle task 401s the build
-cd ~/Repos/fitness-tracker-pwa/apps/mobile
-rm -rf android && npx expo prebuild -p android --no-install
-cd android && ./gradlew assembleRelease   # → app/build/outputs/apk/release/app-release.apk
+# SENTRY_DISABLE_AUTO_UPLOAD, or the Sentry Gradle task 401s the build
+mac bg qa-apk 'cd apps/mobile && export SENTRY_DISABLE_AUTO_UPLOAD=true && rm -rf android && npx expo prebuild -p android --no-install && cd android && ./gradlew assembleRelease'
+mac wait qa-apk   # → apps/mobile/android/app/build/outputs/apk/release/app-release.apk on the Mac
 ```
 
 Debug-keystore signing is fine here (email sign-in only). Two obligations
@@ -362,9 +342,9 @@ to `eas.json` would move the fingerprint and strand the published OTA. Build
 through Xcode instead:
 
 ```sh
-cd ~/Repos/fitness-tracker-pwa/apps/mobile
-npx expo prebuild -p ios --clean --no-install     # REQUIRED: generates targets/*/Info.plist
-npx expo run:ios --configuration Release --device <sim-udid> --no-bundler
+# REQUIRED prebuild: it generates targets/*/Info.plist
+mac bg sim-ios 'cd apps/mobile && npx expo prebuild -p ios --clean --no-install && npx expo run:ios --configuration Release --device <sim-udid> --no-bundler'
+mac wait sim-ios
 ```
 
 Three traps, all paid for:
@@ -382,14 +362,13 @@ Three traps, all paid for:
   DerivedData to ~9 GB**, so clear it before starting, not after:
 
   ```sh
-  rm -rf ~/Library/Developer/Xcode/DerivedData ~/.gradle
-  rm -rf ~/Repos/fitness-tracker-pwa/apps/mobile/ios      # prebuild output, regenerated
+  mac run -n 'rm -rf ~/Library/Developer/Xcode/DerivedData ~/.gradle/caches apps/mobile/ios'
   ```
 
-  `~/.gradle` (~6 GB) and `apps/mobile/ios` (~0.5 GB) are the other two worth
-  knowing. All three regenerate; the only cost is a slower next build. Nothing
-  else on that machine is ours — the remaining bulk is the owner's personal
-  data and Xcode itself.
+  Gradle's caches (~6 GB) and `apps/mobile/ios` (~0.5 GB, prebuild output) are
+  the other two worth knowing. All three regenerate; the only cost is a slower
+  next build. Never delete all of `~/.gradle` (it holds the signing properties),
+  and nothing else on that machine is ours.
 
 **Maestro auto-selects a device and will pick (and even boot) an Android AVD**
 even when the Android emulator process is dead, because a stale `adb` entry

@@ -6,10 +6,15 @@ and a publish whose hash matches no shipped binary exits 0, prints a group id
 and reaches zero devices -- indistinguishable from a working update. Three OTAs
 were lost that way in one day (2026-08-07).
 
-    platform    on Windows    on the Mac    via `ssh ignia-mac`
+    platform    on Windows    on the Mac    sent to the build Mac
     android     ALLOW         ALLOW         ALLOW
     ios         ALLOW         ALLOW         ALLOW
     all / none  BLOCK         BLOCK         BLOCK
+
+"Sent to the build Mac" is `mac run '...'`, `mac run -n '...'` or
+`mac bg <name> '...'` (the PC's `mac` command, `Z:\machines\README.md`; a
+leading `MAC_SLOT=...` or `mac -f` too), or `ssh buildmac '...'` /
+`ssh ignia-mac '...'` (the old alias of the same Mac).
 
 **2026-11-12: both machines compute the same fingerprints** (iOS build 75's
 `e6d2973e...` on both) and export the same bundles, so either may publish
@@ -19,8 +24,9 @@ extra config-plugin files, and two Sentry resolver tests missed on backslash
 paths and bundled ~69 extra modules. `patches/@expo+fingerprint+0.20.14.patch`
 and the Windows-only tests in `apps/mobile/metro.config.js` fix both. From
 2026-08-17 to then the table was split (iOS Mac-only; Android Windows-only
-through vc 45, Mac-only from vc 46 on 2026-09-28). ignia-mac is sold on
-2026-11-13, which made Windows the publishing host.
+through vc 45, Mac-only from vc 46 on 2026-09-28). The first Mac was sold on
+2026-11-13, which made Windows the publishing host; the build Mac came
+2026-11-22.
 
 The rule that makes this safe is the GATE, not this guard: before a publish,
 compare `npx expo-updates fingerprint:generate --platform <p>` with the value
@@ -62,7 +68,16 @@ PUBLISH = re.compile(r"^eas(?:-cli)?\s+update(?!:)(?:\s|$)")
 # a bare `-p` inside some other word.
 PLATFORM = re.compile(r"(?:--platform|(?<![\w-])-p)[=\s]+([a-zA-Z]+)")
 
-MAC = re.compile(r"\bssh\s+ignia-mac\b")
+# A command handed to the build Mac: `mac [-f] run [-n] ...`,
+# `mac [-f] bg <name> ...`, or `ssh [-flags] buildmac|ignia-mac ...`.
+REMOTE = (
+    r"(?:ssh\s+(?:-\w+\s+)*(?:buildmac|ignia-mac)"
+    r"|mac\s+(?:-f\s+)?(?:run(?:\s+-n)?|bg\s+[\w-]+))"
+)
+# ...at the start of a segment: the unquoted form, `mac run npx eas update ...`.
+REMOTE_START = re.compile(rf"^{REMOTE}(?:\s+|$)")
+# ...anywhere in the unquoted text, so its quoted payload is read as commands.
+REMOTE_ANY = re.compile(rf"(?:^|(?<=[\s;&|(])){REMOTE}(?=\s|$)")
 
 # `--environment production`, `--environment=production`. Required from SDK 55.
 ENVIRONMENT = re.compile(r"--environment[=\s]+\S+")
@@ -73,7 +88,7 @@ ENVIRONMENT = re.compile(r"--environment[=\s]+\S+")
 # computes the Mac's hashes for both platforms and exports the Mac's bundles
 # (patches/@expo+fingerprint+0.20.14.patch, the Sentry tests in
 # apps/mobile/metro.config.js), so both machines may publish both platforms.
-# ignia-mac is sold 2026-11-13; its entry stays for whichever Mac comes next.
+# "mac" is a session on the build Mac, or a command sent to it (REMOTE).
 OWNER = {"android": {"mac", "windows"}, "ios": {"mac", "windows"}}
 
 # The machine this hook is running on.
@@ -101,6 +116,10 @@ def strip_heredocs(cmd):
 def command_segments(cmd):
     """Split a shell line into segments that could each START a command.
 
+    Returns (segment, sent_to_mac) pairs: a `mac run ...` / `ssh buildmac ...`
+    prefix is stripped and remembered, so `mac run npx eas update ...` is read
+    as an `eas update` that runs on the Mac.
+
     A guard must fire on an INVOCATION, not a MENTION -- echoing or grepping for
     the command is not running it, and blocking that makes the guard
     untrustworthy, which is how guards get disabled.
@@ -109,13 +128,17 @@ def command_segments(cmd):
     out = []
     for p in parts:
         p = p.strip()
+        remote = False
         while True:
             m = re.match(r"^(?:\w+=\S*|sudo|command|npx|time)\s+", p)
             if not m:
-                break
+                m = REMOTE_START.match(p)
+                if not m:
+                    break
+                remote = True
             p = p[m.end():]
         if p:
-            out.append(p)
+            out.append((p, remote))
     return out
 
 
@@ -132,9 +155,9 @@ def split_quotes(cmd):
     guard's whole contract forbids, and which happened on 2026-08-17.
 
     Quoted text is data, exactly like a heredoc body. The one case that must
-    still see inside quotes is `ssh ignia-mac "... eas update ..."`, so the
-    payloads are returned separately and segmented on their own -- reached only
-    when `ssh ignia-mac` appears OUTSIDE the quotes.
+    still see inside quotes is `mac run "... eas update ..."` (or `mac bg`,
+    `ssh buildmac`), so the payloads are returned separately and segmented on
+    their own -- reached only when that prefix appears OUTSIDE the quotes.
     """
     payloads = []
 
@@ -155,12 +178,15 @@ cmd = ((data.get("tool_input") or {}).get("command") or "")
 
 outer, payloads = split_quotes(cmd)
 
+segments = [(s, r) for s, r in command_segments(outer) if PUBLISH.match(s)]
 # Publishing directly on this machine.
-local_publish = any(PUBLISH.match(s) for s in command_segments(outer))
-# Publishing on the Mac -- `ssh ignia-mac` must appear OUTSIDE the quotes, so a
-# grep whose *pattern* mentions ssh cannot reach this branch.
-mac_publish = bool(MAC.search(outer)) and any(
-    PUBLISH.match(s) for p in payloads for s in command_segments(p)
+local_publish = any(not r for _, r in segments)
+# Publishing on the Mac -- unquoted after `mac run`, or quoted after a
+# `mac run` / `mac bg <name>` / `ssh buildmac` that appears OUTSIDE the quotes,
+# so a grep whose *pattern* mentions one cannot reach this branch.
+mac_publish = any(r for _, r in segments) or (
+    bool(REMOTE_ANY.search(outer))
+    and any(PUBLISH.match(s) for p in payloads for s, _ in command_segments(p))
 )
 
 if not (local_publish or mac_publish):

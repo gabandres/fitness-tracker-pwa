@@ -1,22 +1,21 @@
 ---
 name: build-ios
-description: Decide whether an iOS change needs a binary at all (a JS-only change ships as an OTA from the Windows PC via `build-android`), and the runbook for building and submitting an iOS binary locally on a Mac over SSH at no EAS quota. iOS builds are BLOCKED since 2026-11-13 — `ignia-mac` was sold and no Mac exists. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill; on a Mac do not run both platform builds at once on 16 GB.
+description: Decide whether an iOS change needs a binary at all (a JS-only change ships as an OTA from the Windows PC via `build-android`), and the runbook for building and submitting an iOS binary locally on the build Mac (driven from the PC with `mac`) at no EAS quota. Use for "cut an iOS build", "build for TestFlight", "ship the iPhone app", or whenever a mobile fix needs to reach iOS testers. Android is the `build-android` skill; do not run both platform builds on the Mac at once (16 GB).
 ---
 
-# Build iOS on the Mac
+# Build iOS on the build Mac
 
-> **BLOCKED since 2026-11-13: `ignia-mac` was sold, so there is no iOS build host
-> until another Mac is set up.** Everything below the gate describes that machine; a new Mac
-> needs `scripts/mac-bootstrap.sh`, Xcode with the watchOS platform, the ASC key
-> and the signing material (`docs/build-infrastructure.md`). OTAs do not need a
-> Mac: they publish from the Windows PC (`build-android` Step 2).
-
-`eas build -p ios --profile production --local` on `ignia-mac`, driven headlessly
-over SSH. **Zero EAS quota, no cloud queue.** ~13–16 minutes green.
+`eas build -p ios --profile production --local` on the build Mac, sent from the
+PC with `mac bg`. **Zero EAS quota, no cloud queue.** ~13–16 minutes green (on
+the first Mac). The machine, `mac` and its rules: `Z:\machines\README.md`;
+`docs/DEV_ENVIRONMENT.md` §3 says how `mac` is used here. OTAs do not need the
+Mac: they publish from the Windows PC (`build-android` Step 2).
 
 `REFERENCE.md` in this directory holds the evidence behind every rule below.
-`docs/DEV_ENVIRONMENT.md` §3.8 and §3.10 hold the machine runbook — **read §3.10
-before debugging any build failure**; every one seen so far is already there.
+`docs/DEV_ENVIRONMENT.md` §3.10 holds the archive traps — **read it before
+debugging any build failure**; every one seen so far is already there. The build
+Mac came 2026-11-22: whether it has the watchOS platform an archive needs is not
+yet recorded, so Step 1 checks it.
 
 ## Step −1 — is the Apple membership mid-change?
 
@@ -44,9 +43,8 @@ still running at 17 days and 3+ weeks (developer.apple.com threads 816092 and
 ## Step 0 — do you need a build at all?
 
 **A JS/TS-only change needs no binary.** Gate first, **on the Windows PC**
-(`winbox`, checkout `Z:\fitness-tracker-pwa`, Git Bash) — since 2026-11-12 it
-computes the Mac's fingerprints exactly (`apps/mobile/AGENTS.md`). This was an
-`ssh winbox` from the Mac until 2026-11-19:
+(checkout `Z:\fitness-tracker-pwa`, Git Bash) — since 2026-11-12 it computes the
+Mac's fingerprints exactly (`apps/mobile/AGENTS.md`):
 
 ```sh
 cd /z/fitness-tracker-pwa && git checkout main && git pull --ff-only
@@ -72,78 +70,70 @@ Two that bite on iOS specifically:
 
 ## Step 1 — preflight (seconds, and it has caught real blockers)
 
+`mac status` first (reachable, someone at the keyboard, disk, jobs running).
+Then, from the PC (`mac run` syncs the working tree first):
+
 ```sh
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && git log --oneline -1 && git status --short | head -5
+mac run 'git log --oneline -1 && git status --short | head -5
 node -v; which fastlane
-xcrun simctl list runtimes | grep -ci ios
-df -h /System/Volumes/Data | awk 'NR==2{print \$4\" free\"}'"
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile && npx eas whoami"
+xcrun simctl list runtimes | grep -ciE "ios|watchos"; xcodebuild -showsdks | grep -i watchos
+df -h /System/Volumes/Data | awk "NR==2{print \$4\" free\"}"
+cd apps/mobile && npx eas whoami'
 ```
 
 | Check | If it fails |
 |---|---|
-| `git status` clean | `git stash push -u` — prebuild leaves generated artifacts. **This is safe for `eas build --local`, which prebuilds, and it BREAKS `npx expo run:ios`, which does not.** `expo run:ios` only prebuilds when `ios/` is absent, so with `ios/` already on disk it skips prebuild and Xcode then fails with `Build input file cannot be found: targets/widget/Info.plist` (error 65) — the untracked target plists the stash just took away. Measured 2026-08-19. Recover with `git stash apply`, not a rebuild |
-| on the intended ref | a branch is fine; record **which** in `STATUS.md` |
+| `git status` clean | prebuild leaves generated artifacts in the Mac clone. Clearing them is fine for `eas build --local`, which prebuilds, and it BREAKS `npx expo run:ios`, which does not: `expo run:ios` only prebuilds when `ios/` is absent, so with `ios/` already on disk it skips prebuild and Xcode then fails with `Build input file cannot be found: targets/widget/Info.plist` (error 65) — the untracked target plists the cleanup took away. Measured 2026-08-19 (with `git stash push -u`; recovered with `git stash apply`, not a rebuild) |
+| on the intended ref | `mac sync` sends the PC's working tree; record **which** commit in `STATUS.md` |
 | `which fastlane` | `brew install fastlane` — **never** the gem (system Ruby has a broken `ffi`) |
-| iOS runtimes > 0 | `sudo xcodebuild -downloadPlatform iOS`. **watchOS runtime is also required** — the scheme embeds `IgniaWatch.app` and archiving needs the platform |
-| disk ≥ ~17 GB | clear `~/Library/Developer/Xcode/DerivedData/*`. (this said "the Air is iOS-only now" until 2026-11-19; it built both platforms from 09-17) |
-| `eas whoami` | copy `~/.expo/state.json` from the workstation (owner runs the `scp`) |
+| iOS **and watchOS** platforms present | `sudo xcodebuild -downloadPlatform iOS` / `watchOS` (sudo: `Z:\machines\README.md`). The scheme embeds `IgniaWatch.app`, so archiving needs the watchOS platform |
+| disk ≥ ~17 GB | clear `~/Library/Developer/Xcode/DerivedData/*`; more in `DEV_ENVIRONMENT.md` §3.9 |
+| `eas whoami` | the Mac is not logged in to Expo: ask the owner |
 
 **Validate the Sentry token, don't just check the file exists** — a present-but-
 stale token fails the build at a late task:
 
 ```sh
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa && set -a && . ./.env.local && set +a &&
-  curl -sS -o /dev/null -w 'sentry HTTP %{http_code}\n' \
-  -H \"Authorization: Bearer \$SENTRY_AUTH_TOKEN\" \
-  https://sentry.io/api/0/organizations/gabriel-bermudez/projects/"
+mac run -n 'set -a && . ./.env.local && set +a &&
+  curl -sS -o /dev/null -w "sentry HTTP %{http_code}\n" \
+  -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+  https://sentry.io/api/0/organizations/gabriel-bermudez/projects/'
 ```
 
 Anything but `200` is a stop.
 
-## Step 2 — launch detached, with a sentinel
+## Step 2 — launch detached
 
-**Never run the build in an SSH foreground, and `caffeinate` is not a substitute
-for `nohup`.** Caffeinate stops the Mac sleeping; it does not stop a closing SSH
-session from killing the process group. An SSH-attached build dies with
-`** BUILD INTERRUPTED ** / Process crashed` and **no `error:` line anywhere** —
-a signature that reads like a linker crash and costs an hour of hunting a
-compiler bug that is not there (measured 2026-08-17, SDK 57).
-
-```sh
-ssh ignia-mac "cat > ~/run-ios-build.sh <<'EOF'
-#!/bin/zsh
-cd ~/Repos/fitness-tracker-pwa/apps/mobile || exit 90
-set -a; . ~/Repos/fitness-tracker-pwa/.env.local; set +a
-echo \"IGNIA_BUILD_START \$(date -u +%FT%TZ)\"
-npx eas build -p ios --profile production --local --non-interactive
-echo \"IGNIA_BUILD_EXIT=\$?\"
-EOF
-chmod +x ~/run-ios-build.sh
-rm -f ~/ios-build.log
-nohup caffeinate -dims ~/run-ios-build.sh > ~/ios-build.log 2>&1 &
-echo launched"
-
-until ssh ignia-mac "grep -q IGNIA_BUILD_EXIT ~/ios-build.log" 2>/dev/null; do sleep 60; done
-```
-
-`caffeinate -dims` is **not optional** — the dock can drop power while still
-working as a dock, putting the Air on battery where sleep is allowed.
-
-On failure, filter the log — it is ~1200 lines and will blow up context:
+**Never run the build attached (`mac run`, or a plain ssh).** A closing session
+kills the process group, and an attached build dies with `** BUILD INTERRUPTED **
+/ Process crashed` and **no `error:` line anywhere** — a signature that reads
+like a linker crash and costs an hour of hunting a compiler bug that is not there
+(measured 2026-08-17, SDK 57). `mac bg` runs the job detached, kept awake, with
+its exit code recorded:
 
 ```sh
-ssh ignia-mac "grep -nE '❌|error:|Exit status|must be installed' ~/ios-build.log \
-  | grep -viE 'npm warn|deprecated|RUN_EXPO_DOCTOR' | tail -10"
+mac bg ios-build 'cd apps/mobile && set -a && . ../../.env.local && set +a &&
+  npx eas build -p ios --profile production --local --non-interactive'
+mac wait ios-build          # as a background command, never a polling loop
 ```
+
+`mac wait` prints one line, and the log's end only on failure. For more, filter
+— the log is ~1200 lines and will blow up context:
+
+```sh
+mac run -n 'grep -nE "❌|error:|Exit status|must be installed" ~/build-logs/fitness-tracker-pwa.ios-build.log \
+  | grep -viE "npm warn|deprecated|RUN_EXPO_DOCTOR" | tail -10'
+```
+
+(`mac log ios-build 200` reads the raw end.)
 
 ## Step 3 — verify the artifact, gate on the exit code
 
-Exit 0 from the build is necessary, not sufficient.
+Exit 0 from the build is necessary, not sufficient. The scripts are already in
+the Mac clone (`mac sync`):
 
 ```sh
-scp scripts/verify-mobile-artifact.mjs scripts/native-expectations.json scripts/ipa-preflight.sh ignia-mac:/tmp/
-ssh ignia-mac "node /tmp/verify-mobile-artifact.mjs ~/Repos/fitness-tracker-pwa/apps/mobile/build-<ts>.ipa"
+mac run -n 'node scripts/verify-mobile-artifact.mjs apps/mobile/build-<ts>.ipa'
 ```
 
 It asserts all four nested targets, every required Info.plist key (a missing usage
@@ -161,15 +151,15 @@ device QA — except Live Activities, which render in the Simulator.
 ## Step 4 — submit (only when asked; outward-facing)
 
 ```sh
-ssh ignia-mac "cd ~/Repos/fitness-tracker-pwa/apps/mobile &&
-  npx eas submit -p ios --profile production --path build-<ts>.ipa --non-interactive"
+mac run -n 'cd apps/mobile &&
+  npx eas submit -p ios --profile production --path build-<ts>.ipa --non-interactive'
 ```
 
 No credential overrides needed. ~3 minutes.
 
 **Then verify in ASC — the CLI exit code has lied in both directions.** Apple
 takes 5–15 min to process and the build is absent from `/v1/builds` until
-ingestion starts, so poll:
+ingestion starts, so poll (on the PC):
 
 ```sh
 node -e "

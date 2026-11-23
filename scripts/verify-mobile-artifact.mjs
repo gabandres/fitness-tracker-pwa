@@ -32,7 +32,7 @@
  *
  *     node scripts/verify-mobile-artifact.mjs <path-to.ipa|.aab>
  *
- * Runs on macOS (`ignia-mac`) — it shells out to PlistBuddy and codesign for
+ * Runs on macOS (the build Mac: `mac run 'node scripts/verify-mobile-artifact.mjs <path>'`) — it shells out to PlistBuddy and codesign for
  * the iOS half. The Android half needs only unzip/keytool and runs anywhere.
  * Expectations live in `scripts/native-expectations.json` so that adding a
  * required plist key is a data change, not a code change — and so the list is
@@ -170,7 +170,7 @@ function verifyAab(path) {
   // 0. The checks every Android build of every app passes (signer, not debuggable, Release bundle, Sentry, 16 KB page
   //    alignment): aab-preflight.sh, the same file in Callbook, PoolFlow and Inkvolt. Copied beside this script.
   const preflight = join(HERE, 'aab-preflight.sh');
-  if (process.platform !== 'darwin') bad('aab-preflight', 'needs the Mac (zsh, bundletool, keytool): run this verifier on ignia-mac');
+  if (process.platform !== 'darwin') bad('aab-preflight', 'needs the Mac (zsh, bundletool, keytool): run this verifier on the build Mac (mac run ...)');
   else if (!existsSync(preflight)) bad('aab-preflight', `${preflight} missing: copy it with this script`);
   else {
     try {

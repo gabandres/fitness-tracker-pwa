@@ -17,8 +17,8 @@ set -eu
 RUNS=~/.maestro/tests
 [ -d "$RUNS" ] || { echo "no Maestro runs at $RUNS" >&2; exit 1; }
 
-# The newest run dir is NOT necessarily ours. `ignia-mac` is a SHARED laptop,
-# and on 2026-08-18 another project's Maestro suite started 73 seconds after
+# The newest run dir is NOT necessarily ours. The build Mac runs other
+# projects' Maestro suites too (Z:\machines\README.md), and on 2026-08-18 another project's Maestro suite started 73 seconds after
 # this one — `ls -dt | head -1` picked ITS run, whose flows are named
 # `01-appointment`, `05-territory`, `08-visit-outcomes`. Nothing of theirs was
 # copied that time only because their flows take no screenshots; the same

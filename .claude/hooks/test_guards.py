@@ -102,8 +102,22 @@ case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform ios --branch pro
 case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production"'), "android via ignia-mac, no --environment", "BLOCK")
 case(E, cmd('ssh ignia-mac "cd ~/x && npx eas update --platform android --branch production --environment=production"'), "--environment= form", "allow")
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production"), "ios on Windows, no --environment", "BLOCK", WINENV)
+# The build Mac through the PC's `mac` command (Z:\machines, 2026-11-22), and
+# `ssh buildmac`: the same rules as `ssh ignia-mac`.
+case(E, cmd("mac run 'cd apps/mobile && npx eas update --branch production --environment production'"), "bare update via mac run", "BLOCK", WINENV)
+case(E, cmd("mac run 'cd apps/mobile && npx eas update --platform ios --branch production --environment production'"), "ios via mac run", "allow", WINENV)
+case(E, cmd("mac run 'cd apps/mobile && npx eas update --platform ios --branch production'"), "ios via mac run, no --environment", "BLOCK", WINENV)
+case(E, cmd("mac run -n 'cd apps/mobile && npx eas update --platform all --branch production --environment production'"), "--platform all via mac run -n", "BLOCK", WINENV)
+case(E, cmd('mac bg ota "cd apps/mobile && npx eas update --branch production --environment production"'), "bare update via mac bg", "BLOCK", WINENV)
+case(E, cmd('mac bg ota-ios "cd apps/mobile && npx eas update --platform ios --branch production --environment production"'), "ios via mac bg", "allow", WINENV)
+case(E, cmd("MAC_SLOT=ota mac -f bg ota 'cd apps/mobile && npx eas update --branch production --environment production'"), "bare update via MAC_SLOT= mac -f bg", "BLOCK", WINENV)
+case(E, cmd("mac run npx eas update --branch production --environment production"), "bare update via unquoted mac run", "BLOCK", WINENV)
+case(E, cmd("mac run npx eas update --platform android --branch production --environment production"), "android via unquoted mac run", "allow", WINENV)
+case(E, cmd('ssh buildmac "cd ~/x && npx eas update --branch production --environment production"'), "bare update via ssh buildmac", "BLOCK", WINENV)
+case(E, cmd('ssh -t buildmac "cd ~/x && npx eas update --platform android --branch production"'), "android via ssh -t buildmac, no --environment", "BLOCK", WINENV)
+case(E, cmd('ssh buildmac "cd ~/x && npx eas update --platform android --branch production --environment production"'), "android via ssh buildmac", "allow", WINENV)
 
-# A session running ON ignia-mac (T3 Code / Remote Control) -- both platforms are local there.
+# A session running ON a Mac (T3 Code / Remote Control) -- both platforms are local there.
 MACENV = {"GUARD_HOST": "mac"}
 case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production --environment production"), "ios directly on the Mac (owner)", "allow", MACENV)
 case(E, cmd("cd apps/mobile && npx eas update --platform android --branch production --environment production"), "android directly on the Mac (owner)", "allow", MACENV)
@@ -114,6 +128,11 @@ case(E, cmd("cd apps/mobile && npx eas update --platform ios --branch production
 case(E, cmd('grep -nE "ssh ignia-mac.*(eas update|gradlew)" docs/COMMANDS.md'), "grep whose PATTERN mentions eas update", "allow")
 case(E, cmd("rg 'eas update --platform android' docs/"), "rg for the publish command", "allow")
 case(E, cmd('ssh ignia-mac "grep -n \'eas update\' notes.md"'), "grep ON the Mac, still a mention", "allow")
+case(E, cmd("mac run \"grep -n 'eas update' apps/mobile/AGENTS.md\""), "grep via mac run, still a mention", "allow")
+case(E, cmd('grep -nE "mac (run|bg).*eas update" .claude/skills'), "grep whose PATTERN names mac run", "allow")
+case(E, cmd("mac log ota 80"), "mac log", "allow")
+case(E, cmd("echo 'mac run npx eas update --branch production'"), "echo of a mac run publish", "allow")
+case(E, cmd("mac run 'cd apps/mobile && npx eas update:list --branch production --limit 3'"), "update:list via mac run", "allow")
 
 print("\n-- firebase/firestore import --")
 SPEC = "import { Timestamp } from 'firebase/firestore';"

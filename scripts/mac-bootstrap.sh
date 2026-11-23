@@ -1,4 +1,9 @@
 #!/bin/bash
+# SUPERSEDED 2026-11-22: the build Mac is set up by Z:\machines (README.md, setup/), which owns host names, keys,
+# Tailscale, staying awake and secrets; do not run this against it. Kept only for the Ignia-specific steps a new Mac
+# still needs and Z:\machines does not list: 7 (Xcode's iOS AND watchOS platforms: the scheme embeds IgniaWatch.app)
+# and 9 (an EAS session in apps/mobile). Everything else below is the 2026-11 history of the first Mac.
+#
 # Bootstrap a FRESH macOS install into `ignia-mac`, the dedicated iOS build box.
 # Runbook + ordering gates: docs/DEV_ENVIRONMENT.md §3.15. Idempotent — rerun freely.
 #

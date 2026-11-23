@@ -4,6 +4,9 @@
   Android still builds and OTAs from the Windows workstation until the cutover in
   §Consequences 1 is done. Supersedes the "permanently" in ADR-less
   `docs/DEV_ENVIRONMENT.md` §3.11 and `docs/build-infrastructure.md`.
+- **Note 2026-11-23:** the cutover ran with vc 46 (2026-09-28); `ignia-mac` was sold 2026-11-13. The decision
+  carries to the build Mac (since 2026-11-22), driven from the PC with `mac` (`Z:\machines\README.md`); the
+  PC's raw-Gradle route is the fallback while it is away.
 - **Date:** 2026-09-17
 - **Touches:** no application code. `docs/DEV_ENVIRONMENT.md` §3.11/§3.16,
   `docs/build-infrastructure.md`, `apps/mobile/AGENTS.md` (host table),

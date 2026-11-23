@@ -28,6 +28,14 @@ Measured on the 2026-08-15 audit, the damage is never in the obscure files:
 Every one is a **high-traffic** file. Audit those first; the obscure ones cost
 little when wrong.
 
+Why `CLAUDE.md`'s two housekeeping rules exist: `STATUS.md` reached 941 lines
+once and carried four self-contradictions — a status file nobody can hold in
+their head stops being read, hence its ~200-line budget. And a shipped plan left
+in the tree with a "CORRECTION" block on top is how a wish list becomes
+indistinguishable from a status report; that failure has already cost this
+project three re-scopes of work that was already built, hence "a plan document
+is deleted the day its work ships".
+
 ## Ground truth, in order
 
 Never resolve a contradiction from memory or from another doc. Ask the system

@@ -50,9 +50,10 @@ setup on BOTH platforms, silently and in two different ways, and this section
 described a machine that could no longer run any of it. What follows is what
 was actually executed.
 
-### iOS — on a Mac; BLOCKED since 2026-11-13 (`ignia-mac` sold, no Mac)
+### iOS — on the build Mac
 
-What follows is the runbook for the next Mac. **iOS 27 runtime:** builds from
+Runs on the build Mac, driven from the PC with `mac` (what is installed there,
+simulators included: `Z:\machines\README.md`). **iOS 27 runtime:** builds from
 before `7f25177c` (1.2.4, scene support) die on the first frame with
 `UIScene life cycle is required for apps built with this SDK` — a launch abort
 that reads like an app crash. Run those on an iOS 26.0 runtime
@@ -61,78 +62,56 @@ existing `.app`, no rebuild); newer builds pass 21/21 on iOS 27 (2026-09-23).
 (This replaced two stacked banners on 2026-11-19; the evidence file they cited,
 `CODE_REVIEW_2026-09-22.md`, was deleted 2026-10-15 — see git.)
 
-Three things to set up, none of which announces itself until you try.
-**Re-measured 2026-09-16; the first two rows said something different and
-weaker before that.**
+Three traps, none of which announces itself until you try:
 
-- **Java is on `PATH` in a login shell since 2026-09-17** —
-  `JAVA_HOME=/opt/homebrew/opt/openjdk@17` is exported by `~/.zshrc`,
-  `~/.zprofile` and the T3 Code plist (`DEV_ENVIRONMENT.md` §3.11). This row
-  said there was no Java runtime on `PATH` at all, `openjdk@17` having gone
-  with the Android toolchain on 2026-08-17 — true until 2026-09-17. What
-  remains: a non-interactive `ssh ignia-mac '…'` reads neither rc file, and
-  then `java` resolves to Apple's `/usr/bin/java` stub with nothing behind it,
-  so the symptom is `The operation couldn't be completed. Unable to locate a
-  Java Runtime.` — not `ERROR: Java 17 or higher is required` (the pre-rebuild
-  Java 11 message), and it reads like a broken Maestro install rather than a
-  `PATH` problem. Export it explicitly in that shell. **Maestro 2.10.0** runs on
-  17 or higher.
-- **Simulator devices EXIST again — 18 of them, and one is ours.** This section
-  claimed `simctl delete all` (the `DEV_ENVIRONMENT.md` §3.9 disk reclaim) had
-  left none. Xcode has since recreated its defaults and the persistent
-  **`Ignia-QA`** was created 2026-09-16 and is kept. It was iPhone 17 / iOS
-  26.5; since the 2026-09-22 Xcode 27 upgrade it runs **iOS 27.0**, and the
-  26.5 devices left in `simctl list` are orphans whose runtime is gone.
-  `simctl create` below is therefore idempotent-by-hand: check for `Ignia-QA`
-  first and reuse it. **`--device` stays mandatory regardless** — this is a
-  shared laptop, another simulator is routinely booted beside ours, and
-  auto-selection is a coin flip.
-- **`~/qa-pass.txt` may not be there.** The Mac was rebuilt 2026-09-10, two days
-  after the 2026-09-08 QA password rotation, and the file was not restored;
-  `CLAUDE.local.md` listed the Mac as holding it and was wrong until 2026-09-16.
-  The symptom is a sign-in flow that types an **empty password** and then fails
-  its `Today` assertion — indistinguishable from a broken sign-in screen. Check
-  the file exists before blaming the app.
+- **No Java on `PATH`** makes `java` resolve to Apple's `/usr/bin/java` stub,
+  and the symptom is `The operation couldn't be completed. Unable to locate a
+  Java Runtime.` — not `ERROR: Java 17 or higher is required` (an old JDK's
+  message), and it reads like a broken Maestro install rather than a `PATH`
+  problem. **Maestro 2.10.0** runs on 17 or higher.
+- **`--device` is mandatory.** The build Mac carries other projects'
+  simulators, one is routinely booted beside ours, and auto-selection is a coin
+  flip. Reuse `Ignia-QA-26` (below) rather than creating another.
+- **A missing QA password types an empty one.** The sign-in flow then fails its
+  `Today` assertion — indistinguishable from a broken sign-in screen
+  (2026-09-10: the file holding it was not restored after a rebuild). Where it
+  lives: `CLAUDE.local.md`. Check it before blaming the app.
 
 ```sh
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17    # the Mac's JAVA_HOME since 2026-09-17; this line said "NOT openjdk@17, which no longer exists" (true 2026-09-10 → 09-17)
-export PATH=$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH
-
 # Reuse Ignia-QA-26 if it exists; only create it the first time.
 # PIN the runtime — do NOT resolve "the newest iOS". iOS 27 cannot launch a
 # binary built by this Xcode (see the banner above), so picking the latest is
 # exactly wrong here. Match on the EXACT name: a `/Ignia-QA/` regex also
 # matches the retired iOS-27 `Ignia-QA`, and takes whichever sorts first.
+# If a Release build already exists it is installed, no rebuild (~45 min saved);
+# Release because the suite needs a standalone bundle, not Metro.
+mac bg ios-suite 'cd apps/mobile
 QA_RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-26-0
-UDID=$(xcrun simctl list devices | awk -F'[()]' '/^ *Ignia-QA-26 / {print $2; exit}')
-[ -n "$UDID" ] || UDID=$(xcrun simctl create Ignia-QA-26 \
-  com.apple.CoreSimulator.SimDeviceType.iPhone-17 "$QA_RUNTIME")
+UDID=$(xcrun simctl list devices | awk -F"[()]" "/^ *Ignia-QA-26 / {print \$2; exit}")
+[ -n "$UDID" ] || UDID=$(xcrun simctl create Ignia-QA-26 com.apple.CoreSimulator.SimDeviceType.iPhone-17 "$QA_RUNTIME")
 xcrun simctl boot "$UDID"
-
-cd ~/Repos/fitness-tracker-pwa/apps/mobile
-# If a Release build already exists, just install it — no rebuild (~45 min saved):
 APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/Ignia-*/Build/Products/Release-iphonesimulator/Ignia.app 2>/dev/null | head -1)
-[ -n "$APP" ] && xcrun simctl install "$UDID" "$APP" \
-  || npx expo run:ios --configuration Release --device "$UDID"   # Release: the suite needs a standalone bundle, not Metro
-maestro --device "$UDID" test .maestro/regression/
+if [ -n "$APP" ]; then xcrun simctl install "$UDID" "$APP"; else SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --configuration Release --device "$UDID"; fi
+maestro --device "$UDID" test .maestro/regression/'
+mac wait ios-suite
 ```
 
-Launch that build **detached** (`nohup caffeinate -dims …`) — an SSH-attached
-build dies as `** BUILD INTERRUPTED **` with no `error:` line anywhere, a
-signature that reads like a linker crash. `build-ios`'s `REFERENCE.md` carries
-the measurement.
+Always through `mac bg` (detached, kept awake), never `mac run` — an
+SSH-attached build dies as `** BUILD INTERRUPTED **` with no `error:` line
+anywhere, a signature that reads like a linker crash. `build-ios`'s
+`REFERENCE.md` carries the measurement.
 
-### Android hosts — none on 2026-08-18; the LG since 2026-08-29; the Mac emulator again since 2026-09-17
+### Android hosts — none on 2026-08-18; the LG since 2026-08-29; a Mac emulator 2026-09-17 → 11-13 and since 2026-11-22
 
 Android UI regression was **unhosted** on 2026-08-18, and this heading said
 "Android has NO host" in the present tense until 2026-09-17. Today the suite
-runs on the LG over adb from Windows; the `ignia-mac` emulator (recipe in
-`.maestro/README.md`) went with the Mac on 2026-11-13 (this said it ran there
-until 2026-11-19). The table is 2026-08-18's state; only the Windows row is still true:
+runs on the LG over adb from Windows, or on the build Mac's emulator (recipe in
+`.maestro/README.md`; the first Mac's went with it on 2026-11-13). The table is
+2026-08-18's state; only the Windows row is still true:
 
 | Machine | Why it could not run the Android suite (2026-08-18) |
 |---|---|
-| `ignia-mac` | Android SDK, emulator and `openjdk@17` were all removed on 2026-08-17, when Android's build host moved to Windows. **Reinstated 2026-09-17** with the build host (`DEV_ENVIRONMENT.md` §3.11): SDK at `~/Library/Android/sdk`, AVD `pixel_api36`, `JAVA_HOME`/`ANDROID_HOME` in the shell config |
+| the Mac of then (`ignia-mac`, sold 2026-11-13) | Android SDK, emulator and `openjdk@17` were all removed on 2026-08-17, when Android's build host moved to Windows. **Reinstated 2026-09-17** with the build host |
 | Windows workstation | Snapdragon X Elite — **ARM64**. No Android emulator runs on it, by any route — durable |
 
 **Maestro itself is fine on Windows**: 2.8.0, installed natively, no WSL — the
@@ -157,7 +136,7 @@ historically and structurally invisible on a local build.
 **THAT HOST EXISTS since 2026-08-29.** The **LG VS988** (Android 9 / API 28)
 is driven over adb from this workstation and Maestro 2.8.0 runs the suite
 against it natively. The Windows-emulator half of this section is durable
-(ARM64); the Mac emulator ran 2026-09-17 → 11-13. Three things learned
+(ARM64); a Mac emulator ran 2026-09-17 → 11-13 and again since 2026-11-22. Three things learned
 running it on the LG on 2026-08-29:
 
 - **The suite requires the app in ENGLISH.** Flow 01 asserts `"Today"`; an
@@ -198,6 +177,7 @@ Run the collector after every suite run:
 
 ```sh
 .maestro/regression/collect-shots.sh    # copies the latest run's shots into shots/
+mac run -n 'zsh apps/mobile/.maestro/regression/collect-shots.sh'   # after a run on the build Mac: shots/ is in its clone
 ```
 
 The entry sheet is opened through the widget deep link (`ignia://?openAdd=1`)

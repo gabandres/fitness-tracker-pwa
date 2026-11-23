@@ -2,28 +2,29 @@
 
 Extracted from `STATUS.md` §3 on 2026-08-15. **Builds are no longer the binding
 constraint**, which is why this is reference material rather than status: both
-platforms built locally on the MacBook Air (`ignia-mac`) at zero EAS quota until
-its sale (this said "build" until 2026-11-19), and JS-only changes need no build at all.
+platforms build locally on **the build Mac** at zero EAS quota, and JS-only
+changes need no build at all.
 
-> **2026-11-13: `ignia-mac` (the M1 Air below) is sold.** Until another Mac is
-> set up there is **no iOS build host**, and the Android Windows path below
-> (raw Gradle, vc 31–45) is not re-verified. **OTAs are unaffected**: they
-> publish from the Windows PC (`winbox`, checkout `Z:\fitness-tracker-pwa`),
-> which computes the Mac's fingerprints and exports its bundles since
-> 2026-11-12 (`apps/mobile/AGENTS.md`). The Android signing material
-> (`apps/mobile/credentials*`) and the ASC key are on the PC; a new Mac needs
-> them copied back plus `scripts/mac-bootstrap.sh`. The rest of this file
-> describes the Air as it was.
+> **Where things run.** The Windows PC holds the code and publishes OTAs (it
+> computes the Mac's fingerprints and exports its bundles since 2026-11-12,
+> `apps/mobile/AGENTS.md`). The build Mac (since 2026-11-22) does iOS builds and
+> uploads and, by default, Android release builds (ADR-0042); the PC's raw-Gradle
+> Android path (vc 31–45) is the fallback while the Mac is away, unverified since.
+> The PC reaches the Mac only through `mac sync` / `mac run '…'` /
+> `mac bg <name> '…'` + `mac wait <name>`, its clone is
+> `~/Repos/fitness-tracker-pwa`. Machines, setup and where secrets sit:
+> `Z:\machines\README.md`. The first Mac, an M1 Air, built both platforms from
+> 2026-08 until its sale on 2026-11-13; the measurements below are its.
 
 Operational runbook: `docs/DEV_ENVIRONMENT.md` §3.10 (iOS) / §3.11 (Android),
 plus the `build-ios` and `build-android` skills. Current fingerprints: the
 table in `apps/mobile/AGENTS.md`; every build/OTA reading with its post-mortem:
 `apps/mobile/docs/fingerprint-ledger.md`.
 
-## The default path while a Mac existed: local, free
+## The default path: local, free
 
-**Every duration below was measured on the M1 Air** (`Apple M1`, 8 cores, 16 GB,
-`MacBookAir10,1`). They are not a baseline for any other Mac — re-measure with
+**Every duration below was measured on the first Mac, an M1 Air** (8 cores,
+16 GB). They are not a baseline for the build Mac — re-measure with
 `node scripts/time-mobile-builds.mjs` (`docs/COMMANDS.md`) and name the machine
 in the number, or a faster laptop reads as a regression.
 
@@ -59,18 +60,13 @@ in the number, or a faster laptop reads as a regression.
   release, r29 included, because Google cross-compiles the Windows toolchain
   from Linux with MinGW rather than building it on Windows. The x86_64 NDK runs
   here under emulation, which is where the build time goes.
-- **Android's build host moves back to `ignia-mac` on 2026-09-17**, reversing
-  the 2026-08-17 decision below. The reason that decision existed — the Air was
-  a shared laptop with a ~17 GB iOS disk floor — died with the 2026-09-10
-  rebuild; the reason to reverse it is that the owner now drives both apps from
-  a phone through T3 Code on the Mac, and a Mac session must be able to ship
-  Android. The Mac got the Surface's exact SDK set that day (JDK 17 via Homebrew
-  `openjdk@17`, `~/Library/Android/sdk` with platform 36, build-tools 35/36, NDK **27.0.12077973 AND
-  27.1.12297006** (both - the graph resolves 27.1 and something else pins 27.0;
-  deleting either costs a mid-build re-download, measured), cmake 3.22.1, emulator + `pixel_api36` arm64 AVD) plus
-  `credentials.json`, `credentials/dev.keystore` and
-  `credentials/play-service-account.json` (SHA-256 verified, mode 600). The
-  release path there is **raw Gradle plus `patch-android-release.mjs`, with
+- **Android's build host moved back to the Mac on 2026-09-17**, reversing
+  the 2026-08-17 decision below (the first Mac's disk had been the reason).
+  Its toolchain and the Android signing material on the build Mac:
+  `Z:\machines\README.md`. One fact is this app's, not the machine's: the graph
+  needs **NDK 27.0.12077973 AND 27.1.12297006** (it resolves 27.1 and something
+  else pins 27.0; deleting either cost a mid-build re-download, measured
+  2026-09-17). The release path there is **raw Gradle plus `patch-android-release.mjs`, with
   `verify-mobile-artifact.mjs` as a NON-OPTIONAL gate** — owner's decision
   2026-09-17, recorded in
   [ADR-0042](adr/0042-android-build-host-returns-to-the-mac.md), taken on build
@@ -86,7 +82,7 @@ in the number, or a faster laptop reads as a regression.
   shipped vc 10 — and it is **deliberately not the default**. If the verifier is
   ever skipped, prefer it.
 
-  **Cutover happened with vc 46 on 2026-09-28** (raw Gradle + the patch script on `ignia-mac`; `eas build --local` alone skips the patch — `build-android` Step 3).
+  **Cutover happened with vc 46 on 2026-09-28** (raw Gradle + the patch script on the first Mac; `eas build --local` alone skips the patch — `build-android` Step 3).
   (A pre-cutover plan for `OWNER["android"] = "windows"` sat here until 2026-11-19;
   the guard has allowed both hosts for both platforms since 2026-11-12.)
 - **Android's build host was the Windows workstation from 2026-08-17 to
@@ -103,10 +99,10 @@ in the number, or a faster laptop reads as a regression.
 - **Most fixes need no build.** EAS Update ships JS/TS over the air in seconds.
   Run the fingerprint gate first (`docs/COMMANDS.md`).
 - `dev.keystore`, `credentials.json`, the Sentry token and an EAS session are on
-  the Windows PC since the Mac's sale (this said "The Mac holds" until 2026-11-19).
+  the Windows PC, and copies on the build Mac (`Z:\machines\README.md`).
 
 Root `engines` accepts `^22.13.0 || ^24.12.0 || ^26.0.0` (Node 26 added
-2026-11-12); `.nvmrc` pins 24.12.0, which the Mac bootstrap installed via fnm.
+2026-11-12); `.nvmrc` pins 24.12.0.
 
 Pinning `engines` to 24 alone was tried first and is wrong: `eas build --local`
 runs its own `INSTALL_DEPENDENCIES` step, so **every iOS build on the Mac printed
@@ -118,10 +114,11 @@ the happy path is one people learn to ignore. RN 0.86 accepts `^20.19.4 ||
 **Exactly one machine resolves dependencies: the Windows PC (`winbox`, checkout
 `Z:\fitness-tracker-pwa`) since 2026-11-13.** Only it runs `npm install` /
 `expo install` / anything that rewrites `package-lock.json`; any other machine
-runs `npm ci` (on the PC itself: `npm ci --ignore-scripts && npx patch-package &&
+runs `npm ci` (`mac sync` does that on the build Mac when the lockfile changed;
+on the PC itself: `npm ci --ignore-scripts && npx patch-package &&
 npm rebuild @firebase/util`, `apps/mobile/AGENTS.md`). Two machines both writing
 the lockfile is how clones drift for real. This said "the lockfile author is
-`ignia-mac`" (2026-10-21 → 11-13) and "Windows" before that, until 2026-11-19.
+the Mac" (2026-10-21 → 11-13) and "Windows" before that, until 2026-11-19.
 `node_modules` is **not** a fingerprint input (disproven 2026-08-17); run the gate
 before a publish regardless — it is the hash, not the install, that decides.
 
@@ -150,8 +147,8 @@ Android 6. The totals agree at 19; only the attribution differs, and
 2026-08-18 despite shipping vc 34, and iOS did not move for any of the six
 builds that day either — all of them were LOCAL (`expo run:ios`, raw Gradle),
 which is the whole point of the local hosts. `eas submit` costs no quota.
-**With no Mac since 2026-11-13, a cloud build is the only iOS path** — this
-fallback is the primary one until another Mac exists.
+A cloud build is the iOS path only while the build Mac is away (it was the only
+one from 2026-11-13 to 2026-11-22, with no Mac).
 
 ```sh
 cd apps/mobile && npx eas-cli account:usage gabandres --non-interactive
@@ -294,8 +291,8 @@ must be repeated there or the directory starts uploading.
 `/System/Volumes/Data`, and check the number before believing a build is blocked
 on disk: this file once carried "~600 Mi free / 100% full" when the volume had
 7.7 GiB, and clearing DerivedData alone returned 10.3 GiB. Do NOT delete
-`apps/mobile/ios/Pods` (forces a `pod install`). (The `ignia-mac` free-space
-snapshot that sat here was dropped 2026-11-19 with the machine.)
+`apps/mobile/ios/Pods` (forces a `pod install`). `mac status` prints the build
+Mac's free disk.
 
 ### `autoIncrement` burns a version number per *attempt*
 

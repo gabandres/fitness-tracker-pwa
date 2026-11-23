@@ -60,8 +60,9 @@
  * `--export-dir` at that export and the measurement costs nothing extra.
  *
  * NOT WIRED INTO CI ON PURPOSE EITHER, AND THIS ONE IS A TRAP — READ IT BEFORE
- * "FIXING" IT. CI is ubuntu/Node 22; the machines that publish are Windows/Node
- * 24 (Android) and `ignia-mac` (iOS). This repo has ALREADY paid for assuming
+ * "FIXING" IT. CI is ubuntu/Node 22; the machines that published until 2026-11-12
+ * were Windows/Node 24 (Android) and `ignia-mac` (iOS); OTAs publish from the
+ * Windows PC since. This repo has ALREADY paid for assuming
  * two hosts produce the same bytes: `@expo/fingerprint` demonstrably does not,
  * three OTAs once published under the wrong host's runtime and reached nobody,
  * and a session was spent trying to align Node and re-run `npm ci` to chase it
