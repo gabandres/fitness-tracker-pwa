@@ -15,8 +15,8 @@ an account's real logs are not something to put in git history.
 
 Runs on the build Mac's simulators, driven from the PC with `mac` (`mac bg <name> '<cmd>'`, `mac wait <name>`;
 `Z:\machines\README.md`). `raw/` and the flow's captures stay in the Mac's clone (nothing syncs back to the PC), so
-compose there too (`mac run 'node scripts/store-screenshots.mjs'`) and ask the owner how `out/` reaches the PC to be
-committed.
+compose there too (`mac run 'node scripts/store-screenshots.mjs'`), then bring `out/` to the PC to be committed:
+`mac get store-assets/out store-assets/`.
 
 The set is shot by `apps/mobile/.maestro/capture/store-shots.yaml` on an
 iPhone 16 Pro Max simulator. Its native 1320 × 2868 is the 6.9" slot exactly.

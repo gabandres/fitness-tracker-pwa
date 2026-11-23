@@ -178,6 +178,7 @@ Run the collector after every suite run:
 ```sh
 .maestro/regression/collect-shots.sh    # copies the latest run's shots into shots/
 mac run -n 'zsh apps/mobile/.maestro/regression/collect-shots.sh'   # after a run on the build Mac: shots/ is in its clone
+mac get apps/mobile/.maestro/regression/shots apps/mobile/.maestro/regression/   # to the PC, when they're needed here
 ```
 
 The entry sheet is opened through the widget deep link (`ignia://?openAdd=1`)
