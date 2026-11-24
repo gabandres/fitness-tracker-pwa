@@ -4,6 +4,14 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-24 — Health connect stops reporting expected HealthKit states (`11f10e8b`; OTAs on iOS build 75, Android vc 53)
+
+Owner: "we got sentry errors". **IGNIA-MOBILE-19**, `com.apple.healthkit Code=5` ("not determined") on 1.2.11 /
+build 75, 1 event, 1 user: the user left the app with the Health permission sheet up. The screen already handled
+it (denied copy, switch off); `connected-apps.tsx` connect and reconnect now skip `captureError` for
+`isExpectedHealthState`, as the background import already did. Sync now still reports. OTA groups iOS
+`81fec32e…`, Android `00c116c2…`.
+
 ## 2026-11-21 — The open backlog that needs no binary (`43241025`, `5fe49251`; OTAs on iOS build 75, Android vc 53)
 
 Owner: "do all except those that require a new binary", then "w3.png looks cramped" on a OnePlus screenshot.
