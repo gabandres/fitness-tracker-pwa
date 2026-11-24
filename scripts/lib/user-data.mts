@@ -74,11 +74,18 @@ export interface MealInput {
   note?: string;
 }
 
-/** A saved meal: one serving with its calories and protein. */
+/** A saved meal: one serving with its calories and protein. A My Foods entry
+ *  may instead name its serving (`16` `'g'`) so the app scales it by weight,
+ *  and carry its brand, carbs and fat; Quick add keeps name, kcal, protein. */
 export interface SavedMealInput {
   name: string;
   calories: number;
   protein: number;
+  brand?: string;
+  servingSize?: number;
+  servingUnit?: 'g' | 'ml' | 'oz' | 'piece' | 'serving';
+  carbs?: number;
+  fat?: number;
 }
 export const ZONE = 'America/Puerto_Rico';
 
@@ -200,10 +207,15 @@ export async function open(name: string): Promise<Session> {
       if (meal.name.length > LOG_LABEL_MAX) return void problems.push(`saved-meal name over ${LOG_LABEL_MAX} characters: ${meal.name}`);
       const data =
         where === 'myFoods'
-          ? toCustomFoodDoc({ name: meal.name, servingSize: 1, servingUnit: 'serving', calories: meal.calories, protein: meal.protein, source: 'manual', createdAt: new Date() }, CODEC)
+          ? toCustomFoodDoc({
+              name: meal.name, servingSize: meal.servingSize ?? 1, servingUnit: meal.servingUnit ?? 'serving', calories: meal.calories, protein: meal.protein,
+              ...(meal.brand != null ? { brand: meal.brand } : {}), ...(meal.carbs != null ? { carbs: meal.carbs } : {}), ...(meal.fat != null ? { fat: meal.fat } : {}),
+              source: 'manual', createdAt: new Date(),
+            }, CODEC)
           : toPresetDoc({ name: meal.name, calories: meal.calories, protein: meal.protein });
+      if (where === 'quickAdd' && (meal.brand ?? meal.servingSize ?? meal.servingUnit ?? meal.carbs ?? meal.fat) != null) return void problems.push(`Quick add holds name, kcal and protein only: ${meal.name}`);
       steps.push({ kind: 'set', ref: user.collection(where === 'myFoods' ? 'customFoods' : 'presets').doc(), data: data as DocumentData });
-      lines.push(`SAVE "${meal.name}" ${meal.calories}/${meal.protein} (${where === 'myFoods' ? 'My Foods, 1 serving' : 'Quick add'})`);
+      lines.push(`SAVE "${meal.name}" ${meal.calories}/${meal.protein} (${where === 'myFoods' ? `My Foods, ${meal.servingSize ?? 1} ${meal.servingUnit ?? 'serving'}` : 'Quick add'})`);
     },
     markDay(flag, complete) {
       const stored = flag.exists ? flag.get('complete') : null;
