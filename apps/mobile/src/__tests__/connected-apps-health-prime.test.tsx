@@ -84,6 +84,36 @@ it('switching OFF disconnects without a sheet', async () => {
   expect(ui.queryByTestId('health-prime')).toBeNull();
 });
 
+describe('a failed connect (IGNIA-MOBILE-19)', () => {
+  const { captureError } = jest.requireMock('@/lib/sentry') as { captureError: jest.Mock };
+
+  async function connectVia(ui: Awaited<ReturnType<typeof render>>) {
+    await fireEvent(ui.getByTestId('health-toggle'), 'valueChange', true);
+    await waitFor(() => expect(ui.getByTestId('health-prime')).toBeTruthy());
+    await fireEvent.press(ui.getByTestId('health-prime-continue'));
+    await waitFor(() => expect(mockConnect).toHaveBeenCalledTimes(1));
+  }
+
+  it('HealthKit Code=5 (sheet left unanswered) is not reported', async () => {
+    mockConnect.mockRejectedValueOnce(new Error('Error Domain=com.apple.healthkit Code=5 "(null)"'));
+    const ui = await render(<ConnectedAppsScreen />);
+    await connectVia(ui);
+    // The catch ran: the user is told, and the switch stays off.
+    await waitFor(() => expect(ui.getByText(/^Permission denied\./)).toBeTruthy());
+    expect(ui.getByTestId('health-toggle').props.value).toBe(false);
+    expect(captureError).not.toHaveBeenCalled();
+  });
+
+  it('an unexpected failure is still reported', async () => {
+    mockConnect.mockRejectedValueOnce(new Error('boom'));
+    const ui = await render(<ConnectedAppsScreen />);
+    await connectVia(ui);
+    await waitFor(() => expect(captureError).toHaveBeenCalledWith(
+      expect.any(Error), { where: 'connectedApps.toggleHealth' },
+    ));
+  });
+});
+
 it('a reconnect for wider scopes goes straight to the OS — the explanation was already given', async () => {
   mockHealth = { ...mockHealth, connected: true, needsReauth: true };
   const ui = await render(<ConnectedAppsScreen />);

@@ -23,6 +23,7 @@ import { openHealthPermissions, useHealthSync } from '@/lib/health-sync';
 import { useOura } from '@/lib/oura';
 import * as haptics from '@/lib/haptics';
 import { captureError } from '@/lib/sentry';
+import { isExpectedHealthState } from '@/lib/health-errors';
 import { useTheme, useThemedStyles, type Theme } from '@/lib/theme-context';
 import { contentColumn, font, radius, space, TARGET } from '@/theme';
 import { Touchable } from '@/components/Touchable';
@@ -83,6 +84,14 @@ const SUCCESS_EXIT = FadeOut.duration(220).reduceMotion(ReduceMotion.System);
  * card cannot live in this file once two screens want it. One provider does not
  * need the abstraction; two do.
  */
+/** A connect that ends in an expected OS state — HealthKit Code=5 "not
+ *  determined" when the user leaves the app with the permission sheet up
+ *  (IGNIA-MOBILE-19, 1.2.11), Code=6 locked — is already answered on screen
+ *  by the denied copy; it is not a defect, so it is not sent to Sentry. */
+function reportHealthFailure(e: unknown, where: string) {
+  if (!isExpectedHealthState(e)) captureError(e, { where });
+}
+
 export default function ConnectedAppsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -127,7 +136,7 @@ export default function ConnectedAppsScreen() {
       .catch((e: unknown) => {
         setHealthDenied(true);
         setHealthMsg(deniedMsg);
-        captureError(e, { where: 'connectedApps.toggleHealth' });
+        reportHealthFailure(e, 'connectedApps.toggleHealth');
       });
   }
 
@@ -163,7 +172,7 @@ export default function ConnectedAppsScreen() {
       .catch((e: unknown) => {
         setHealthDenied(true);
         setHealthMsg(deniedMsg);
-        captureError(e, { where: 'connectedApps.reconnect' });
+        reportHealthFailure(e, 'connectedApps.reconnect');
       });
   }
 
