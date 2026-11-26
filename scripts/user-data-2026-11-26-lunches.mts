@@ -25,7 +25,8 @@
  *
  * Stephanie (stph.ctllo@gmail.com, targets 1,500 / 110)
  *   11/26 meals  breakfast 495/64 [jGYWXCKFqYkksYFy6dQb]; the burger lunch is
- *                created → 945 / 80. Day stays open. Nothing else touched.
+ *                created → 945 / 80, then corrected in place (fries uneaten)
+ *                → 410/16, day 905 / 80. Day stays open. Nothing else touched.
  *
  * A log row has no "estimated" flag: the note says it. No steps, no targets.
  * Dry run unless `--apply`; a re-run plans nothing.
@@ -109,10 +110,20 @@ s.note('owner, already stored by the earlier 11/26 scripts (re-run plans 0): bre
 s.note('owner, left alone: targets · the 11/26 weigh-in and tape · travel templates (all 9 archived since 11/07–11/25) · steps are not read or written');
 
 // ═══ Stephanie: the row only ═══
-await lunch(steph, 'Stephanie', { jGYWXCKFqYkksYFy6dQb: [495, 64] }, {
-  day: DAY, time: '13:15', slot: 'lunch', label: 'Burger half + avocado + fries + vegetables', kcal: 450, protein: 16,
-  note: "Estimated. About half a Denny's burger with bun, cheese and sauce ~250/13 · avocado ~90 g (estimated from photo, not weighed) ~145/2 · about 10 matchstick fries ~40/0 · broccoli, cauliflower and a yellow vegetable slice ~15/1.",
-}, [945, 80]);
+// Corrected the same day (fourth prompt): the fries were left uneaten, so the
+// row first written as "Burger half + avocado + fries + vegetables" 450/16 is
+// renamed and set to 410/16 in place → day 905 / 80.
+const STEPH_LUNCH = {
+  day: DAY, time: '13:15', slot: 'lunch', label: 'Burger half + avocado + vegetables', kcal: 410, protein: 16,
+  note: "Estimated. About half a Denny's burger with bun, cheese and sauce ~250/13 · avocado ~90 g (estimated from photo, not weighed) ~145/2 · broccoli, cauliflower and a yellow vegetable slice ~15/1. Fries left uneaten.",
+} as const;
+const first = (await dayRows(steph, DAY)).filter((d) => d.get('mealLabel') === 'Burger half + avocado + fries + vegetables');
+if (first.length > 1) s.problem(`Stephanie: ${first.length} rows "Burger half + avocado + fries + vegetables"`);
+else if (first[0]) {
+  if (first[0].get('calories') !== 450 || first[0].get('protein') !== 16) s.problem(`Stephanie: [${first[0].id}] is ${first[0].get('calories')}/${first[0].get('protein')}, written as 450/16`);
+  else s.update(first[0], { mealLabel: STEPH_LUNCH.label, calories: STEPH_LUNCH.kcal, protein: STEPH_LUNCH.protein, note: STEPH_LUNCH.note }, `Stephanie: [${first[0].id}] → "${STEPH_LUNCH.label}" ${STEPH_LUNCH.kcal}/${STEPH_LUNCH.protein} + note (fries uneaten)`);
+  s.markDay(await steph.collection('dailyLogged').doc(DAY).get(), null);
+} else await lunch(steph, 'Stephanie', { jGYWXCKFqYkksYFy6dQb: [495, 64] }, STEPH_LUNCH, [905, 80]);
 s.note('Stephanie, left alone: everything else');
 
 await s.run({
