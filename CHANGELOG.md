@@ -4,6 +4,16 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-26 — Sentry sweep: an edit of a deleted row, HealthKit Code=100 (`26e83448`; OTAs on iOS build 75, Android vc 53)
+
+Headless Sentry auto-fix run. **IGNIA-MOBILE-1A** (1.2.11, 1 event): an edit saved over a dailyLog whose doc was
+already gone failed `not-found`, showed "couldn't save" and reported. `useDiaryActions` now says "That entry was
+deleted" and reports nothing for `not-found` (edit, undo-edit, move); the row is not re-created — the delete is the
+newer act. **IGNIA-MOBILE-1B** (1.2.11, 1 event): HealthKit `Code=100` "Authorization session timed out" (sheet
+left up while backgrounded) joins `isExpectedHealthState`. OTA groups iOS `a22dc600…`, Android `12c83713…`.
+Noise, closed in Sentry: **-8** (`Unable to open URL`, 1.2.0 / build 53 only, below the 1.2.11 minimum) and **-14**
+(one expo-updates "Failed to open database" emergency launch, background launch at 1% battery; ignored).
+
 ## 2026-11-24 — Health connect stops reporting expected HealthKit states (`11f10e8b`; OTAs on iOS build 75, Android vc 53)
 
 Owner: "we got sentry errors". **IGNIA-MOBILE-19**, `com.apple.healthkit Code=5` ("not determined") on 1.2.11 /
