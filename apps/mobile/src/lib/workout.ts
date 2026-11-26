@@ -419,8 +419,11 @@ export interface WorkoutSession {
   date: Date;
   bodyweight?: number;
   sleepHours?: number;
-  /** The program version the template ran as (core `templateVersionFor`). */
-  templateVersion?: 'v1' | 'v2';
+  /** The programme version the session ran as (core `sessionVersionFor`):
+   *  the template's label ("v2.4"), else the draft marker. */
+  templateVersion?: string;
+  /** The Program v2 draft marker at start (core `startProgramVersion`). */
+  programVersion?: 'v1' | 'v2';
   /** A deload session (Program v2.1, core `deload.ts`). Set at start. */
   deload?: boolean;
   /** A re-entry session after time away (travel mode, core `reentry.ts`):

@@ -62,6 +62,32 @@ export function templateVersionFor(templateId: string | undefined, drafts: reado
 }
 
 /**
+ * What a session of `template` records about its version, frozen at start:
+ * - `templateVersion`: the template's own programme label ("v2.4") when it
+ *   has one, else the draft marker. Sessions before 2026-11-26 carry only the
+ *   marker here (owner, 2026-11-26: a v2.4 session read "v2").
+ * - `programVersion`: the draft marker (`v1` / `v2`), only when a program
+ *   draft touches the template. Finish compares it to the live version to
+ *   tell a mid-session switch ({@link startProgramVersion}).
+ */
+export function sessionVersionFor(
+  template: { id?: string; templateVersion?: string },
+  drafts: readonly ProgramDraft[],
+): { templateVersion?: string; programVersion?: ProgramVersion } {
+  const marker = templateVersionFor(template.id, drafts);
+  const label = template.templateVersion?.trim() || undefined;
+  const version = label ?? marker;
+  return { ...(version ? { templateVersion: version } : {}), ...(marker ? { programVersion: marker } : {}) };
+}
+
+/** The draft marker a session started under: `programVersion`, or — on a
+ *  session saved before that field — `templateVersion` when it is `v1`/`v2`. */
+export function startProgramVersion(session: { templateVersion?: string; programVersion?: ProgramVersion }): ProgramVersion | undefined {
+  if (session.programVersion) return session.programVersion;
+  return session.templateVersion === 'v1' || session.templateVersion === 'v2' ? session.templateVersion : undefined;
+}
+
+/**
  * The drafts the automatic switch turns on now that `session` is saved, or
  * an empty list. All of these must hold:
  * - the session is COMPLETED, of the armed template, and started after the

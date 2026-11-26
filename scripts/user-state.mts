@@ -31,6 +31,7 @@ const s = await open('user-state');
 const user = await s.user(email);
 const p = (await user.get()).data() ?? {};
 console.log(`uid ${user.id.slice(0, 6)}… · targets ${p.targetMode ?? '-'} ${p.manualCaloriesTarget ?? '-'}/${p.manualProteinTarget ?? '-'} · units ${p.unitSystem ?? '-'} · proteinFirst ${p.proteinFirst ?? false}`);
+if (p.gymEquipment) console.log(`gym equipment: ${p.gymEquipment}`);
 
 const days: string[] = [];
 for (let d = at(from, '12:00'); d <= at(to, '12:00'); d = new Date(d.getTime() + 86_400_000)) days.push(d.toLocaleDateString('en-CA', { timeZone: 'America/Puerto_Rico' }));

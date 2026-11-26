@@ -325,6 +325,16 @@ describe(`firestore.rules (owner token email_verified=${ownerVerified})`, () => 
     await assertSucceeds(updateDoc(ref, { bodyFatPct: deleteField(), bodyFatMethod: deleteField() }));
   });
 
+  it('a measurement may carry a short note, kept through a client edit (2026-11-26)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const ref = doc(db, 'users', 'alice', 'measurements', 'm1');
+    await assertSucceeds(setDoc(ref, { timestamp: Timestamp.now(), waist: 31.5, note: 'Median of 3.' }));
+    await assertSucceeds(updateDoc(ref, { waist: 31.25 }));
+    await assertFails(setDoc(ref, { timestamp: Timestamp.now(), waist: 31.5, note: 'x'.repeat(301) }));
+    await assertFails(setDoc(ref, { timestamp: Timestamp.now(), waist: 31.5, note: 3 }));
+  });
+
   it('an unverified owner can create a profile and then a dailyLog (2026-11-19 policy)', async () => {
     // Until 2026-11-19 both writes were denied to an unverified token. The
     // owner relaxed it: own data is writable before verification; AI spend,
@@ -1380,6 +1390,15 @@ describe(`firestore.rules (owner token email_verified=${ownerVerified})`, () => 
     await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), unitAsk: 'kg' }));
   });
 
+  it('accepts a gym-equipment note on a completed profile, and a client merge over it (2026-11-26)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), gymEquipment: 'Paramount MP Series.' }));
+    await assertSucceeds(setDoc(doc(db, 'users', 'alice'), { reminderHour: 9 }, { merge: true }));
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), gymEquipment: 'x'.repeat(1001) }));
+    await assertFails(setDoc(doc(db, 'users', 'alice'), { ...completedProfile(), gymEquipment: ['a'] }));
+  });
+
   it('rejects training settings on an incomplete profile (only Settings writes them)', async () => {
     const db = authed('alice');
     await assertFails(setDoc(doc(db, 'users', 'alice'), { ...baseProfile(), trainingPhase: 'cut' }));
@@ -1791,6 +1810,17 @@ describe(`firestore.rules (owner token email_verified=${ownerVerified})`, () => 
     await assertFails(addDoc(col, validSession({ sessionNote: 'x'.repeat(501) })));
   });
 
+  it('a session carries its template label and the draft marker (2026-11-26)', async () => {
+    const db = authed('alice');
+    await setDoc(doc(db, 'users', 'alice'), baseProfile());
+    const col = collection(db, 'users', 'alice', 'workoutSessions');
+    await assertSucceeds(addDoc(col, validSession({ templateVersion: 'v2.4', programVersion: 'v2' })));
+    await assertSucceeds(addDoc(col, validSession({ templateVersion: 'v2' })));
+    await assertFails(addDoc(col, validSession({ templateVersion: '' })));
+    await assertFails(addDoc(col, validSession({ templateVersion: 'v'.repeat(17) })));
+    await assertFails(addDoc(col, validSession({ templateVersion: 'v2.4', programVersion: 'v2.4' })));
+  });
+
   it('accepts a workout session with no cardio field at all', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
@@ -2174,13 +2204,13 @@ describe(`firestore.rules (owner token email_verified=${ownerVerified})`, () => 
     await assertFails(addDoc(col, validSession({ deload: 'yes' })));
   });
 
-  it('accepts a session templateVersion of v1 or v2 and nothing else', async () => {
+  it('accepts a session templateVersion as a short label (v1, v2, v2.4) and nothing else', async () => {
     const db = authed('alice');
     await setDoc(doc(db, 'users', 'alice'), baseProfile());
     const col = collection(db, 'users', 'alice', 'workoutSessions');
     await assertSucceeds(addDoc(col, validSession({ templateVersion: 'v2' })));
     await assertSucceeds(addDoc(col, validSession({ templateVersion: 'v1' })));
-    await assertFails(addDoc(col, validSession({ templateVersion: '2' })));
+    await assertFails(addDoc(col, validSession({ templateVersion: 2 })));
   });
   it('accepts bedtime / wake time on a dailySleep doc as HH:MM, and refuses anything else', async () => {
     const db = authed('alice');

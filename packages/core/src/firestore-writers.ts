@@ -638,8 +638,11 @@ export interface SessionDraftInput {
   sleepHours?: number;
   /** Whole-session minutes. Its cardio sibling below is per-effort SECONDS. */
   durationMin?: number;
-  /** Program v2: the version the template ran as, snapshotted at start. */
-  templateVersion?: 'v1' | 'v2';
+  /** The programme version the session ran as (`sessionVersionFor`): the
+   *  template's label ("v2.4") or the draft marker. Snapshotted at start. */
+  templateVersion?: string;
+  /** The Program v2 draft marker, snapshotted at start. */
+  programVersion?: 'v1' | 'v2';
   /** A deload session (`deload.ts`) — set at start, `true` or absent. */
   deload?: boolean;
   /** A re-entry session (`reentry.ts`) — set at start, never changed. */
@@ -721,6 +724,7 @@ export function toSessionDoc<TS>(
       ? { durationMin: draft.durationMin }
       : {}),
     ...(draft.templateVersion !== undefined ? { templateVersion: draft.templateVersion } : {}),
+    ...(draft.programVersion !== undefined ? { programVersion: draft.programVersion } : {}),
     ...(draft.deload === true ? { deload: true } : {}),
     ...(draft.reentry === 'travel' || draft.reentry === 'post-travel' ? { reentry: draft.reentry } : {}),
     ...(draft.reentry && draft.reentryRule && sanitizeReentryRule(draft.reentryRule) ? { reentryRule: sanitizeReentryRule(draft.reentryRule)! } : {}),
@@ -754,6 +758,7 @@ export function toSessionPatch<TS>(
   if (patch.sleepHours !== undefined && isStorableSleepHours(patch.sleepHours)) data['sleepHours'] = patch.sleepHours;
   if (patch.durationMin !== undefined && isStorableDurationMin(patch.durationMin)) data['durationMin'] = patch.durationMin;
   if (patch.templateVersion !== undefined) data['templateVersion'] = patch.templateVersion;
+  if (patch.programVersion !== undefined) data['programVersion'] = patch.programVersion;
   if (patch.deload === true) data['deload'] = true;
   if (patch.reentry === 'travel' || patch.reentry === 'post-travel') data['reentry'] = patch.reentry;
   // A switch: written as a plain boolean either way. NOT `codec.remove()` for

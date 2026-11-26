@@ -361,6 +361,22 @@ describe('S23-10: lifts added or removed mid-session', () => {
     await waitFor(() => expect(asked?.message).toBe('Press: 100 lb → 105 lb'));
   });
 
+  it('a labelled session ("v2.4") reads the switch off programVersion (2026-11-26)', async () => {
+    const moved = { ...reshaped, templateVersion: 'v2.4', programVersion: 'v1' } as unknown as WorkoutSession;
+    const train = { ...trainWith(moved, false), programVersion: 'v2' as const };
+    const ui = await open(train);
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await waitFor(() => expect(asked?.message).toBe('Press: 100 lb → 105 lb'));
+  });
+
+  it('a labelled session ("v2.4") with no switch still proposes structure', async () => {
+    const same = { ...reshaped, templateVersion: 'v2.4', programVersion: 'v2' } as unknown as WorkoutSession;
+    const train = { ...trainWith(same, false), programVersion: 'v2' as const };
+    const ui = await open(train);
+    await fireEvent.press(ui.getByTestId('finish-confirm'));
+    await waitFor(() => expect(asked?.message).toBe('Press: 100 lb → 105 lb\nAdd Cable Fly\nRemove Row'));
+  });
+
   it('the same version as at the start still proposes structure', async () => {
     const same = { ...reshaped, templateVersion: 'v2' } as unknown as WorkoutSession;
     const train = { ...trainWith(same, false), programVersion: 'v2' as const };

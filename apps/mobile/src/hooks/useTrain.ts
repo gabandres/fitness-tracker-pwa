@@ -50,7 +50,7 @@ import {
   rowPendingLoadTest,
   programAutoActivation,
   programVersion as programVersionOf,
-  templateVersionFor,
+  sessionVersionFor,
   dumbbellStepLb,
   deloadProgress,
   deloadSessionExercises,
@@ -771,7 +771,7 @@ export function useTrain(): TrainState {
       // own loads, half the clusters, RIR 3 (core `deloadSessionExercises`).
       // No engine call is frozen on it — the engine never reads a deload.
       if (template.id && deload.active && deload.remaining.includes(template.id)) {
-        const templateVersion = templateVersionFor(template.id, draftsRef.current);
+        const version = sessionVersionFor(template, draftsRef.current);
         begin({
           status: 'active',
           date: new Date(),
@@ -785,7 +785,7 @@ export function useTrain(): TrainState {
           })), activeTravel(dayKeyAt(new Date(), dayBoundaryOf(profile)), travelPeriodsOf(profile)) != null),
           cardio: templateToSessionCardio(template),
           deload: true,
-          ...(templateVersion ? { templateVersion } : {}),
+          ...version,
         });
         return;
       }
@@ -825,8 +825,9 @@ export function useTrain(): TrainState {
         // differ (owner, 2026-10-09: "says HOLD 20, filled 25").
         return { ...seedCallLoad(se, rec.load), recommendation: toRecommendationSnapshot(rec, basedOn) };
       });
-      // Program v2: the version this template runs as, frozen on the session.
-      const templateVersion = templateVersionFor(template.id, draftsRef.current);
+      // The version this template runs as (its label, "v2.4", and the Program
+      // v2 draft marker), frozen on the session.
+      const version = sessionVersionFor(template, draftsRef.current);
       // Travel mode (core `reentry.ts`): a gym session during a trip after a
       // week without one, or a template's first session after the trip, is a
       // re-entry — loads −10 % on a real step, RIR 2, never read by the engine.
@@ -857,7 +858,7 @@ export function useTrain(): TrainState {
         templateName: template.name,
         exercises: withStartUnits(reentry ? reentrySessionExercises(exercises, stepFor, reentryRule) : exercises, activeTravel(today, periods) != null),
         cardio: templateToSessionCardio(template),
-        ...(templateVersion ? { templateVersion } : {}),
+        ...version,
         ...(reentry ? { reentry, reentryRule } : {}),
         // A one-off (core `WorkoutTemplate.oneOff`, 2026-11-16) is a gym that
         // will not be seen again: out of e1RM charts and PRs from the start.

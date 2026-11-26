@@ -31,6 +31,7 @@ import {
   sessionActivationIssues,
   sessionCounts,
   setRowLabels,
+  startProgramVersion,
   setsMissingRir,
   setsRequiringRir,
   structureOf,
@@ -1187,9 +1188,11 @@ export function TrainFinishSheet({
   // Not when the program version moved since the session started (a Settings
   // switch mid-workout swaps the template's body under the same id): the
   // "differences" would be the other version's lifts, and Update would undo
-  // the switch (review R2 P2-7). `templateVersion` is the start's snapshot.
+  // the switch (review R2 P2-7). The start's draft marker (`programVersion`,
+  // or `templateVersion` on an older session) is the snapshot.
   const programVersion = train.programVersion;
-  const versionMoved = session?.templateVersion != null && programVersion !== session.templateVersion;
+  const startVersion = session ? startProgramVersion(session) : undefined;
+  const versionMoved = startVersion != null && programVersion !== startVersion;
   const structure = useMemo(
     // Nor its shape: a deload's halved clusters are not "removed" ones.
     // Nor a re-entry or another gym's session: a lift skipped for want of the

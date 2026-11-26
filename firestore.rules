@@ -291,9 +291,12 @@ service cloud.firestore {
     function isValidMeasurement(data) {
       return data.keys().hasAll(['timestamp'])
           && data.keys().hasOnly(['timestamp', 'waist', 'chest', 'bicep', 'hip', 'neck',
-                                  'bodyFatPct', 'bodyFatMethod'])
+                                  'bodyFatPct', 'bodyFatMethod', 'note'])
           && data.timestamp is timestamp
           && data.keys().size() >= 2
+          // How it was taken (2026-11-26, owner-data scripts; the app keeps it
+          // through an edit, `updateMeasurement` patches).
+          && (!('note' in data.keys()) || (data.note is string && data.note.size() <= 300))
           // Per-field bands in INCHES, mirroring MEASUREMENT_BOUNDS_IN in
           // packages/core/src/measurement-bounds.ts — keep the two in step.
           // One shared 0–200 range let a 15in chest through (a neck value in
@@ -665,8 +668,10 @@ service cloud.firestore {
               'status', 'templateId', 'templateName', 'timestamp',
               'bodyweight', 'sleepHours', 'durationMin',
               'exercises', 'cardio', 'nextNotes', 'createdAt', 'updatedAt',
-              // Program v2 (2026-10-11): the version the template ran as.
-              'templateVersion',
+              // Program v2 (2026-10-11): the version the template ran as. Since
+              // 2026-11-26 the template's label ("v2.4"); the draft marker
+              // (v1/v2) is `programVersion` (core program.ts sessionVersionFor).
+              'templateVersion', 'programVersion',
               // Imported cardio blocks the user removed (2026-10-15): the
               // Health / Oura import skips these sourceIds, or a removed block
               // comes straight back on the next foreground.
@@ -720,7 +725,9 @@ service cloud.firestore {
               (data.sleepHours is number && data.sleepHours >= 0 && data.sleepHours <= 24))
           && (!('durationMin' in data.keys()) ||
               (data.durationMin is number && data.durationMin >= 0 && data.durationMin <= 1440))
-          && (!('templateVersion' in data.keys()) || data.templateVersion in ['v1', 'v2'])
+          && (!('templateVersion' in data.keys()) ||
+              (data.templateVersion is string && data.templateVersion.size() > 0 && data.templateVersion.size() <= 16))
+          && (!('programVersion' in data.keys()) || data.programVersion in ['v1', 'v2'])
           && (!('dismissedSourceIds' in data.keys()) ||
               (data.dismissedSourceIds is list && data.dismissedSourceIds.size() <= 50))
           && (!('deload' in data.keys()) || data.deload is bool)
@@ -859,7 +866,10 @@ service cloud.firestore {
               // A one-time "kg or lb?" question for a gym (2026-11-05; core
               // gym-units.ts `UnitAsk`). Written by an owner-data script; the
               // app deletes it once answered.
-              'unitAsk'
+              'unitAsk',
+              // The lifter's gym equipment, free text (2026-11-26). Written by an
+              // owner-data script; a record for planning, the app shows nothing.
+              'gymEquipment'
           ])
           && hasProfileBase(data)
           && data.profileCompleted == true
@@ -1002,6 +1012,8 @@ service cloud.firestore {
               (data.unitAsk is map
                && data.unitAsk.keys().hasOnly(['gym', 'question', 'exerciseIds', 'relabelSessionId'])
                && data.unitAsk.exerciseIds is list && data.unitAsk.exerciseIds.size() <= 40))
+          && (!('gymEquipment' in keys) ||
+              (data.gymEquipment is string && data.gymEquipment.size() <= 1000))
           // Body weight in lb, the weigh-in sanity band widened to a gate
           // somebody could actually set.
           && (!('volumeGateLb' in keys) ||

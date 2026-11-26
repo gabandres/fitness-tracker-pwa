@@ -327,11 +327,16 @@ export interface WorkoutSession {
   /** Logged bodyweight; the store mirrors this into dailyWeights on finish. */
   bodyweight?: number;
   sleepHours?: number;
-  /** Which program version the template ran as when this session started
-   *  (Program v2, 2026-10-11): `v2` when its v2 draft was active, `v1` when a
-   *  v2 draft existed but was not. Absent for every other session. A snapshot —
-   *  switching versions later never rewrites it. */
-  templateVersion?: 'v1' | 'v2';
+  /** The programme version this session ran as, frozen at start
+   *  (`sessionVersionFor`): the template's own label ("v2.4") when it has
+   *  one, else the draft marker below. Before 2026-11-26 only the marker was
+   *  written here (`v1` / `v2`). A snapshot — later edits never rewrite it. */
+  templateVersion?: string;
+  /** Which Program v2 draft the template ran as (2026-10-11): `v2` when its
+   *  draft was active, `v1` when a draft existed but was not. Absent for every
+   *  other session; older sessions keep it in `templateVersion`
+   *  (`startProgramVersion`). */
+  programVersion?: 'v1' | 'v2';
   /**
    * How long the whole SESSION took, in minutes.
    *
