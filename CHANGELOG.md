@@ -4,6 +4,15 @@ Entries below that cite "the row in `apps/mobile/AGENTS.md`" mean the OTA/build
 ledger, which moved verbatim to `apps/mobile/docs/fingerprint-ledger.md` on
 2026-09-14 (AGENTS.md keeps only the current-fingerprint table).
 
+## 2026-11-26 — A session records its template's version, "v2.4" (`93020444`; OTAs on iOS build 75, Android vc 53)
+
+Owner: sessions started from v2.4 templates were saved as "v2". The app wrote only the Program v2 draft marker
+(`templateVersionFor`: v1|v2); rules and the mapper allowed nothing else. Core `sessionVersionFor` now writes the
+template's label as `templateVersion` and the marker as its own `programVersion`; Finish reads the marker through
+`startProgramVersion`. Rules (deployed first): session `templateVersion` a 1–16 char string + `programVersion`
+v1|v2; profile `gymEquipment`; measurement `note`. The owner's 11/23, 11/25 and 11/26 sessions relabelled v2.4
+(`owner-data-2026-11-26-push-review`). OTA groups iOS `7fc12ffb…`, Android `b6f662c1…`.
+
 ## 2026-11-26 — Sentry sweep: an edit of a deleted row, HealthKit Code=100 (`26e83448`; OTAs on iOS build 75, Android vc 53)
 
 Headless Sentry auto-fix run. **IGNIA-MOBILE-1A** (1.2.11, 1 event): an edit saved over a dailyLog whose doc was
