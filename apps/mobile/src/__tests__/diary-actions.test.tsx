@@ -28,6 +28,7 @@ import { act, renderWithProviders as render } from '@/test-utils';
 import type { DailyLog, LogEntry } from '@macrolog/core';
 import { type DiaryActions, type DiaryActionsOptions, useDiaryActions } from '@/hooks/useDiaryActions';
 import * as haptics from '@/lib/haptics';
+import { captureError } from '@/lib/sentry';
 
 const oats: DailyLog = { id: 'r1', calories: 300, protein: 10, mealLabel: 'Oatmeal', date: new Date(2026, 9, 4, 8) };
 
@@ -79,6 +80,34 @@ describe('useDiaryActions', () => {
     await act(async () => ref.current!.deleteFromList(oats));
     await act(async () => mockShow.mock.calls[0][1].action.onPress());
     expect(mockShow).toHaveBeenLastCalledWith("Couldn't restore that entry. It's still deleted.");
+  });
+
+  // IGNIA-MOBILE-1A, 1.2.11: an edit saved over a row whose doc was already
+  // deleted (another device, or an Undo) fails `not-found`. That is a state
+  // to tell the user about, not a crash to report — and nothing to retry.
+  it('says the row is gone, and reports nothing, when an edit finds no doc', async () => {
+    const gone = Object.assign(new Error('No document to update'), { code: 'not-found' });
+    const { ref, render: r } = setup({ updateEntry: jest.fn().mockRejectedValue(gone) });
+    await r();
+    await act(async () => ref.current!.openEdit(oats));
+    await act(async () => {
+      await ref.current!.onSave({ calories: 350, protein: 10, mealLabel: 'Oatmeal' });
+    });
+    await act(async () => {});
+    expect(mockShow).toHaveBeenLastCalledWith("That entry was deleted, so the change wasn't saved.");
+    expect(captureError).not.toHaveBeenCalled();
+  });
+
+  it('still reports any other failed edit', async () => {
+    const { ref, render: r } = setup({ updateEntry: jest.fn().mockRejectedValue(new Error('boom')) });
+    await r();
+    await act(async () => ref.current!.openEdit(oats));
+    await act(async () => {
+      await ref.current!.onSave({ calories: 350, protein: 10, mealLabel: 'Oatmeal' });
+    });
+    await act(async () => {});
+    expect(mockShow).toHaveBeenLastCalledWith("Couldn't save that change. Open the entry to try again.");
+    expect(captureError).toHaveBeenCalledWith(expect.any(Error), { where: 'today.updateEntry' });
   });
 
   it('reopens the form holding a refused add — the sheet has already closed', async () => {

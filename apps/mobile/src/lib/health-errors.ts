@@ -20,7 +20,12 @@
  * what a reinstall, a restore from backup, or a revoke in Settings -> Privacy
  * -> Health leaves behind: AsyncStorage survives, the HealthKit grant does not.
  *
- * Both are expected OS states rather than defects, and NEITHER is actionable
+ * Code=100 "Authorization session timed out", added 2026-11-26 from
+ * IGNIA-MOBILE-1B on 1.2.11 / build 75: the user left the app with the
+ * permission sheet up and came back after iOS had given up on it — the same
+ * walk-away as Code=5 on connect, answered on screen by the denied copy.
+ *
+ * All are expected OS states rather than defects, and NEITHER is actionable
  * from a background import that fires on every foreground — so re-throwing
  * turns an unremarkable device condition into an unhandled rejection that
  * Sentry reports exactly like a crash. `useHealthSync`'s foreground *Sync now*
@@ -39,6 +44,8 @@ export function isExpectedHealthState(err: unknown): boolean {
     || msg.includes('com.apple.healthkit Code=6')
     || msg.includes('com.apple.healthkit Code=5')
     || msg.includes('Authorization not determined')
+    || msg.includes('com.apple.healthkit Code=100')
+    || msg.includes('Authorization session timed out')
     || isHealthConnectBindingFailure(msg);
 }
 

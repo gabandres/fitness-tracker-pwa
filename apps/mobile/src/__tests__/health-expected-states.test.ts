@@ -23,6 +23,16 @@ describe('isExpectedHealthState', () => {
     expect(isExpectedHealthState(err)).toBe(true);
   });
 
+  // IGNIA-MOBILE-1B, 1.2.11 / build 75: the permission sheet was left up while
+  // the app sat in the background until iOS timed the session out.
+  it('claims "authorization session timed out"', () => {
+    const err = new Error(
+      'Error Domain=com.apple.healthkit Code=100 "Authorization session timed out" ' +
+        'UserInfo={NSLocalizedDescription=Authorization session timed out}',
+    );
+    expect(isExpectedHealthState(err)).toBe(true);
+  });
+
   // IGNIA-MOBILE-W / -X, release 1.2.3 / vc 45, Android 10 under memory
   // pressure. Health Connect is another process; the OS killed it and the
   // bind rejected. Sentry shows a bare `android.os.RemoteException` with no

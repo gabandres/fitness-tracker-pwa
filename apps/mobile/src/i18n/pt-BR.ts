@@ -2552,6 +2552,7 @@ export const ptBR: Record<I18nKey, string> = {
   'common.edit': 'Editar',
   'entry.loggedMany': '{n} itens registrados · {kcal} kcal',
   'entry.updateFailed': "Não foi possível salvar a alteração. Abra o registro para tentar de novo.",
+  'entry.updateGone': "Esse registro foi apagado, então a alteração não foi salva.",
   'entry.loggedKcal': '{n} kcal registradas',
   'entry.loggedLeft': 'faltam {n}',
   'entry.loggedOver': '{n} a mais',

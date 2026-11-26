@@ -160,16 +160,30 @@ export function useDiaryActions({
     openEdit(live ?? { ...entry, id, date: entry.timestamp ?? new Date() });
   }
 
+  /**
+   * A failed edit of an existing row. `not-found` means the row's doc is gone
+   * from the server — deleted on another device, or undone after the sheet
+   * opened — so there is nothing to patch and nothing to retry. That is a
+   * state, not a defect: the user is told and Sentry is not (IGNIA-MOBILE-1A,
+   * 1.2.11). The row is not re-created: the delete is the newer act, as
+   * `health-sync` already treats a vanished session.
+   */
+  const editFailed = (what: string) => (e: unknown) => {
+    haptics.warning();
+    if ((e as { code?: string } | null)?.code === 'not-found') {
+      toast.show(t('entry.updateGone'));
+      return;
+    }
+    toast.show(t('entry.updateFailed'));
+    captureError(e, { where: `${where}.${what}` });
+  };
+
   async function onSave(entry: LogEntry): Promise<AddReceipt | void> {
     if (editing?.id) {
       const before = editing;
       // An untouched form's Save writes nothing and says nothing.
       if (isNoopEdit(before, entry)) return;
-      updateEntry(editing.id, entry).catch((e) => {
-        haptics.warning();
-        toast.show(t('entry.updateFailed'));
-        captureError(e, { where: `${where}.updateEntry` });
-      });
+      updateEntry(editing.id, entry).catch(editFailed('updateEntry'));
       // An edit is undoable like an add or a delete: the receipt puts the row
       // back exactly as it was (same id, same fields).
       const label = entry.mealLabel?.trim() || before.mealLabel?.trim();
@@ -177,11 +191,7 @@ export function useDiaryActions({
         action: {
           label: t('common.undo'),
           onPress: () => {
-            updateEntry(before.id!, entryFromLog(before)).catch((e) => {
-              haptics.warning();
-              toast.show(t('entry.updateFailed'));
-              captureError(e, { where: `${where}.undoEdit` });
-            });
+            updateEntry(before.id!, entryFromLog(before)).catch(editFailed('undoEdit'));
           },
         },
       });
@@ -373,11 +383,7 @@ export function useDiaryActions({
     const id = log.id;
     if (!id || log.mealType === slot) return;
     const before = entryFromLog(log);
-    const failed = (what: string) => (e: unknown) => {
-      haptics.warning();
-      toast.show(t('entry.updateFailed'));
-      captureError(e, { where: `${where}.${what}` });
-    };
+    const failed = editFailed;
     updateEntry(id, { ...before, mealType: slot }).catch(failed('moveEntry'));
     haptics.success();
     toast.show(t('entry.movedTo', { slot: capitalizeFirst(t(SLOT_WORD[slot]), locale) }), {

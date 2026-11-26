@@ -2569,6 +2569,7 @@ export const esPR: Record<I18nKey, string> = {
   'common.edit': 'Editar',
   'entry.loggedMany': 'Registrados {n} alimentos · {kcal} kcal',
   'entry.updateFailed': "No se pudo guardar el cambio. Abre la entrada para intentarlo de nuevo.",
+  'entry.updateGone': "Esa entrada se borró, así que el cambio no se guardó.",
   'entry.loggedKcal': 'Registradas {n} kcal',
   'entry.loggedLeft': 'quedan {n}',
   'entry.loggedOver': '{n} de más',

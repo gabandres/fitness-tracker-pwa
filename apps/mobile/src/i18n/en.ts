@@ -2767,6 +2767,7 @@ export const en = {
   'common.edit': 'Edit',
   'entry.loggedMany': 'Logged {n} items · {kcal} kcal',
   'entry.updateFailed': "Couldn't save that change. Open the entry to try again.",
+  'entry.updateGone': "That entry was deleted, so the change wasn't saved.",
   'entry.loggedKcal': 'Logged {n} kcal',
   'entry.loggedLeft': '{n} left',
   'entry.loggedOver': '{n} over',
