@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   activeHomeNotes,
   checkInReading,
+  checkInSites,
   checkInToday,
   estimatedMealToday,
   homePlanOf,
@@ -62,6 +63,26 @@ describe('home plan (2026-11-18)', () => {
     expect(r.weightDelta).toBe(-0.3);
     expect(r.waistDelta).toBe(-0.25);
     expect(r.neckDelta).toBe(0);
+    expect(r.chestIn).toBeNull();
+    expect(checkInSites(plan!.checkIn!)).toEqual(['waist', 'neck']);
+  });
+  it('check-in sites: chest tracked with no baseline reads its first tape (2026-11-26)', () => {
+    const ci = homePlanOf({ homePlan: { checkIn: {
+      date: '2026-11-30', title: 'Tape', sites: ['waist', 'chest', 'neck', 'hip', 'chest'],
+      baseline: { date: '2026-10-30', waistIn: 31.25, neckIn: 14.5, chestIn: 'x' },
+    } } })!.checkIn!;
+    expect(ci.sites).toEqual(['waist', 'neck', 'chest']);
+    expect(ci.baseline.chestIn).toBeUndefined();
+    expect(checkInSites(ci)).toEqual(['waist', 'neck', 'chest']);
+    const r = checkInReading(ci, '2026-11-30', {}, [
+      { date: new Date(2026, 10, 30, 7), waist: 31.25, neck: 14.5, chest: 38.5 },
+      { date: new Date(2026, 10, 26, 7), chest: 39 },
+    ], MIDNIGHT);
+    expect(r.chestIn).toBe(38.5);
+    expect(r.chestDelta).toBeNull();
+    expect(checkInReading({ ...ci, baseline: { ...ci.baseline, chestIn: 39 } }, '2026-11-30', {}, [
+      { date: new Date(2026, 10, 30, 7), chest: 38.5 },
+    ], MIDNIGHT).chestDelta).toBe(-0.5);
   });
   it('review: due after two full NORMAL rotations; re-entry sessions do not count', () => {
     const s = (day: number, templateId: string, extra: Partial<WorkoutSession> = {}) => ({

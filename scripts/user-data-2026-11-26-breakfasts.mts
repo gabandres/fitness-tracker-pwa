@@ -65,7 +65,9 @@ const stored = JSON.parse(JSON.stringify(profile.get('homePlan') ?? null)) as { 
 if (!stored?.notes) s.problem('owner: profile.homePlan has no notes');
 else {
   const same = stored.notes.filter((n) => n.from === DAY && n.to === DAY && n.label === NOTE.label);
-  if (same.length && same[0].note !== NOTE.note) s.problem(`owner: "${NOTE.label}" exists with another note: ${same[0].note}`);
+  // Reworded by the next prompt (`user-data-2026-11-26-lunches.mts`).
+  const LATER = 'Leftovers carry ~700–800 mg sodium; rest of the day kept low-sodium after two restaurant meals on 11/25.';
+  if (same.length && same[0].note !== NOTE.note && same[0].note !== LATER) s.problem(`owner: "${NOTE.label}" exists with another note: ${same[0].note}`);
   else if (!same.length) {
     const next = { ...stored, notes: [...stored.notes, NOTE] };
     const kept = homePlanOf({ homePlan: next })?.notes ?? [];

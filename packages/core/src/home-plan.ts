@@ -43,8 +43,16 @@ export interface HomePlanCheckIn {
   date: string;
   title: string;
   note?: string;
-  baseline: { date: string; weightLb?: number; waistIn?: number; neckIn?: number };
+  baseline: { date: string; weightLb?: number; waistIn?: number; neckIn?: number; chestIn?: number };
+  /** The tape sites the card reads (2026-11-26: chest joins waist and neck).
+   *  Absent = the sites the baseline has. A site with no baseline shows its
+   *  first reading. */
+  sites?: CheckInSite[];
 }
+
+/** A tape site the check-in card reads. */
+export type CheckInSite = 'waist' | 'neck' | 'chest';
+const CHECK_IN_SITES: readonly CheckInSite[] = ['waist', 'neck', 'chest'];
 
 /** Days when one meal may be logged as an estimate, without accuracy nags. */
 export interface HomePlanEstimatedMeal {
@@ -141,7 +149,13 @@ export function homePlanOf(profile: { homePlan?: unknown } | null | undefined): 
     const w = num(base['weightLb'], 50, 700); if (w != null) b.weightLb = w;
     const waist = num(base['waistIn'], 10, 100); if (waist != null) b.waistIn = waist;
     const neck = num(base['neckIn'], 5, 40); if (neck != null) b.neckIn = neck;
-    plan.checkIn = { date: ci['date'], title: str(ci['title'], 80)!, baseline: b, ...(str(ci['note'], 300) ? { note: str(ci['note'], 300)! } : {}) };
+    const chest = num(base['chestIn'], 20, 80); if (chest != null) b.chestIn = chest;
+    const sites = Array.isArray(ci['sites']) ? CHECK_IN_SITES.filter((x) => (ci['sites'] as unknown[]).includes(x)) : [];
+    plan.checkIn = {
+      date: ci['date'], title: str(ci['title'], 80)!, baseline: b,
+      ...(str(ci['note'], 300) ? { note: str(ci['note'], 300)! } : {}),
+      ...(sites.length ? { sites } : {}),
+    };
   }
   if (Array.isArray(r['estimatedMeals'])) {
     const meals = r['estimatedMeals'].map(obj).filter((m): m is Record<string, unknown> => m != null && span(m) && str(m['slot'], 20) != null)
@@ -212,8 +226,18 @@ export interface CheckInReading {
   /** The newest tape on or after the check-in day. */
   waistIn: number | null;
   neckIn: number | null;
+  chestIn: number | null;
   waistDelta: number | null;
   neckDelta: number | null;
+  /** Null with no chest baseline: the card shows the reading alone. */
+  chestDelta: number | null;
+}
+
+/** The tape sites a check-in reads: its `sites`, else the baseline's. */
+export function checkInSites(checkIn: HomePlanCheckIn): CheckInSite[] {
+  if (checkIn.sites?.length) return [...checkIn.sites];
+  const b = checkIn.baseline;
+  return CHECK_IN_SITES.filter((x) => b[`${x}In`] != null);
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -228,7 +252,7 @@ export function checkInReading(
   checkIn: HomePlanCheckIn,
   today: string,
   dailyWeights: Readonly<Record<string, number>>,
-  measurements: readonly { date: Date; waist?: number; neck?: number }[],
+  measurements: readonly { date: Date; waist?: number; neck?: number; chest?: number }[],
   boundary: DayBoundary,
 ): CheckInReading {
   const end = today < checkIn.date ? today : checkIn.date;
@@ -240,6 +264,7 @@ export function checkInReading(
     .sort((a, b) => b.date.getTime() - a.date.getTime());
   const waist = tapes.find((m) => m.waist != null)?.waist ?? null;
   const neck = tapes.find((m) => m.neck != null)?.neck ?? null;
+  const chest = tapes.find((m) => m.chest != null)?.chest ?? null;
   const b = checkIn.baseline;
   return {
     avgWeightLb: avg,
@@ -247,8 +272,10 @@ export function checkInReading(
     weightDelta: avg != null && b.weightLb != null ? r1(avg - b.weightLb) : null,
     waistIn: waist,
     neckIn: neck,
+    chestIn: chest,
     waistDelta: waist != null && b.waistIn != null ? r2(waist - b.waistIn) : null,
     neckDelta: neck != null && b.neckIn != null ? r2(neck - b.neckIn) : null,
+    chestDelta: chest != null && b.chestIn != null ? r2(chest - b.chestIn) : null,
   };
 }
 

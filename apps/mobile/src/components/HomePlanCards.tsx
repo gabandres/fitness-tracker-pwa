@@ -2,6 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   checkInReading,
+  checkInSites,
+  type CheckInSite,
   type DayBoundary,
   type HomePlanCheckIn,
   type HomePlanEstimatedMeal,
@@ -66,6 +68,12 @@ export function HomePlanTodayCard({
   );
 }
 
+const SITE_LABEL: Record<CheckInSite, 'homePlan.waist' | 'homePlan.neck' | 'homePlan.chest'> = {
+  waist: 'homePlan.waist',
+  neck: 'homePlan.neck',
+  chest: 'homePlan.chest',
+};
+
 /**
  * Body's check-in card: the 7-day weight average and the newest tape against
  * the plan's baseline (core `checkInReading`). Imperial throughout — the plan's
@@ -102,20 +110,23 @@ export function HomeCheckInCard({
           })
           : t('homePlan.noWeights')}
       </Text>
-      {b.waistIn != null ? (
-        <Text style={styles.line} testID="home-checkin-waist">
-          {r.waistIn != null && r.waistDelta != null
-            ? t('homePlan.tapeLine', { site: t('homePlan.waist'), now: n(r.waistIn, 2), delta: signed(r.waistDelta, 2), base: n(b.waistIn, 2) })
-            : t('homePlan.tapeMissing', { site: t('homePlan.waist'), base: n(b.waistIn, 2) })}
-        </Text>
-      ) : null}
-      {b.neckIn != null ? (
-        <Text style={styles.line} testID="home-checkin-neck">
-          {r.neckIn != null && r.neckDelta != null
-            ? t('homePlan.tapeLine', { site: t('homePlan.neck'), now: n(r.neckIn, 2), delta: signed(r.neckDelta, 2), base: n(b.neckIn, 2) })
-            : t('homePlan.tapeMissing', { site: t('homePlan.neck'), base: n(b.neckIn, 2) })}
-        </Text>
-      ) : null}
+      {checkInSites(checkIn).map((key) => {
+        const site = t(SITE_LABEL[key]);
+        const now = r[`${key}In`];
+        const delta = r[`${key}Delta`];
+        const base = b[`${key}In`];
+        return (
+          <Text key={key} style={styles.line} testID={`home-checkin-${key}`}>
+            {base != null
+              ? now != null && delta != null
+                ? t('homePlan.tapeLine', { site, now: n(now, 2), delta: signed(delta, 2), base: n(base, 2) })
+                : t('homePlan.tapeMissing', { site, base: n(base, 2) })
+              : now != null
+                ? t('homePlan.tapeFirst', { site, now: n(now, 2) })
+                : t('homePlan.tapeNotYet', { site })}
+          </Text>
+        );
+      })}
     </View>
   );
 }
